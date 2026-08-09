@@ -35,9 +35,19 @@ ingestion path rather than a bespoke importer.
 | `id` | `OUT-NNNN` |
 | `estimate_id` | The `EST-NNNN` it resolves |
 | `resolved_at` | UTC, ISO-8601 |
-| `quantity` / `unit` | What actually happened |
+| `quantity` / `unit` | What actually happened, wall clock |
+| `active_quantity` | Optional. Time actually spent working. |
+| `blocked_quantity` | Optional. Time waiting on something external. |
 | `match_quality` | `exact`, `partial`, or `unresolved` |
 | `notes` | What made the difference, in one line |
+
+`active_quantity` and `blocked_quantity` were added after the first outcome
+proved they were needed. Phase 0's wall clock matched its estimate almost
+exactly, and that was a coincidence: the engineering was over-estimated by
+2.3x and an external block absorbed the difference. Without the split, the
+calibrator would learn that this estimator is well calibrated on scaffolding,
+which is the opposite of what happened. When they are present they sum to
+`quantity`; when they are absent, all of `quantity` was active.
 
 ## The rule that makes this worth anything
 

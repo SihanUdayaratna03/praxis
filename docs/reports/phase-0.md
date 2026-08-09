@@ -54,7 +54,15 @@ seven ADRs, and the dogfood estimate log.
 | `ruff format --check` | clean |
 | `mypy --strict` | clean, 8 source files |
 | `pre-commit run --all-files` | all hooks pass |
-| Commits on the phase branch | 19 |
+| CI on the PR | 5/5 green, Windows included |
+| CI on `main` after merge | green |
+| Commits on the phase branch | 21 |
+
+21 commits is one over the 8–20 guidance. The overflow is the CI fix
+(`4381f9b`), which could not have been folded in earlier because the failure
+was only observable once the workflow reached the remote. Squashing it away to
+hit the number would have traded a real record for a tidy one, which ADR 0007
+exists to prevent.
 
 Coverage by module: `config/models.py` 100%, `config/settings.py` 100%,
 `obs/logging.py` 100%, `cli.py` 92% (uncovered lines are defensive branches in
@@ -84,29 +92,46 @@ file was created:
 | | |
 | --- | --- |
 | Estimated | 2.5 hours, confidence 0.6, work class `scaffolding` |
-| Actual (engineering) | ~1.0 hour, first commit to last |
-| Direction | **Over-estimated by roughly 2.5×** |
+| Actual, wall clock | 2.62 hours (first commit → merge) |
+| Actual, active engineering | ~1.1 hours |
+| Actual, blocked | ~1.5 hours on the `workflow` OAuth scope |
+| Scored | **`partial`**, not `exact` |
 
-Worth recording plainly, because the interesting thing about a calibration
-system's own first data point is that it went the unusual way. Scaffolding is
-the work class where the steps are known in advance, which is exactly where
-over-estimation is plausible — and it is a different bias direction from the
-one the product's own examples assume. One data point proves nothing; that is
-the whole reason `BiasDetective` refuses to report below `n = 5`.
+The wall clock landed within 5% of the estimate, and that is a coincidence
+worth refusing to take credit for. The engineering was over-estimated by about
+2.3×; an external block absorbed the difference. Two errors in opposite
+directions cancelled.
 
-The outcome record is deliberately **not** written yet: the phase is not closed
-(see below), and logging an outcome for an unfinished phase would put a
-convenient number into the corpus that the Phase 12 self-analysis would then
-report as fact.
+Scoring this `exact` would teach the calibrator the wrong lesson twice — that
+this estimator is well calibrated on `scaffolding` (it is not, it is
+optimistic-in-reverse), and that blocked time is estimable work (it is not).
+So `OUT-0001` records `active_quantity` and `blocked_quantity` alongside the
+wall clock, and the dogfood schema gained those two fields because this first
+outcome proved they were needed.
+
+Direction of the *engineering* miss: **over-estimated**, which is the opposite
+of the bias the product's own examples assume. Scaffolding is the work class
+where the steps are known in advance, so that is plausible. One data point
+proves nothing — which is exactly why `BiasDetective` refuses below `n = 5`.
 
 ## Deferred to backlog
 
 Six items, each with its reason, in [`BACKLOG.md`](../../BACKLOG.md). The two
 that matter:
 
-- **Branch protection on `main`** — requires a paid plan for private
-  repositories. The same rules are enforced by the pre-commit
-  `no-commit-to-branch` hook and the `guard_git_workflow` Claude Code hook.
+- **Branch protection on `main`** — attempted, and refused:
+
+  ```
+  PUT /repos/SihanUdayaratna03/praxis/branches/main/protection
+  403 Upgrade to GitHub Pro or make this repository public to enable this feature.
+  ```
+
+  The intended ruleset (strict status checks on all five CI jobs, no force
+  pushes, no deletions) is recorded in `BACKLOG.md` so it can be applied
+  verbatim the moment the repo goes public or the plan changes. Until then the
+  same rules are enforced by the pre-commit `no-commit-to-branch` hook and the
+  `guard_git_workflow` Claude Code hook — which is weaker, because it is
+  client-side, and the report should say so plainly.
 - **The OneDrive-synced working path** — file-sync tools have a poor record
   around SQLite WAL files. Becomes a live risk in Phase 1; ADR 0003
   assumption 5 is written to fire.
@@ -127,19 +152,30 @@ them in Phase 0 instead of Phase 12.
 
 Both are fixed and both have a regression test named after the failure.
 
-## Blocked
+## What blocked the phase, and for how long
 
-**The phase cannot close.** `gh` is authenticated with `gist, read:org, repo`
-but not `workflow`, so GitHub refuses any push containing
-`.github/workflows/ci.yml`. That blocks push → PR → CI → merge → tag. The fix
-needs a browser login, which is not something I can do:
+`gh` was authenticated with `gist, read:org, repo` but not `workflow`, so
+GitHub refused every push containing `.github/workflows/ci.yml`:
 
 ```
-gh auth refresh -h github.com -s workflow
+! [remote rejected] feat/phase-0-foundation
+  (refusing to allow an OAuth App to create or update workflow
+   `.github/workflows/ci.yml` without `workflow` scope)
 ```
 
-Everything up to the push is complete: 19 commits on
-`feat/phase-0-foundation`, all checks green locally.
+That blocked push → PR → CI → merge → tag for ~1.5 hours, until the owner ran
+`gh auth refresh -h github.com -s workflow`, which needs a browser login.
+Recorded as `blocked_quantity` on `OUT-0001` rather than folded into the
+duration, for the reason given above.
+
+The first CI run then failed at setup on all five jobs:
+`unable to resolve astral-sh/setup-uv@v9`. The version had been read from the
+releases API, which correctly reports `v9.0.0` — but `setup-uv` stopped
+publishing a floating major tag after `v7.6`, so the release exists and the ref
+does not. Checking the releases endpoint was the right instinct and the wrong
+query; `tags` is the one that answers whether a ref resolves. All three actions
+are now pinned to exact tags, which a project built on reproducibility should
+have done anyway.
 
 ## Risks for Phase 1
 
