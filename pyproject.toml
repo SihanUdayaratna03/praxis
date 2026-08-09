@@ -44,3 +44,93 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["praxis"]
+
+# ---------------------------------------------------------------------------
+# Lint + format. Ruff replaces flake8/isort/black; one tool, one config.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["praxis", "tests"]
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = [
+  "A",    # builtin shadowing
+  "ANN",  # missing annotations -- the type discipline is enforced, not suggested
+  "ARG",  # unused arguments
+  "B",    # bugbear
+  "C4",   # comprehensions
+  "DTZ",  # naive datetimes: every Praxis timestamp must be tz-aware
+  "E",    # pycodestyle errors
+  "ERA",  # commented-out code
+  "F",    # pyflakes
+  "I",    # import sorting
+  "N",    # naming
+  "PERF", # obvious performance traps
+  "PL",   # pylint subset
+  "PTH",  # pathlib over os.path
+  "RET",  # return simplification
+  "RUF",
+  "S",    # bandit: security
+  "SIM",
+  "T20",  # no stray print(): logging is structured
+  "TID",  # tidy imports
+  "UP",   # pyupgrade
+  "W",
+]
+ignore = [
+  "ANN401", # Any is occasionally the honest annotation at provider boundaries
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert, use magic numbers, and take fixtures they do not read.
+"tests/**" = ["ANN", "ARG", "PLR2004", "S101"]
+# Hooks are standalone scripts invoked by Claude Code; stdout is their protocol.
+".claude/hooks/**" = ["T20"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# ---------------------------------------------------------------------------
+# Types. Strict on the package; tests are checked but allowed to be untyped.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+files = ["praxis"]
+strict = true
+warn_unreachable = true
+enable_error_code = ["redundant-expr", "truthy-bool", "ignore-without-code"]
+pretty = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config"
+filterwarnings = ["error"]
+markers = [
+  "slow: excluded from the fast feedback loop",
+]
+
+[tool.coverage.run]
+source = ["praxis"]
+branch = true
+omit = ["praxis/__main__.py"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "@overload",
+]
