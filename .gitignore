@@ -28,6 +28,9 @@ env/
 coverage.xml
 htmlcov/
 
+# --- Scratch space for PR bodies and other long text passed to CLIs by path ---
+.praxis-tmp/
+
 # --- Praxis runtime artifacts (generated, never source of truth) ---
 *.db
 *.db-shm

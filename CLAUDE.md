@@ -74,6 +74,22 @@ Subject under 72 characters, lower case, no trailing period.
 Types: `feat` `fix` `docs` `test` `refactor` `perf` `build` `ci` `chore`
 `style` `revert`.
 
+## Long text always goes to a file, never inline
+
+The shell here has a ~965-byte parse limit on a single command. Any multi-line
+or long argument must be written to a file first and passed by path:
+
+```bash
+gh pr create --title "..." --body-file .praxis-tmp/pr-body.md
+git commit -F .praxis-tmp/commit-msg.txt
+```
+
+- **PR bodies: always `--body-file`.** Never `--body` with inline text.
+- **Multi-line commit messages: always `-F <file>`.** Never stacked `-m`
+  flags — PowerShell 5.1 also mangles embedded quotes when passing them to a
+  native executable, so inline messages fail in two different ways.
+- Scratch files live in `.praxis-tmp/`, which is gitignored.
+
 ## Workflow per phase
 
 1. `git checkout -b feat/phase-N-<slug>` off `main`.
