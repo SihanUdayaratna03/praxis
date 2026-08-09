@@ -124,17 +124,18 @@ tests/store/test_graph.py
 tests/store/test_audit.py
 tests/store/test_properties.py   the hypothesis invariants
 
-docs/adr/0008-*.md               id scheme and versioning strategy
-docs/adr/0009-*.md               migrations without a framework
-docs/adr/0010-*.md               store durability under a syncing filesystem
-docs/adr/README.md               index rows
+docs/adr/0008-*.md               id scheme and versioning strategy (to write)
+docs/adr/0009-*.md               migrations without a framework (to write)
+docs/adr/README.md               index rows for 0008 and 0009
+pyproject.toml                   platformdirs → runtime dependency (ADR 0010)
 ARCHITECTURE.md                  data model section: target → built
 docs/reports/phase-1.md
 docs/dogfood/outcomes.jsonl      OUT-0002, at phase close
 ```
 
-Roughly 10 source files, 7 test files, 3 ADRs. Sub-branches are not needed —
-this phase builds no agents, so one phase branch is the right shape.
+Roughly 10 source files, 7 test files, 2 new ADRs plus implementing ADR 0010.
+Sub-branches are not needed — this phase builds no agents, so one phase branch
+is the right shape.
 
 ---
 
@@ -186,7 +187,11 @@ Two independent failure modes:
 Tracked as **ADR 0003 assumption 5**
 (`db_corruption_events == 0`, expiring at `phases_completed >= 3`).
 
-### Recommended resolution — decide in Phase 1, record as ADR 0010
+### Resolution — decided, implement in Phase 1
+
+Settled in [ADR 0010](../adr/0010-store-location-under-a-syncing-filesystem.md)
+(accepted 2026-08-09). The four items below are the implementation checklist,
+not an open proposal.
 
 1. **Move the default `data_dir` off the synced tree.** Default to the
    platform data directory (`%LOCALAPPDATA%\praxis` on Windows,
@@ -204,9 +209,14 @@ Tracked as **ADR 0003 assumption 5**
    not use, and it removes the sidecar-consistency problem entirely. Keep WAL
    as the default for the off-tree location.
 
-Do **not** silently keep the store inside the synced folder and hope. If the
-owner prefers it there, that is their call — record it as a rejected option in
-the ADR with this reasoning attached.
+Path resolution uses `platformdirs`, promoted from a transitive dev dependency
+to a declared runtime one — see the ADR for why that beat hand-rolling ten
+lines of XDG and macOS conventions.
+
+Watch for one thing while implementing: **`%LOCALAPPDATA%` can itself be
+redirected to a synced location** under some enterprise OneDrive known-folder
+configurations. Item 2 is what catches that, so build the `doctor` check before
+trusting the new default (ADR 0010 assumption 1).
 
 ---
 
@@ -227,12 +237,16 @@ the required body via `--body-file`, CI green, merge commit, tag
 `v0.1-phase-1`, write `docs/reports/phase-1.md`, close `EST-0002` with
 `OUT-0002`, summarise in Sinhala, stop.
 
-## Open questions for the owner
+## Owner decisions — both answered, do not re-ask
 
-Neither blocks the start of Phase 1; both want an answer before it closes.
-
-1. Is moving the store to `%LOCALAPPDATA%\praxis` acceptable? (Recommended —
-   it is invisible in normal use and removes the corruption risk.)
-2. Should the repository be made public before submission? It would enable
-   real branch protection for free and let judges browse the network graph;
-   the cost is that the work is visible early.
+1. **Store location: approved.** Default `data_dir` moves to
+   `%LOCALAPPDATA%\praxis`, with the `doctor` sync-root warning and
+   `busy_timeout`. Settled in
+   [ADR 0010](../adr/0010-store-location-under-a-syncing-filesystem.md) —
+   **accepted, implementation is Phase 1's job.** Start from the ADR; do not
+   relitigate it.
+2. **Repository stays private for now**, revisited at the start of Phase 8.
+   Recorded as a dated decision point in [`BACKLOG.md`](../../BACKLOG.md) with
+   the trigger and the exact commands. Consequence for Phase 1: `main` still
+   has no server-side protection, so the client-side hooks remain the only
+   thing enforcing it.
