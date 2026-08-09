@@ -25,8 +25,20 @@ ingestion path rather than a bespoke importer.
 | `work_class` | The taxonomy tag bias is segmented by |
 | `quantity` / `unit` | The predicted value |
 | `confidence` | Stated, 0–1, before any calibration |
+| `measure` | Optional. `active` or `wall_clock`. Absent means wall clock. |
 | `conditions` | What the estimate assumes |
+| `calibration_applied` | Optional. Whether a learned factor was applied. |
+| `calibration_note` | Optional. Why it was or was not. |
 | `source` | Where it was stated |
+
+`measure` exists because `EST-0001` was a wall-clock prediction and
+`OUT-0001` showed that wall clock hides external blocks. Later estimates say
+which they mean.
+
+`calibration_applied` records whether the estimator corrected itself, so the
+Phase 12 analysis can separate raw predictions from adjusted ones. Recording a
+refusal to adjust is as useful as recording an adjustment — most of the time
+early on, `n` is too small to correct with, and the honest note is why.
 
 ## Outcome fields
 
