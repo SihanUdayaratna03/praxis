@@ -27,11 +27,15 @@ FORCE_PUSH = re.compile(r"\bgit\s+push\b.*(?:--force(?!-with-lease)|(?<!\w)-f(?!
 
 
 def current_branch() -> str | None:
+    # encoding is pinned rather than left to the locale: text=True decodes with
+    # the console codepage, which is cp1252 on Windows and raises on any branch
+    # name outside it.
     result = subprocess.run(
         ["git", "rev-parse", "--abbrev-ref", "HEAD"],  # noqa: S607
         capture_output=True,
-        text=True,
         check=False,
+        encoding="utf-8",
+        errors="replace",
     )
     if result.returncode != 0:
         return None

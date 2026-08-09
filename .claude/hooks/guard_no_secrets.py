@@ -55,9 +55,34 @@ ASSIGNMENT = re.compile(
 )
 
 
+def _git(*args: str) -> subprocess.CompletedProcess[str]:
+    """Run git and decode its output as UTF-8, whatever the console codepage is.
+
+    subprocess's text=True decodes with the locale encoding, which on Windows
+    is cp1252. A repository file containing anything outside that range -- a
+    box-drawing character in a diagram, a non-Latin identifier -- then raises
+    inside subprocess's reader thread, leaving stdout as None. errors="replace"
+    is correct here because this scanner only ever pattern-matches; a mangled
+    character cannot turn a non-secret into a secret.
+    """
+    return subprocess.run(  # noqa: S603
+        ["git", *args],  # noqa: S607
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+
 def _is_exempt(path: str) -> bool:
+    """Whether a path is one of the files allowed to discuss credential shapes.
+
+    Matched anywhere in the path rather than only at the start: the staged scan
+    sees repository-relative paths, while a Claude Code tool payload carries an
+    absolute one, and both must resolve to the same answer.
+    """
     normalised = path.replace("\\", "/")
-    return normalised.startswith(EXEMPT_PREFIXES)
+    return any(prefix in normalised for prefix in EXEMPT_PREFIXES)
 
 
 def scan_text(text: str, origin: str) -> list[str]:
@@ -82,28 +107,21 @@ def _dotenv_violation(path: str) -> str | None:
 
 def check_staged() -> int:
     """Scan everything currently staged for commit."""
-    names = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],  # noqa: S607
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()
+    listing = _git("diff", "--cached", "--name-only", "--diff-filter=ACMR")
+    if listing.returncode != 0:
+        print(f"could not list staged files: {listing.stderr}", file=sys.stderr)
+        return 1
 
     findings: list[str] = []
-    for name in names:
+    for name in listing.stdout.split():
         if _is_exempt(name):
             continue
         dotenv = _dotenv_violation(name)
         if dotenv:
             findings.append(dotenv)
             continue
-        blob = subprocess.run(  # noqa: S603
-            ["git", "show", f":{name}"],  # noqa: S607
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if blob.returncode == 0:
+        blob = _git("show", f":{name}")
+        if blob.returncode == 0 and blob.stdout:
             findings.extend(scan_text(blob.stdout, name))
 
     return _report(findings)

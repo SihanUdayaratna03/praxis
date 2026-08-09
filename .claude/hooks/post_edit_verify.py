@@ -21,11 +21,15 @@ TYPE_CHECKED_ROOTS = ("praxis",)
 
 
 def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
+    # UTF-8 rather than the locale encoding: ruff and mypy both draw their
+    # diagnostics with box-drawing characters, which cp1252 cannot decode, and
+    # the failure surfaces as a crash in subprocess rather than as lint output.
     return subprocess.run(  # noqa: S603
         command,
         capture_output=True,
-        text=True,
         check=False,
+        encoding="utf-8",
+        errors="replace",
     )
 
 
