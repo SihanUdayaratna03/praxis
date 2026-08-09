@@ -10,7 +10,7 @@ entry whose reason has stopped being true should be promoted or deleted.
 
 | Item | Why not now |
 | ---- | ----------- |
-| Branch protection on `main` | Requires a paid GitHub plan for private repositories. The same rules are enforced by the pre-commit `no-commit-to-branch` hook and the `guard_git_workflow` Claude Code hook. Promote the moment the plan allows it — ADR 0007 assumption 3 tracks this. |
+| Branch protection on `main` | **Attempted and refused**, not assumed: `PUT /repos/.../branches/main/protection` returns `403 — Upgrade to GitHub Pro or make this repository public to enable this feature`. The same rules are enforced by the pre-commit `no-commit-to-branch` hook and the `guard_git_workflow` Claude Code hook. The exact API call is recorded in `docs/reports/phase-0.md`; re-run it the moment the repo goes public or the plan changes. ADR 0007 assumption 3 tracks this. |
 | Move the working copy off the OneDrive-synced path | The owner chose the location. File-sync tools have a poor record around SQLite WAL files, so this becomes a real risk in Phase 1 when the store exists. ADR 0003 assumption 5 is written to fire. The database is gitignored and rebuildable, so the blast radius is a rebuild. |
 | Coverage reporting to a service (Codecov or similar) | Needs a token, which contradicts the no-credentials-in-CI stance. Coverage is enforced locally by a `fail_under` gate and uploaded as a CI artifact. Revisit only if a judge asks for a badge. |
 | `praxis doctor --json` | No machine consumer yet. Add when the Phase 11 demo script needs to assert on it. |
