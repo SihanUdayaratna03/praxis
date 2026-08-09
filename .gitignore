@@ -1,0 +1,49 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Environments ---
+.venv/
+venv/
+env/
+
+# --- Secrets: never commit real credentials ---
+.env
+.env.*
+!.env.example
+
+# --- Tooling caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# --- Praxis runtime artifacts (generated, never source of truth) ---
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+.praxis/
+var/
+traces/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Claude Code local overrides (settings.json IS committed) ---
+.claude/settings.local.json
