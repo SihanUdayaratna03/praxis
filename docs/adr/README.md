@@ -59,10 +59,11 @@ Expiry conditions say when to re-check, not when the decision dies:
 | [0005](0005-offline-first-llm-provider.md) | Offline-first `LLMProvider` with three implementations | accepted |
 | [0006](0006-model-routing-table.md) | Route by intent to three model tiers | accepted |
 | [0007](0007-merge-commits-never-squash.md) | Merge commits into `main`, never squash | accepted |
-| 0008 | *(reserved — Phase 1)* Typed IDs and the append-only versioning scheme | — |
+| [0008](0008-typed-ids-and-append-only-versioning.md) | Typed ids, two id strategies, and append-only versioning | accepted |
 | 0009 | *(reserved — Phase 1)* Forward-only migrations without a framework | — |
 | [0010](0010-store-location-under-a-syncing-filesystem.md) | Keep the store off a syncing filesystem | accepted |
 
-0008 and 0009 are reserved rather than written. 0010 was decided early because
-Phase 1 needs a settled answer before it writes its first database, and numbers
-are never reused or renumbered — so the gap stays until Phase 1 fills it.
+0010 was decided during Phase 0 because Phase 1 needed a settled answer before
+it wrote its first database. Numbers are never reused or renumbered, so 0008
+and 0009 sat reserved until Phase 1 filled them in their proper order.
+0009 is still reserved.
