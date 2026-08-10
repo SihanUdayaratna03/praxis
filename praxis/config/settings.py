@@ -15,6 +15,8 @@ from typing import Self
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from praxis.store.location import default_data_dir
+
 
 class ProviderName(StrEnum):
     """Which `LLMProvider` implementation backs every model call."""
@@ -32,6 +34,19 @@ class ProviderName(StrEnum):
 class LogFormat(StrEnum):
     JSON = "json"
     CONSOLE = "console"
+
+
+class JournalMode(StrEnum):
+    """How SQLite journals a transaction. See ADR 0010."""
+
+    WAL = "wal"
+    """The default, and correct once the store is off a synced tree."""
+
+    DELETE = "delete"
+    """No `-wal` or `-shm` sidecars, so nothing can be synced out of step with
+    the database. The escape hatch for a store that must live on a synced path;
+    it costs reader/writer concurrency, which this single-writer system does not
+    use."""
 
 
 class Settings(BaseSettings):
@@ -53,8 +68,34 @@ class Settings(BaseSettings):
     )
 
     data_dir: Path = Field(
-        default=Path(".praxis"),
-        description="Root for everything generated at runtime. Gitignored.",
+        default_factory=default_data_dir,
+        description=(
+            "Root for everything generated at runtime. Defaults to the platform "
+            "data directory rather than a path inside the repository, because "
+            "the repository is on a synced filesystem and SQLite's WAL sidecars "
+            "corrupt under one. See ADR 0010."
+        ),
+    )
+
+    journal_mode: JournalMode = Field(
+        default=JournalMode.WAL,
+        description=(
+            "WAL is correct off a synced tree. DELETE removes the -wal and -shm "
+            "sidecars entirely, which is the escape hatch when the store must "
+            "live on a synced path -- it costs reader/writer concurrency this "
+            "single-writer system does not use."
+        ),
+    )
+
+    busy_timeout_ms: int = Field(
+        default=5_000,
+        ge=0,
+        description=(
+            "How long a blocked write waits before raising. A sync client or a "
+            "virus scanner opening the file produces a brief lock, and without "
+            "this it surfaces as an intermittent 'database is locked' that reads "
+            "like an application bug."
+        ),
     )
 
     replay_dir: Path = Field(
