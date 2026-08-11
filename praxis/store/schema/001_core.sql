@@ -363,6 +363,12 @@ CREATE TABLE finding_evidence (
 -- change is worse than no audit row, because it looks trustworthy.
 CREATE TABLE audit_event (
     id             TEXT    NOT NULL PRIMARY KEY,
+    -- Audit events are not graph nodes, so they cannot draw their counter from
+    -- `node.ordinal` like every other sequential kind. It is a column here for
+    -- the same reason it is one there: this is the fastest-growing table in the
+    -- store, and deriving the next ordinal by parsing 'AUD-0042' back apart
+    -- would be an unindexable scan on the path taken by every single write.
+    ordinal        INTEGER NOT NULL,
     occurred_at    TEXT    NOT NULL,
     actor          TEXT    NOT NULL,
     action         TEXT    NOT NULL,
@@ -379,9 +385,11 @@ CREATE TABLE audit_event (
     -- There is no 'deleted'. Retraction is a new version carrying a flag, so
     -- the thing that was retracted stays readable and this row stays true.
     CONSTRAINT audit_action_known CHECK (action IN ('created', 'revised', 'retracted')),
-    CONSTRAINT audit_reason_says_something CHECK (length(trim(reason)) > 0)
+    CONSTRAINT audit_reason_says_something CHECK (length(trim(reason)) > 0),
+    CONSTRAINT audit_ordinal_starts_at_one CHECK (ordinal >= 1)
 ) STRICT;
 
+CREATE UNIQUE INDEX audit_ordinal ON audit_event (ordinal);
 CREATE INDEX audit_entity ON audit_event (entity_id, entity_version);
 CREATE INDEX audit_occurred_at ON audit_event (occurred_at);
 CREATE INDEX audit_run ON audit_event (run_id);
