@@ -320,3 +320,119 @@ progress is at most the single file named in "next".
   than to hit a number, and the remainder is docstring-heavy.
   **Next: the store test modules, then the CLI (`init`, `store stats`, the
   `doctor` sync check).**
+- **2026-08-12 — `tests/store/{conftest,test_schema}.py`** (`17062c6`, pushed).
+  60 tests. `conftest.py` gives every store test one migrated in-memory store, a
+  fixed offset-aware `WRITTEN_AT`, and a `world` fixture holding the smallest
+  graph that exercises the fusion path. `test_schema.py` reads the `CHECK`
+  constraints back out of `sqlite_master` and compares them to the Python enums,
+  which is the only thing that would notice those two lists drifting apart. The
+  append-only trigger tests initially passed on three tables because those
+  tables were empty — an empty table cannot demonstrate its own triggers — so
+  the fixture gained an `Outcome` and a `Finding`. **Session ended here.**
+
+---
+
+## Resuming — read this first (written 2026-08-12, end of session)
+
+Stopped for credit exhaustion, not for a problem. Nothing is in flight, nothing
+is half-written, and no file is uncommitted.
+
+| | |
+| --- | --- |
+| Branch | `feat/phase-1-schema` |
+| HEAD | `17062c6`, local and `origin/feat/phase-1-schema` identical |
+| Working tree | clean |
+| Suite | **313 passed**, coverage **86.47%** (gate 85%) |
+| Ruff, `ruff format --check`, `mypy --strict` | all green |
+| Open PRs | none. Phase 1 is **not** merged and **not** tagged |
+
+```bash
+cd "C:\Users\sihan\OneDrive\Desktop\Praxis Agents"
+git checkout feat/phase-1-schema && git pull
+uv sync --all-groups
+uv run pytest          # expect 313 passed
+```
+
+### `praxis/store/` — complete, committed, pushed
+
+| Module | What it is |
+| ------ | ---------- |
+| `location.py` | ADR 0010 store location and the sync-root warning |
+| `errors.py` | The exception vocabulary; `translating_sqlite_errors()` |
+| `connection.py` | `connect`, `transaction`, pragmas, `fts5_available` |
+| `schema/001_core.sql` | Nodes, versions, the nine records, one edge table, 24+1 append-only triggers, three views |
+| `schema/002_search.sql` | FTS5 plus the AFTER INSERT triggers that populate it |
+| `migrations.py` | ADR 0009 forward-only runner, checksummed ledger |
+| `mapping.py` | Record ↔ row, one table driving both directions |
+| `audit.py` | Audit writes, always inside the caller's transaction |
+| `repository.py` | `add` / `revise` / `retract`, reads, allocation. No update, no delete |
+| `graph.py` | `links_from/to/touching`, `impacted_by`, `depends_on` |
+| `reports.py` | `search`, `stats` |
+
+Nothing in `praxis/store/` is expected to need further work. If a later test
+finds a bug, fix it there — but do not redesign it.
+
+### Tests — what exists and what does not
+
+Existing, all green:
+
+- `tests/store/test_location.py` — ADR 0010
+- `tests/store/test_connection.py` — 24 tests
+- `tests/store/test_migrations.py` — 18 tests
+- `tests/store/conftest.py` — the `store` and `world` fixtures
+- `tests/store/test_schema.py` — 60 tests
+
+**Still to write, in this order:**
+
+1. **`tests/store/test_repository.py` — the next file, start here.** Allocation
+   (`next_id` per kind; a revision must not consume one; `Span`/`Link` refuse
+   allocation), round-trip exactness including `Decimal` staying `Decimal` and a
+   finding's evidence spans, `add` refusing a non-version-1 record, a failed
+   write leaving no audit row behind, revise/retract producing new versions with
+   the old ones still readable, `VersionConflictError` on a stale revision,
+   `list_all` excluding retracted records, edge reads and re-assertion being
+   idempotent, search excluding superseded and retracted records, and `stats`.
+2. `tests/store/test_audit.py` — exactly one `AuditEvent` per mutation, the
+   audit row rolling back with its change, ordering by version then ordinal,
+   `events_in_run`.
+3. `tests/store/test_graph.py` — the walk in both directions, shortest-distance
+   via the diamond in `world`, cycle termination against the depth bound, and
+   the check that `graph.impacted_by` agrees with the hand-written
+   `dependency_edge` query in `001_core.sql` (that agreement was verified once
+   by hand and must become a test, or the documented query becomes decoration).
+4. `tests/store/test_properties.py` — the hypothesis invariants. Reuse
+   `tests/strategies.py`, which already generates valid records of every kind.
+   Bound `max_examples` (~50) before these enter the pre-commit loop; a
+   30-second hook is a hook that gets disabled.
+
+### Then the CLI, which has not been started
+
+- `praxis init` — create `data_dir`, open, migrate, report the schema version.
+  `open_repository(settings, create=True)` already does all of it.
+- `praxis store stats` — render `Repository.stats()` with `rich`. Must open with
+  `create=False` so a mistyped `PRAXIS_DATA_DIR` is reported, not created.
+- `praxis doctor` — add the ADR 0010 sync-root check. `location.sync_warning()`
+  exists and is tested; `doctor` does not call it yet. **Warn, never fail** — a
+  deliberate override is legitimate.
+
+Then: `ARCHITECTURE.md` data-model section from *target* to *built*, then the
+close-out (PR with `--body-file`, CI green, merge commit, `v0.1-phase-1`, verify
+on the remote, `docs/reports/phase-1.md`, close `EST-0002` with `OUT-0002`).
+
+### Things a cold session will otherwise rediscover the hard way
+
+- **Coverage is 86.47% against an 85% gate.** `repository.py` and `graph.py` sit
+  near 49% because only the fixture exercises them. The four test modules above
+  will lift it, but do not add source before tests or the gate will fail.
+- **`executescript` commits any open transaction before it runs**, so migration
+  transaction control lives *inside* the script. Do not "tidy" that into a
+  `with transaction(...)` block — it silently makes migrations non-atomic.
+- **An FTS5 table cannot be aliased on the left of `MATCH`.** `reports.py`
+  spells `search` out on both sides for that reason.
+- **Editing a file with a Python script on this machine writes CRLF**, and the
+  pre-commit `mixed line ending` hook rewrites it and aborts the commit. Just
+  `git add` again and re-run the commit; the second one succeeds.
+- **`ordinal_of()` parses the counter out of a sequential id**; the store never
+  reissues one, because allocation reads `MAX(ordinal)` rather than counting.
+- ADR 0009 records a deliberate refinement to ADR 0008: three shared views
+  rather than nine `<kind>_current` views. Do not "restore" the nine.
