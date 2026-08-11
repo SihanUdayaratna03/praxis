@@ -250,3 +250,22 @@ the required body via `--body-file`, CI green, merge commit, tag
    the trigger and the exact commands. Consequence for Phase 1: `main` still
    has no server-side protection, so the client-side hooks remain the only
    thing enforcing it.
+
+---
+
+## Phase 1 progress log
+
+One line per component, appended as each lands: ruff and `mypy --strict` green,
+committed, pushed. Anything not listed here is not on `origin`. Work in
+progress is at most the single file named in "next".
+
+- **2026-08-11 — `praxis/store/errors.py`** (`218c962`, pushed). The store's
+  exception hierarchy plus `translating_sqlite_errors()`, which is what keeps
+  `sqlite3` from leaking past the package boundary in the failure path as well
+  as the query path. Result codes were verified against the installed driver,
+  which confirmed two things the rest of the phase depends on: a `RAISE(ABORT)`
+  trigger reports `SQLITE_CONSTRAINT_TRIGGER` (so invariant 7 can be enforced
+  by the schema, not just by the repository), and `ProgrammingError` carries no
+  result code (so the translator cannot assume one). Coverage 90.30%, gate 85%.
+  **Next: `praxis/store/connection.py`** — pragmas (`foreign_keys`,
+  `journal_mode` from settings, `busy_timeout`), then its test module.
