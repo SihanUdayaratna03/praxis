@@ -279,3 +279,44 @@ progress is at most the single file named in "next".
   transaction instead of taking a savepoint, so a record and its `AuditEvent`
   cannot half-commit. FTS5 confirmed present in the bundled SQLite 3.53.1.
   **Next: `tests/store/test_connection.py`.**
+- **2026-08-11 — `tests/store/test_connection.py`** (`6b431a6`, pushed). 24
+  tests, asserting the pragmas by their effect rather than by the statement
+  having run. Pinned down that a statement executed outside `transaction()`
+  still raises `sqlite3.IntegrityError`: the context manager is the translation
+  boundary, not the connection. **Next: the SQL schema.**
+- **2026-08-12 — `praxis/store/schema/{001_core,002_search}.sql`** (`1d47541`,
+  pushed). Two migrations from the start, so the runner is exercised on a
+  sequence rather than on a single file. The Phase 8 constraint was discharged
+  before the edge table was finalised: the fusion query is eight lines against
+  the `dependency_edge` view, and it is written out in a comment above that view
+  so a later schema change has to keep it that way. Verified by hand that the
+  schema refuses an update, a delete, a skipped version, a dangling edge, an
+  edge lying about its endpoint kind, a naive timestamp, an unknown enum value,
+  a self-loop, an `unresolved` outcome carrying a number, and a decision with no
+  rejected options. FTS5 indexing is trigger-driven, and `rejected` reasons are
+  indexed too, so "why not Postgres" is answerable. One driver detail worth
+  keeping: an FTS5 table cannot be aliased on the left of `MATCH`.
+  **Next: `praxis/store/migrations.py` and ADR 0009.**
+- **2026-08-12 — `praxis/store/migrations.py`** (`f5be811`, pushed), **ADR 0009**
+  (`64f80f4`), **`tests/store/test_migrations.py`** (`b5b4dd3`). 18 tests. The
+  ledger row is inserted inside the same transaction as the DDL, which works
+  because `executescript` commits *before* it runs and performs no transaction
+  control of its own — so the `BEGIN IMMEDIATE` goes in the script and the
+  `COMMIT` stays in Python. ADR 0009 also records a refinement to ADR 0008:
+  three views (`record_head`, `current_record`, `current_link`) plus a generic
+  repository read, rather than the nine `<kind>_current` views 0008 called for.
+  **Next: `praxis/store/repository.py` and `audit.py`.**
+- **2026-08-12 — the store layer** (`f1bb0b9` mapping, `10f7031` audit,
+  `0e4059f` graph, `772143a` reports, `833a775` repository; all pushed). Ruff,
+  `ruff format` and `mypy --strict` green on all of it. Two decisions worth
+  carrying forward. `audit_event` gained an `ordinal` column — audit rows are
+  deliberately not graph nodes, so they cannot use `node.ordinal`, and lexical
+  `MAX(id)` is wrong past four digits; `001_core.sql` was edited rather than
+  amended because it has never been applied to a store that exists. And the
+  hand-written `dependency_edge` query and `graph.impacted_by` were checked
+  against each other on the same fixture and agree, so the documented query in
+  the schema is not decoration. `repository.py` is 495 lines against the ~400
+  guideline; it was split along real seams (`graph`, `reports`, `audit`) rather
+  than to hit a number, and the remainder is docstring-heavy.
+  **Next: the store test modules, then the CLI (`init`, `store stats`, the
+  `doctor` sync check).**
