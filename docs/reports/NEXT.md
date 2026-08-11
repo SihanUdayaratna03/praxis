@@ -269,3 +269,13 @@ progress is at most the single file named in "next".
   result code (so the translator cannot assume one). Coverage 90.30%, gate 85%.
   **Next: `praxis/store/connection.py`** — pragmas (`foreign_keys`,
   `journal_mode` from settings, `busy_timeout`), then its test module.
+- **2026-08-11 — `praxis/store/connection.py`** (`bb938fc`, pushed). `connect`,
+  `connect_from_settings`, `transaction`, `effective_journal_mode`,
+  `fts5_available`. Three things settled while writing it: `foreign_keys` is
+  per-connection and defaults to *off*, so it is read back rather than assumed;
+  `BEGIN IMMEDIATE` rather than `DEFERRED`, because SQLite does not honour
+  `busy_timeout` on a deferred lock *upgrade* and `DEFERRED` would silently
+  exempt every write from ADR 0010's retry; and `transaction` joins an open
+  transaction instead of taking a savepoint, so a record and its `AuditEvent`
+  cannot half-commit. FTS5 confirmed present in the bundled SQLite 3.53.1.
+  **Next: `tests/store/test_connection.py`.**
