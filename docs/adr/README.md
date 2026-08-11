@@ -60,10 +60,9 @@ Expiry conditions say when to re-check, not when the decision dies:
 | [0006](0006-model-routing-table.md) | Route by intent to three model tiers | accepted |
 | [0007](0007-merge-commits-never-squash.md) | Merge commits into `main`, never squash | accepted |
 | [0008](0008-typed-ids-and-append-only-versioning.md) | Typed ids, two id strategies, and append-only versioning | accepted |
-| 0009 | *(reserved — Phase 1)* Forward-only migrations without a framework | — |
+| [0009](0009-forward-only-migrations-without-a-framework.md) | Forward-only numbered migrations, without a framework | accepted |
 | [0010](0010-store-location-under-a-syncing-filesystem.md) | Keep the store off a syncing filesystem | accepted |
 
 0010 was decided during Phase 0 because Phase 1 needed a settled answer before
 it wrote its first database. Numbers are never reused or renumbered, so 0008
 and 0009 sat reserved until Phase 1 filled them in their proper order.
-0009 is still reserved.
