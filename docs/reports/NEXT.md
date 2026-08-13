@@ -361,6 +361,16 @@ progress is at most the single file named in "next".
   `contradicts`; and a walk towards dependents steps target → source, so a test
   edge has to point *at* the node the walk is expected to arrive from.
   **Next: `tests/store/test_properties.py`.**
+- **2026-08-14 — `tests/store/test_properties.py`** (`7c50252`, pushed). 9
+  properties at 50 examples each; 443 passing in 11s, 98.08%. Each example
+  builds its own in-memory store — sharing one would make every example depend
+  on the ids the last one drew. A generated record cannot be written alone, so
+  the `chains()` strategy generates a record *and its references* in write
+  order, with the record under test last; the tail builders are lambdas in a
+  dict so only the drawn kind is generated. One trap worth remembering:
+  `strategy.example()` inside a test raises under `filterwarnings = ["error"]`,
+  which is correct — the strategy has to be composed into the `@given`.
+  **Next: the CLI (`init`, `store stats`, the `doctor` sync check).**
 
 ---
 
