@@ -371,6 +371,16 @@ progress is at most the single file named in "next".
   `strategy.example()` inside a test raises under `filterwarnings = ["error"]`,
   which is correct — the strategy has to be composed into the `@given`.
   **Next: the CLI (`init`, `store stats`, the `doctor` sync check).**
+- **2026-08-14 — the CLI** (`96ef3ab`, pushed). `praxis init`, `praxis store
+  stats` and ADR 0010's sync-root warning on both `init` and `doctor`; 10 new
+  CLI tests, 453 passing, 98.17%. Both store commands go through one `_opened`
+  helper that turns a `StoreError` into a sentence and exit 1 — `store stats`
+  opens with `create=False`, so a mistyped `PRAXIS_DATA_DIR` is reported rather
+  than answered with zeros. The warning never changes the exit code. One thing
+  to know when editing `cli.py`: the `post_edit_verify` hook runs `ruff --fix`,
+  which deletes imports added in one edit before the edit that uses them lands,
+  so add the import and its use together. **Next: `ARCHITECTURE.md` from target
+  to built, then the phase close-out.**
 
 ---
 
