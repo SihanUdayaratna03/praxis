@@ -19,7 +19,7 @@ run is a tool that gets forced.
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Final
 
 import platformdirs
@@ -58,7 +58,7 @@ def default_data_dir() -> Path:
     return Path(platformdirs.user_data_dir(APP_NAME, appauthor=False))
 
 
-def sync_root_of(path: Path) -> str | None:
+def sync_root_of(path: PurePath) -> str | None:
     """Return the sync-client directory `path` sits under, or `None`.
 
     Purely lexical -- it inspects the path's components and touches no disk.
@@ -66,7 +66,10 @@ def sync_root_of(path: Path) -> str | None:
     the known limit of this check and the reason ADR 0010 assumption 5 exists.
 
     Args:
-        path: The directory to examine. Need not exist.
+        path: The directory to examine. Need not exist, and need not belong to
+            the running platform: `PurePath` rather than `Path` so a Windows
+            path can be checked from Linux, which is what lets one CI matrix
+            entry test the rule for every developer's machine.
 
     Returns:
         The name of the offending path component, or `None` if there is none.

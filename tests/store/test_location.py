@@ -9,7 +9,7 @@ default silently unsafe -- ADR 0010 assumption 1 exists for exactly that, and
 from __future__ import annotations
 
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
 from praxis.config.settings import JournalMode, Settings
@@ -42,48 +42,56 @@ def test_the_environment_still_overrides_it(monkeypatch: pytest.MonkeyPatch, tmp
     assert Settings().data_dir == tmp_path / "elsewhere"
 
 
+# The Windows cases are spelled as PureWindowsPath rather than Path. Under a
+# POSIX Path a backslash is an ordinary character, so the whole string is one
+# component and a lexical check has nothing to look at -- the assertion would
+# hold on Windows and fail in CI, testing the platform rather than the rule.
+
+
 @pytest.mark.parametrize(
     "path",
     [
-        r"C:\Users\sihan\OneDrive\Desktop\Praxis Agents\.praxis",
-        r"C:\Users\sihan\OneDrive - Contoso\praxis",
-        "/home/sihan/Dropbox/praxis",
-        "/Users/sihan/Google Drive/praxis",
-        "/Users/sihan/Library/Mobile Documents/iCloud Drive/praxis",
+        PureWindowsPath(r"C:\Users\sihan\OneDrive\Desktop\Praxis Agents\.praxis"),
+        PureWindowsPath(r"C:\Users\sihan\OneDrive - Contoso\praxis"),
+        PurePosixPath("/home/sihan/Dropbox/praxis"),
+        PurePosixPath("/Users/sihan/Google Drive/praxis"),
+        PurePosixPath("/Users/sihan/Library/Mobile Documents/iCloud Drive/praxis"),
     ],
 )
 def test_known_sync_roots_are_detected(path):
-    assert sync_root_of(Path(path)) is not None
+    assert sync_root_of(path) is not None
 
 
 @pytest.mark.parametrize(
     "path",
     [
-        r"C:\Users\sihan\AppData\Local\praxis",
-        "/home/sihan/.local/share/praxis",
-        "/var/lib/praxis",
-        "/home/sihan/onedriver/praxis",  # a substring, not a sync root
+        PureWindowsPath(r"C:\Users\sihan\AppData\Local\praxis"),
+        PurePosixPath("/home/sihan/.local/share/praxis"),
+        PurePosixPath("/var/lib/praxis"),
+        PurePosixPath("/home/sihan/onedriver/praxis"),  # a substring, not a sync root
     ],
 )
 def test_ordinary_paths_are_not_flagged(path):
-    assert sync_root_of(Path(path)) is None
+    assert sync_root_of(path) is None
 
 
 def test_the_business_variant_of_the_folder_name_is_caught():
     # OneDrive for Business appends the tenant name, and it is the variant most
     # likely to appear on a machine with a redirected known folder.
-    assert sync_root_of(Path(r"C:\Users\s\OneDrive - Acme Corp\praxis")) == "OneDrive - Acme Corp"
+    redirected = PureWindowsPath(r"C:\Users\s\OneDrive - Acme Corp\praxis")
+
+    assert sync_root_of(redirected) == "OneDrive - Acme Corp"
 
 
 def test_detection_is_case_insensitive():
-    assert sync_root_of(Path("/home/s/dropbox/praxis")) is not None
-    assert sync_root_of(Path("/home/s/DROPBOX/praxis")) is not None
+    assert sync_root_of(PurePosixPath("/home/s/dropbox/praxis")) is not None
+    assert sync_root_of(PurePosixPath("/home/s/DROPBOX/praxis")) is not None
 
 
 def test_a_redirected_local_appdata_would_be_caught():
     # ADR 0010 assumption 1. If a known-folder policy redirects %LOCALAPPDATA%,
     # the default this project trusts is unsafe, and this is what notices.
-    redirected = Path(r"C:\Users\sihan\OneDrive\AppData\Local\praxis")
+    redirected = PureWindowsPath(r"C:\Users\sihan\OneDrive\AppData\Local\praxis")
 
     assert sync_root_of(redirected) == "OneDrive"
 
