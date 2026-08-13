@@ -351,6 +351,16 @@ progress is at most the single file named in "next".
   something; and the counter test inserts an ordinal past four digits, where
   `AUD-9999` sorts above `AUD-10000` and allocating from `MAX(id)` would reissue
   an id that is already taken. **Next: `tests/store/test_graph.py`.**
+- **2026-08-14 — `tests/store/test_graph.py`** (`4e18da3`, pushed). 27 tests;
+  434 passing, 98.08%. The documented query above `dependency_edge` is now
+  lifted out of the migration this build ships and run against the same fixture
+  as `graph.impacted_by` at three depths, so the comment fails the suite if it
+  drifts. Two directional facts are worth carrying forward: a cycle cannot be
+  built over the dependency types at all, because the grammar makes every one of
+  them point dependent → depended-upon, so the depth bound is tested with
+  `contradicts`; and a walk towards dependents steps target → source, so a test
+  edge has to point *at* the node the walk is expected to arrive from.
+  **Next: `tests/store/test_properties.py`.**
 
 ---
 
