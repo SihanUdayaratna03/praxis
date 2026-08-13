@@ -1,14 +1,22 @@
 """The Praxis command line.
 
-Phase 0 ships three commands and no business logic. `doctor` is the one that
-earns its place early: the project's central claim is that it runs with no
-credentials, and `doctor` is how that claim gets checked on a fresh clone
-instead of assumed.
+`doctor` earns its place early: the project's central claim is that it runs with
+no credentials, and `doctor` is how that claim gets checked on a fresh clone
+instead of assumed. Phase 1 adds `init` and `store stats`, which are the two
+commands that make the store something an owner can see rather than infer.
+
+Every command that touches the store goes through `_opened`, so a store that is
+missing, locked or corrupt is a sentence rather than a traceback. The difference
+matters here more than it usually does: ADR 0010's failure modes are
+environmental, and a stack trace about a sync client tells the person reading it
+nothing they can act on.
 """
 
 from __future__ import annotations
 
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import typer
 from rich.console import Console
@@ -23,7 +31,13 @@ from praxis.config.models import (
     routed_agents,
 )
 from praxis.config.settings import ProviderName, Settings, get_settings
+from praxis.domain.enums import GRAPH_KINDS, RecordKind
+from praxis.domain.links import LinkType
 from praxis.obs.logging import configure_logging
+from praxis.store.errors import StoreError
+from praxis.store.location import sync_warning
+from praxis.store.reports import StoreStats
+from praxis.store.repository import Repository, open_repository
 
 app = typer.Typer(
     name="praxis",
@@ -34,6 +48,12 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
 )
+
+store_app = typer.Typer(
+    help="Inspect the record store.",
+    no_args_is_help=True,
+)
+app.add_typer(store_app, name="store")
 
 console = Console()
 
@@ -96,6 +116,103 @@ def _routing_table() -> Table:
     return table
 
 
+@contextmanager
+def _opened(settings: Settings, *, create: bool) -> Iterator[Repository]:
+    """Open the store, reporting a failure as a message rather than a traceback.
+
+    Args:
+        settings: Where the store lives.
+        create: Whether a missing database may be brought into existence. Only
+            `init` passes true; a reading command that created one would answer
+            a question about a store the owner does not have.
+
+    Yields:
+        An open repository, closed when the block ends.
+    """
+    try:
+        repository = open_repository(settings, create=create)
+    except StoreError as exc:
+        console.print(f"[bold red]praxis: {exc}[/bold red]")
+        raise typer.Exit(code=1) from exc
+    try:
+        yield repository
+    finally:
+        repository.close()
+
+
+def _warn_about_sync(settings: Settings) -> None:
+    """Print ADR 0010's warning if the store sits under a sync client.
+
+    Warns rather than fails. A deliberate override is legitimate, and a tool
+    that refuses to run is a tool that gets worked around.
+    """
+    warning = sync_warning(settings.data_dir)
+    if warning is not None:
+        console.print(f"[bold yellow]warning[/bold yellow] {warning}")
+
+
+@app.command()
+def init() -> None:
+    """Create the store, or bring an existing one up to the current schema.
+
+    Safe to run repeatedly: migrations are forward-only and skip whatever is
+    already applied.
+    """
+    settings = get_settings()
+    configure_logging(settings)
+    _warn_about_sync(settings)
+
+    existed = settings.db_path.exists()
+    with _opened(settings, create=True) as repository:
+        stats = repository.stats()
+
+    console.print("[bold green]praxis init: OK[/bold green]")
+    console.print(f"  store      {settings.db_path} ({'existing' if existed else 'created'})")
+    console.print(f"  schema     version {stats.schema_version}")
+    console.print(f"  records    {sum(stats.records.values())} in {stats.versions} versions")
+
+
+@store_app.command(name="stats")
+def store_stats() -> None:
+    """Show what the store holds, by record kind and by edge type."""
+    settings = get_settings()
+    configure_logging(settings)
+    _warn_about_sync(settings)
+
+    with _opened(settings, create=False) as repository:
+        stats = repository.stats()
+
+    console.print(_records_table(stats))
+    console.print(_links_table(stats))
+    console.print(f"schema version {stats.schema_version}")
+    # The gap between these two is the store's history: every version that was
+    # ever current and is now superseded.
+    console.print(f"{stats.versions} versions written, {stats.audit_events} audit events")
+
+
+def _records_table(stats: StoreStats) -> Table:
+    """Current, unretracted records per kind, zeros included."""
+    table = Table(title="Records", show_header=True, header_style="bold")
+    table.add_column("Kind")
+    table.add_column("Current", justify="right")
+
+    for kind in RecordKind:
+        if kind in GRAPH_KINDS:
+            table.add_row(kind.value, str(stats.records.get(kind, 0)))
+    return table
+
+
+def _links_table(stats: StoreStats) -> Table:
+    """Current, unretracted edges per type, zeros included."""
+    table = Table(title="Edges", show_header=True, header_style="bold")
+    table.add_column("Type")
+    table.add_column("Current", justify="right")
+
+    for link_type in LinkType:
+        table.add_row(link_type.value, str(stats.links.get(link_type, 0)))
+    return table
+
+
 @app.command()
 def doctor() -> None:
     """Verify that this installation can run with no credentials.
@@ -134,10 +251,19 @@ def doctor() -> None:
     if unpriced:
         problems.append(f"agents routed to a role with no model: {', '.join(unpriced)}")
 
-    _report(settings, problems)
+    # ADR 0010: a warning, never a failure. The default data directory is off
+    # the synced tree, but %LOCALAPPDATA% can itself be redirected into OneDrive
+    # by an enterprise known-folder policy -- which is the case where the safe
+    # default is silently unsafe, and this line is the only thing that says so.
+    warnings = [warning for warning in (sync_warning(settings.data_dir),) if warning is not None]
+
+    _report(settings, problems, warnings)
 
 
-def _report(settings: Settings, problems: list[str]) -> None:
+def _report(settings: Settings, problems: list[str], warnings: list[str]) -> None:
+    for warning in warnings:
+        console.print(f"[bold yellow]warning[/bold yellow] {warning}")
+
     if problems:
         console.print("[bold red]praxis doctor: FAIL[/bold red]")
         for problem in problems:

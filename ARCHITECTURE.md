@@ -1,9 +1,10 @@
 # Architecture
 
-> Status: this describes the system Praxis is being built toward. Phase 0 has
-> shipped the foundation only — config, logging, CLI, CI, hooks. Sections
-> marked *(not built)* are the target, not the present. Each phase updates
-> this file when something structural lands.
+> Status: this describes the system Praxis is being built toward. Phase 0
+> shipped the foundation — config, logging, CLI, CI, hooks — and Phase 1 the
+> data model and the store. Sections marked *(built)* exist and are tested;
+> everything else is the target, not the present. Each phase updates this file
+> when something structural lands.
 
 ## The shape of the thing
 
@@ -73,7 +74,7 @@ stale assumption from a live one that was always optimistic. Calibration
 without provenance can tell you a team is 1.8x optimistic on migrations and
 cannot tell you which decisions that fact invalidates.
 
-## Data model *(Phase 1)*
+## Data model *(Phase 1, built)*
 
 Versioned, append-only, fully audited. Nothing is updated in place; a change is
 a new version plus an `AuditEvent`.
@@ -97,14 +98,41 @@ Every extracted claim carries a `span_id`. `VerifierAgent` re-reads that span
 and rejects the claim if the span does not actually contain it — this is the
 hallucinated-citation gate, and it is deterministic code, not a model.
 
-## Storage *(Phase 1)*
+Ids are typed per kind, and there are two schemes rather than one. Most records
+get a sequential, human-readable id (`D-0042`) allocated by the store. `Span`
+and `Link` derive theirs from their own coordinates, because for those two the
+coordinates *are* the identity: two agents citing the same byte range, or
+asserting the same edge, arrive at the same id without coordinating. That makes
+citation de-duplication and edge idempotence structural, which is why re-running
+an agent cannot fork the graph. See
+[ADR 0008](docs/adr/0008-typed-ids-and-append-only-versioning.md).
+
+## Storage *(Phase 1, built)*
 
 One SQLite file. Entity tables, one typed edge table, FTS5 for text search,
 recursive CTEs for graph walks. No server. See
 [ADR 0003](docs/adr/0003-sqlite-as-the-graph-store.md).
 
 All access goes through a repository layer, so the backend is replaceable
-without touching an agent.
+without touching an agent. Three things hold that boundary up:
+
+- **Append-only is enforced by the schema, not by the repository.** Every table
+  carries `BEFORE UPDATE` and `BEFORE DELETE` triggers that `RAISE(ABORT)`, so
+  invariant 7 is true of anything holding a connection — including a person with
+  the `sqlite3` shell and a good reason.
+- **The audit row is written in the same transaction as its change.** One
+  cannot be lost without the other, so "every mutation produced exactly one
+  `AuditEvent`" is true by construction rather than by discipline.
+- **No `sqlite3` import leaves the package**, in the failure path as well as the
+  query path: driver errors are translated into `praxis.store.errors` by result
+  code, never by matching message text.
+
+Migrations are numbered SQL files with a checksummed ledger and no framework —
+[ADR 0009](docs/adr/0009-forward-only-migrations-without-a-framework.md). The
+store lives in
+the platform data directory rather than the repository, because the repository
+is on a synced filesystem and WAL sidecars corrupt under one —
+[ADR 0010](docs/adr/0010-store-location-under-a-syncing-filesystem.md).
 
 ## Orchestration *(Phase 4)*
 
@@ -155,13 +183,27 @@ these acquires a model route.
 
 ```
 praxis/
-  cli.py              typer app: version, config, doctor
-  config/settings.py  pydantic-settings; PRAXIS_* environment
-  config/models.py    model ids, prices, roles, routing  ← the only place
-  obs/logging.py      structured JSON logging
-tests/                pytest + hypothesis
-docs/adr/             decisions, in Praxis's own schema
-docs/dogfood/         Praxis's predictions about its own construction
-docs/reports/         one report per phase
-.claude/hooks/        deterministic enforcement of the rules that matter
+  cli.py               typer app: version, config, doctor, init, store stats
+  config/settings.py   pydantic-settings; PRAXIS_* environment
+  config/models.py     model ids, prices, roles, routing  ← the only place
+  domain/ids.py        typed ids; sequential and content-addressed
+  domain/records.py    the nine Pydantic records
+  domain/links.py      the six edge types and their grammar
+  domain/spans.py      the span/document integrity check
+  store/location.py    where the database lives, and whether that is safe
+  store/connection.py  pragmas, and the transaction every write sits inside
+  store/schema/*.sql   numbered migrations: core, then full-text search
+  store/migrations.py  forward-only runner, checksummed ledger
+  store/mapping.py     record ↔ row, one table driving both directions
+  store/repository.py  add / revise / retract, reads. No update, no delete
+  store/audit.py       audit writes, always inside the caller's transaction
+  store/graph.py       edge reads and the two recursive walks
+  store/reports.py     search and counting
+  store/errors.py      the store's exception vocabulary; where sqlite3 stops
+  obs/logging.py       structured JSON logging
+tests/                 pytest + hypothesis
+docs/adr/              decisions, in Praxis's own schema
+docs/dogfood/          Praxis's predictions about its own construction
+docs/reports/          one report per phase
+.claude/hooks/         deterministic enforcement of the rules that matter
 ```

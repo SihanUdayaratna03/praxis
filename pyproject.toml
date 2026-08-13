@@ -16,6 +16,9 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
+  # Resolves the platform data directory the store lives in. Promoted from a
+  # transitive dev dependency to a declared runtime one by ADR 0010.
+  "platformdirs>=4.2",
   "pydantic>=2.9",
   "pydantic-settings>=2.5",
   "structlog>=24.4",

@@ -250,3 +250,241 @@ the required body via `--body-file`, CI green, merge commit, tag
    the trigger and the exact commands. Consequence for Phase 1: `main` still
    has no server-side protection, so the client-side hooks remain the only
    thing enforcing it.
+
+---
+
+## Phase 1 progress log
+
+One line per component, appended as each lands: ruff and `mypy --strict` green,
+committed, pushed. Anything not listed here is not on `origin`. Work in
+progress is at most the single file named in "next".
+
+- **2026-08-11 — `praxis/store/errors.py`** (`218c962`, pushed). The store's
+  exception hierarchy plus `translating_sqlite_errors()`, which is what keeps
+  `sqlite3` from leaking past the package boundary in the failure path as well
+  as the query path. Result codes were verified against the installed driver,
+  which confirmed two things the rest of the phase depends on: a `RAISE(ABORT)`
+  trigger reports `SQLITE_CONSTRAINT_TRIGGER` (so invariant 7 can be enforced
+  by the schema, not just by the repository), and `ProgrammingError` carries no
+  result code (so the translator cannot assume one). Coverage 90.30%, gate 85%.
+  **Next: `praxis/store/connection.py`** — pragmas (`foreign_keys`,
+  `journal_mode` from settings, `busy_timeout`), then its test module.
+- **2026-08-11 — `praxis/store/connection.py`** (`bb938fc`, pushed). `connect`,
+  `connect_from_settings`, `transaction`, `effective_journal_mode`,
+  `fts5_available`. Three things settled while writing it: `foreign_keys` is
+  per-connection and defaults to *off*, so it is read back rather than assumed;
+  `BEGIN IMMEDIATE` rather than `DEFERRED`, because SQLite does not honour
+  `busy_timeout` on a deferred lock *upgrade* and `DEFERRED` would silently
+  exempt every write from ADR 0010's retry; and `transaction` joins an open
+  transaction instead of taking a savepoint, so a record and its `AuditEvent`
+  cannot half-commit. FTS5 confirmed present in the bundled SQLite 3.53.1.
+  **Next: `tests/store/test_connection.py`.**
+- **2026-08-11 — `tests/store/test_connection.py`** (`6b431a6`, pushed). 24
+  tests, asserting the pragmas by their effect rather than by the statement
+  having run. Pinned down that a statement executed outside `transaction()`
+  still raises `sqlite3.IntegrityError`: the context manager is the translation
+  boundary, not the connection. **Next: the SQL schema.**
+- **2026-08-12 — `praxis/store/schema/{001_core,002_search}.sql`** (`1d47541`,
+  pushed). Two migrations from the start, so the runner is exercised on a
+  sequence rather than on a single file. The Phase 8 constraint was discharged
+  before the edge table was finalised: the fusion query is eight lines against
+  the `dependency_edge` view, and it is written out in a comment above that view
+  so a later schema change has to keep it that way. Verified by hand that the
+  schema refuses an update, a delete, a skipped version, a dangling edge, an
+  edge lying about its endpoint kind, a naive timestamp, an unknown enum value,
+  a self-loop, an `unresolved` outcome carrying a number, and a decision with no
+  rejected options. FTS5 indexing is trigger-driven, and `rejected` reasons are
+  indexed too, so "why not Postgres" is answerable. One driver detail worth
+  keeping: an FTS5 table cannot be aliased on the left of `MATCH`.
+  **Next: `praxis/store/migrations.py` and ADR 0009.**
+- **2026-08-12 — `praxis/store/migrations.py`** (`f5be811`, pushed), **ADR 0009**
+  (`64f80f4`), **`tests/store/test_migrations.py`** (`b5b4dd3`). 18 tests. The
+  ledger row is inserted inside the same transaction as the DDL, which works
+  because `executescript` commits *before* it runs and performs no transaction
+  control of its own — so the `BEGIN IMMEDIATE` goes in the script and the
+  `COMMIT` stays in Python. ADR 0009 also records a refinement to ADR 0008:
+  three views (`record_head`, `current_record`, `current_link`) plus a generic
+  repository read, rather than the nine `<kind>_current` views 0008 called for.
+  **Next: `praxis/store/repository.py` and `audit.py`.**
+- **2026-08-12 — the store layer** (`f1bb0b9` mapping, `10f7031` audit,
+  `0e4059f` graph, `772143a` reports, `833a775` repository; all pushed). Ruff,
+  `ruff format` and `mypy --strict` green on all of it. Two decisions worth
+  carrying forward. `audit_event` gained an `ordinal` column — audit rows are
+  deliberately not graph nodes, so they cannot use `node.ordinal`, and lexical
+  `MAX(id)` is wrong past four digits; `001_core.sql` was edited rather than
+  amended because it has never been applied to a store that exists. And the
+  hand-written `dependency_edge` query and `graph.impacted_by` were checked
+  against each other on the same fixture and agree, so the documented query in
+  the schema is not decoration. `repository.py` is 495 lines against the ~400
+  guideline; it was split along real seams (`graph`, `reports`, `audit`) rather
+  than to hit a number, and the remainder is docstring-heavy.
+  **Next: the store test modules, then the CLI (`init`, `store stats`, the
+  `doctor` sync check).**
+- **2026-08-12 — `tests/store/{conftest,test_schema}.py`** (`17062c6`, pushed).
+  60 tests. `conftest.py` gives every store test one migrated in-memory store, a
+  fixed offset-aware `WRITTEN_AT`, and a `world` fixture holding the smallest
+  graph that exercises the fusion path. `test_schema.py` reads the `CHECK`
+  constraints back out of `sqlite_master` and compares them to the Python enums,
+  which is the only thing that would notice those two lists drifting apart. The
+  append-only trigger tests initially passed on three tables because those
+  tables were empty — an empty table cannot demonstrate its own triggers — so
+  the fixture gained an `Outcome` and a `Finding`. **Session ended here.**
+- **2026-08-14 — `tests/store/test_repository.py`** (`a53a5a7`, pushed). 73
+  tests; the suite is now 386 passing at 97.61% coverage against the 85% gate,
+  with `repository.py` at 98%. Three things the writing settled. Quantity
+  round-trips are asserted on `str()` rather than on equality, because
+  `Decimal("1.10") == Decimal("1.1")` and the scale is precisely what invariant
+  4 protects. The search tests use tokens that appear nowhere else in the
+  fixture corpus — the index keeps every superseded version forever, so a
+  repeated word would pass whether or not the `record_head` join is doing its
+  job. And the failed-write test writes a *dangling edge* rather than a
+  duplicate id, because that is the only failure that happens after the node and
+  version rows are already in, which is what makes the rollback observable.
+  **Next: `tests/store/test_audit.py`.**
+- **2026-08-14 — `tests/store/test_audit.py`** (`794fa60`, pushed). 21 tests;
+  407 passing, 97.81%. The load-bearing one compares the audit table against
+  `record_version` row for row rather than counting the writes the test itself
+  made — a count matches just as well when the trail describes the wrong
+  versions. Two cases are recorded here because nothing else would have caught
+  them: the ordering test revises at the fixture's own timestamp, so ordering by
+  `occurred_at` would be arbitrary and the assertion on version order means
+  something; and the counter test inserts an ordinal past four digits, where
+  `AUD-9999` sorts above `AUD-10000` and allocating from `MAX(id)` would reissue
+  an id that is already taken. **Next: `tests/store/test_graph.py`.**
+- **2026-08-14 — `tests/store/test_graph.py`** (`4e18da3`, pushed). 27 tests;
+  434 passing, 98.08%. The documented query above `dependency_edge` is now
+  lifted out of the migration this build ships and run against the same fixture
+  as `graph.impacted_by` at three depths, so the comment fails the suite if it
+  drifts. Two directional facts are worth carrying forward: a cycle cannot be
+  built over the dependency types at all, because the grammar makes every one of
+  them point dependent → depended-upon, so the depth bound is tested with
+  `contradicts`; and a walk towards dependents steps target → source, so a test
+  edge has to point *at* the node the walk is expected to arrive from.
+  **Next: `tests/store/test_properties.py`.**
+- **2026-08-14 — `tests/store/test_properties.py`** (`7c50252`, pushed). 9
+  properties at 50 examples each; 443 passing in 11s, 98.08%. Each example
+  builds its own in-memory store — sharing one would make every example depend
+  on the ids the last one drew. A generated record cannot be written alone, so
+  the `chains()` strategy generates a record *and its references* in write
+  order, with the record under test last; the tail builders are lambdas in a
+  dict so only the drawn kind is generated. One trap worth remembering:
+  `strategy.example()` inside a test raises under `filterwarnings = ["error"]`,
+  which is correct — the strategy has to be composed into the `@given`.
+  **Next: the CLI (`init`, `store stats`, the `doctor` sync check).**
+- **2026-08-14 — the CLI** (`96ef3ab`, pushed). `praxis init`, `praxis store
+  stats` and ADR 0010's sync-root warning on both `init` and `doctor`; 10 new
+  CLI tests, 453 passing, 98.17%. Both store commands go through one `_opened`
+  helper that turns a `StoreError` into a sentence and exit 1 — `store stats`
+  opens with `create=False`, so a mistyped `PRAXIS_DATA_DIR` is reported rather
+  than answered with zeros. The warning never changes the exit code. One thing
+  to know when editing `cli.py`: the `post_edit_verify` hook runs `ruff --fix`,
+  which deletes imports added in one edit before the edit that uses them lands,
+  so add the import and its use together. **Next: `ARCHITECTURE.md` from target
+  to built, then the phase close-out.**
+
+---
+
+## Resuming — read this first (written 2026-08-12, end of session)
+
+Stopped for credit exhaustion, not for a problem. Nothing is in flight, nothing
+is half-written, and no file is uncommitted.
+
+| | |
+| --- | --- |
+| Branch | `feat/phase-1-schema` |
+| HEAD | `17062c6`, local and `origin/feat/phase-1-schema` identical |
+| Working tree | clean |
+| Suite | **313 passed**, coverage **86.47%** (gate 85%) |
+| Ruff, `ruff format --check`, `mypy --strict` | all green |
+| Open PRs | none. Phase 1 is **not** merged and **not** tagged |
+
+```bash
+cd "C:\Users\sihan\OneDrive\Desktop\Praxis Agents"
+git checkout feat/phase-1-schema && git pull
+uv sync --all-groups
+uv run pytest          # expect 313 passed
+```
+
+### `praxis/store/` — complete, committed, pushed
+
+| Module | What it is |
+| ------ | ---------- |
+| `location.py` | ADR 0010 store location and the sync-root warning |
+| `errors.py` | The exception vocabulary; `translating_sqlite_errors()` |
+| `connection.py` | `connect`, `transaction`, pragmas, `fts5_available` |
+| `schema/001_core.sql` | Nodes, versions, the nine records, one edge table, 24+1 append-only triggers, three views |
+| `schema/002_search.sql` | FTS5 plus the AFTER INSERT triggers that populate it |
+| `migrations.py` | ADR 0009 forward-only runner, checksummed ledger |
+| `mapping.py` | Record ↔ row, one table driving both directions |
+| `audit.py` | Audit writes, always inside the caller's transaction |
+| `repository.py` | `add` / `revise` / `retract`, reads, allocation. No update, no delete |
+| `graph.py` | `links_from/to/touching`, `impacted_by`, `depends_on` |
+| `reports.py` | `search`, `stats` |
+
+Nothing in `praxis/store/` is expected to need further work. If a later test
+finds a bug, fix it there — but do not redesign it.
+
+### Tests — what exists and what does not
+
+Existing, all green:
+
+- `tests/store/test_location.py` — ADR 0010
+- `tests/store/test_connection.py` — 24 tests
+- `tests/store/test_migrations.py` — 18 tests
+- `tests/store/conftest.py` — the `store` and `world` fixtures
+- `tests/store/test_schema.py` — 60 tests
+
+**Still to write, in this order:**
+
+1. **`tests/store/test_repository.py` — the next file, start here.** Allocation
+   (`next_id` per kind; a revision must not consume one; `Span`/`Link` refuse
+   allocation), round-trip exactness including `Decimal` staying `Decimal` and a
+   finding's evidence spans, `add` refusing a non-version-1 record, a failed
+   write leaving no audit row behind, revise/retract producing new versions with
+   the old ones still readable, `VersionConflictError` on a stale revision,
+   `list_all` excluding retracted records, edge reads and re-assertion being
+   idempotent, search excluding superseded and retracted records, and `stats`.
+2. `tests/store/test_audit.py` — exactly one `AuditEvent` per mutation, the
+   audit row rolling back with its change, ordering by version then ordinal,
+   `events_in_run`.
+3. `tests/store/test_graph.py` — the walk in both directions, shortest-distance
+   via the diamond in `world`, cycle termination against the depth bound, and
+   the check that `graph.impacted_by` agrees with the hand-written
+   `dependency_edge` query in `001_core.sql` (that agreement was verified once
+   by hand and must become a test, or the documented query becomes decoration).
+4. `tests/store/test_properties.py` — the hypothesis invariants. Reuse
+   `tests/strategies.py`, which already generates valid records of every kind.
+   Bound `max_examples` (~50) before these enter the pre-commit loop; a
+   30-second hook is a hook that gets disabled.
+
+### Then the CLI, which has not been started
+
+- `praxis init` — create `data_dir`, open, migrate, report the schema version.
+  `open_repository(settings, create=True)` already does all of it.
+- `praxis store stats` — render `Repository.stats()` with `rich`. Must open with
+  `create=False` so a mistyped `PRAXIS_DATA_DIR` is reported, not created.
+- `praxis doctor` — add the ADR 0010 sync-root check. `location.sync_warning()`
+  exists and is tested; `doctor` does not call it yet. **Warn, never fail** — a
+  deliberate override is legitimate.
+
+Then: `ARCHITECTURE.md` data-model section from *target* to *built*, then the
+close-out (PR with `--body-file`, CI green, merge commit, `v0.1-phase-1`, verify
+on the remote, `docs/reports/phase-1.md`, close `EST-0002` with `OUT-0002`).
+
+### Things a cold session will otherwise rediscover the hard way
+
+- **Coverage is 86.47% against an 85% gate.** `repository.py` and `graph.py` sit
+  near 49% because only the fixture exercises them. The four test modules above
+  will lift it, but do not add source before tests or the gate will fail.
+- **`executescript` commits any open transaction before it runs**, so migration
+  transaction control lives *inside* the script. Do not "tidy" that into a
+  `with transaction(...)` block — it silently makes migrations non-atomic.
+- **An FTS5 table cannot be aliased on the left of `MATCH`.** `reports.py`
+  spells `search` out on both sides for that reason.
+- **Editing a file with a Python script on this machine writes CRLF**, and the
+  pre-commit `mixed line ending` hook rewrites it and aborts the commit. Just
+  `git add` again and re-run the commit; the second one succeeds.
+- **`ordinal_of()` parses the counter out of a sequential id**; the store never
+  reissues one, because allocation reads `MAX(ordinal)` rather than counting.
+- ADR 0009 records a deliberate refinement to ADR 0008: three shared views
+  rather than nine `<kind>_current` views. Do not "restore" the nine.
