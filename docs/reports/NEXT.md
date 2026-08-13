@@ -341,6 +341,16 @@ progress is at most the single file named in "next".
   duplicate id, because that is the only failure that happens after the node and
   version rows are already in, which is what makes the rollback observable.
   **Next: `tests/store/test_audit.py`.**
+- **2026-08-14 — `tests/store/test_audit.py`** (`794fa60`, pushed). 21 tests;
+  407 passing, 97.81%. The load-bearing one compares the audit table against
+  `record_version` row for row rather than counting the writes the test itself
+  made — a count matches just as well when the trail describes the wrong
+  versions. Two cases are recorded here because nothing else would have caught
+  them: the ordering test revises at the fixture's own timestamp, so ordering by
+  `occurred_at` would be arbitrary and the assertion on version order means
+  something; and the counter test inserts an ordinal past four digits, where
+  `AUD-9999` sorts above `AUD-10000` and allocating from `MAX(id)` would reissue
+  an id that is already taken. **Next: `tests/store/test_graph.py`.**
 
 ---
 
