@@ -329,6 +329,18 @@ progress is at most the single file named in "next".
   append-only trigger tests initially passed on three tables because those
   tables were empty — an empty table cannot demonstrate its own triggers — so
   the fixture gained an `Outcome` and a `Finding`. **Session ended here.**
+- **2026-08-14 — `tests/store/test_repository.py`** (`a53a5a7`, pushed). 73
+  tests; the suite is now 386 passing at 97.61% coverage against the 85% gate,
+  with `repository.py` at 98%. Three things the writing settled. Quantity
+  round-trips are asserted on `str()` rather than on equality, because
+  `Decimal("1.10") == Decimal("1.1")` and the scale is precisely what invariant
+  4 protects. The search tests use tokens that appear nowhere else in the
+  fixture corpus — the index keeps every superseded version forever, so a
+  repeated word would pass whether or not the `record_head` join is doing its
+  job. And the failed-write test writes a *dangling edge* rather than a
+  duplicate id, because that is the only failure that happens after the node and
+  version rows are already in, which is what makes the rollback observable.
+  **Next: `tests/store/test_audit.py`.**
 
 ---
 
