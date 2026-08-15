@@ -8,6 +8,7 @@ import pytest
 from praxis import __version__
 from praxis.cli import app
 from praxis.config.settings import get_settings
+from praxis.store.migrations import latest_version
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -106,8 +107,12 @@ def test_init_creates_a_store_at_the_configured_path() -> None:
 def test_init_reports_the_schema_it_brought_the_store_to() -> None:
     result = runner.invoke(app, ["init"])
 
+    # Against the shipped migration count rather than a literal: the number
+    # this asserted was 2 until a migration was added, and a test that has to
+    # be edited by every schema change is a test people learn to edit without
+    # reading.
     assert "schema" in result.output
-    assert "version 2" in result.output
+    assert f"version {latest_version()}" in result.output
 
 
 def test_init_can_be_run_twice() -> None:
