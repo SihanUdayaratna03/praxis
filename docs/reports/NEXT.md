@@ -141,3 +141,9 @@ interrupted session can resume from the last line rather than from the diff.
   no bias correction (n=1 in two disagreeing classes, below `BiasDetective`'s
   threshold) but a scope correction that prices the tests. Next: the request and
   response types in `praxis/llm/types.py`.
+- **Request/response types landed** — `praxis/llm/{__init__,types,errors}.py`,
+  48 tests. Two API facts checked against the docs rather than recalled and
+  cited in the modules: sampling parameters are a 400 on the routed models, so
+  the seam has no temperature; and structured output goes through
+  `output_config.format`, not forced tool use. Next: the request hash in
+  `praxis/llm/hashing.py`.
