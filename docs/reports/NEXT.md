@@ -150,3 +150,9 @@ interrupted session can resume from the last line rather than from the diff.
 - **Replay key landed** — `praxis/llm/hashing.py`, 128-bit digest over sorted,
   unescaped canonical JSON, 18 tests including hypothesis properties. Next:
   token and cost accounting in `praxis/llm/accounting.py`.
+- **Cache pricing landed** — `CACHE_READ_MULTIPLIER` (0.1×) and
+  `CACHE_WRITE_MULTIPLIER` (1.25×) in `praxis/config/models.py`, cited to the
+  prompt-caching docs. They are model-independent multiples of the base input
+  rate, so they are constants rather than two more `ModelSpec` price columns
+  that could drift apart at the next deprecation. Next: token and cost
+  accounting in `praxis/llm/accounting.py`.
