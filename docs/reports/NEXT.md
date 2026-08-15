@@ -129,3 +129,15 @@ Carried forward from Phase 1 because every one of them cost something.
 2. **The repository stays private for now**, revisited at the start of Phase 8.
    Recorded in [`BACKLOG.md`](../../BACKLOG.md) with the trigger and the exact
    commands. Consequence: `main` still has no server-side protection.
+
+---
+
+## Phase 2 progress log
+
+Appended as each component lands on `feat/phase-2-llm-provider`, so an
+interrupted session can resume from the last line rather than from the diff.
+
+- **`EST-0003` logged** — 4.5h active, confidence 0.45, class `llm-integration`,
+  no bias correction (n=1 in two disagreeing classes, below `BiasDetective`'s
+  threshold) but a scope correction that prices the tests. Next: the request and
+  response types in `praxis/llm/types.py`.
