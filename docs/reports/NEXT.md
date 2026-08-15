@@ -156,3 +156,9 @@ interrupted session can resume from the last line rather than from the diff.
   rate, so they are constants rather than two more `ModelSpec` price columns
   that could drift apart at the next deprecation. Next: token and cost
   accounting in `praxis/llm/accounting.py`.
+- **Accounting landed** — `praxis/llm/accounting.py`, 26 tests. `cost_of`
+  prices cache reads and writes off the base rate; `CostLedger` is per-run and
+  not global, and `check_affordable` refuses *before* the call using a bound
+  that prices the full output cap plus a pessimistic 2 chars/token for input.
+  `record_free` keeps the token columns populated on a mock run. Next: the
+  `LLMProvider` interface in `praxis/llm/provider.py`.
