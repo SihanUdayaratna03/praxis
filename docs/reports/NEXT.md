@@ -168,3 +168,11 @@ interrupted session can resume from the last line rather than from the diff.
   The boundary the handover asked for is held: traces and audit events stay two
   tables. Next: the SQLite sink, migration `003_traces.sql` plus
   `praxis/store/traces.py`.
+- **Trace table landed** — migration `003_traces.sql` and
+  `praxis/store/traces.py`, 29 tests. `llm_trace` has no `node` row and no
+  `record_version`; append-only by trigger; `cost_usd` is exact decimal text
+  summed in Python, never SQL `SUM` over a cast. The store imports
+  `praxis.llm.trace` and not the other way round. `tests/test_cli.py` no longer
+  hardcodes schema version 2. Next: the `LLMProvider` base class in
+  `praxis/llm/provider.py` — routing, the ceiling check, timing and the trace
+  write, with `_invoke` left to each implementation.
