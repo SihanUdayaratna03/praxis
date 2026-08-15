@@ -147,3 +147,6 @@ interrupted session can resume from the last line rather than from the diff.
   the seam has no temperature; and structured output goes through
   `output_config.format`, not forced tool use. Next: the request hash in
   `praxis/llm/hashing.py`.
+- **Replay key landed** — `praxis/llm/hashing.py`, 128-bit digest over sorted,
+  unescaped canonical JSON, 18 tests including hypothesis properties. Next:
+  token and cost accounting in `praxis/llm/accounting.py`.
