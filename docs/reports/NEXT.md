@@ -176,3 +176,10 @@ interrupted session can resume from the last line rather than from the diff.
   hardcodes schema version 2. Next: the `LLMProvider` base class in
   `praxis/llm/provider.py` — routing, the ceiling check, timing and the trace
   write, with `_invoke` left to each implementation.
+- **Provider seam landed** — `praxis/llm/provider.py`, 29 tests against a stub
+  rather than an implementation, so the guarantees are proven for the live path
+  too. `complete()` routes, checks the ceiling *before* `_invoke`, times, traces
+  (failure path included) and raises on a refusal. `bills` is the class-level
+  flag that exempts the offline providers from the ceiling. Next: `MockProvider`
+  in `praxis/llm/mock.py` — plausible structured output per response shape, not
+  a fixed string.
