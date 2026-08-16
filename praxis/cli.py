@@ -14,9 +14,11 @@ nothing they can act on.
 
 from __future__ import annotations
 
+import json
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 import typer
 from rich.console import Console
@@ -33,6 +35,10 @@ from praxis.config.models import (
 from praxis.config.settings import ProviderName, Settings, get_settings
 from praxis.domain.enums import GRAPH_KINDS, RecordKind
 from praxis.domain.links import LinkType
+from praxis.llm.errors import ProviderError
+from praxis.llm.mock import MockProvider
+from praxis.llm.trace import MemoryTraceSink
+from praxis.llm.types import LLMRequest, Message, MessageRole, ResponseSchema
 from praxis.obs.logging import configure_logging
 from praxis.store.errors import StoreError
 from praxis.store.location import sync_warning
@@ -218,7 +224,10 @@ def doctor() -> None:
     """Verify that this installation can run with no credentials.
 
     Exits non-zero if anything would stop a fresh clone from working, so it is
-    usable as a smoke test in CI and in a demo script.
+    usable as a smoke test in CI and in a demo script. Since Phase 2 that
+    includes making one structured model call offline, because a configuration
+    that *looks* credential-free and a pipeline that actually answers without a
+    key are two different claims.
     """
     settings = get_settings()
     configure_logging(settings)
@@ -251,16 +260,78 @@ def doctor() -> None:
     if unpriced:
         problems.append(f"agents routed to a role with no model: {', '.join(unpriced)}")
 
+    # The offline claim, checked rather than inferred from configuration.
+    offline_call = _probe_offline_call(settings)
+    if offline_call.problem is not None:
+        problems.append(offline_call.problem)
+
     # ADR 0010: a warning, never a failure. The default data directory is off
     # the synced tree, but %LOCALAPPDATA% can itself be redirected into OneDrive
     # by an enterprise known-folder policy -- which is the case where the safe
     # default is silently unsafe, and this line is the only thing that says so.
     warnings = [warning for warning in (sync_warning(settings.data_dir),) if warning is not None]
 
-    _report(settings, problems, warnings)
+    _report(settings, problems, warnings, offline_call)
 
 
-def _report(settings: Settings, problems: list[str], warnings: list[str]) -> None:
+@dataclass(frozen=True, slots=True)
+class _OfflineCall:
+    """What one probe call proved, or why it could not."""
+
+    problem: str | None = None
+    tokens: int = 0
+
+
+def _probe_offline_call(settings: Settings) -> _OfflineCall:
+    """Make one structured call through the mock and check the answer.
+
+    `doctor` used to read the configuration and conclude that a credential-free
+    run was possible. This makes the call instead, because the two are not the
+    same claim: a routing table, a schema walk and a trace write all have to
+    work before "runs with no credentials" is true, and none of them is visible
+    in a setting.
+
+    The mock is built directly rather than through `provider_for`, so the
+    answer does not depend on how *this* machine happens to be configured. The
+    question `doctor` is asked is whether a fresh clone works, and on a machine
+    set to `replay` the honest answer to that is still about the offline path.
+    """
+    request = LLMRequest(
+        agent="DecisionScout",
+        task="doctor_probe",
+        system="You find decisions in engineering documents.",
+        messages=(
+            Message(
+                role=MessageRole.USER,
+                content="We chose SQLite over Postgres for the graph store.",
+            ),
+        ),
+        schema=ResponseSchema(
+            name="DoctorProbe",
+            json_schema={
+                "type": "object",
+                "properties": {"quote": {"type": "string"}},
+                "required": ["quote"],
+                "additionalProperties": False,
+            },
+        ),
+    )
+    try:
+        response = MockProvider(sink=MemoryTraceSink(), settings=settings).complete(request)
+        answer = json.loads(response.text)
+    except (ProviderError, ValueError) as exc:
+        return _OfflineCall(problem=f"the offline provider could not answer a call: {exc}")
+    if not answer.get("quote"):
+        return _OfflineCall(problem="the offline provider answered without filling its schema")
+    return _OfflineCall(tokens=response.usage.total)
+
+
+def _report(
+    settings: Settings,
+    problems: list[str],
+    warnings: list[str],
+    offline_call: _OfflineCall,
+) -> None:
     for warning in warnings:
         console.print(f"[bold yellow]warning[/bold yellow] {warning}")
 
@@ -272,6 +343,7 @@ def _report(settings: Settings, problems: list[str], warnings: list[str]) -> Non
 
     console.print("[bold green]praxis doctor: OK[/bold green]")
     console.print(f"  provider   {settings.llm_provider.value} (offline={settings.is_offline})")
+    console.print(f"  offline    one structured call answered, {offline_call.tokens} tokens")
     console.print(f"  python     {sys.version.split()[0]}")
     console.print(f"  version    {__version__}")
     console.print(f"  data dir   {settings.data_dir}")

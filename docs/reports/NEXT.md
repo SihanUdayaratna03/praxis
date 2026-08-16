@@ -129,3 +129,117 @@ Carried forward from Phase 1 because every one of them cost something.
 2. **The repository stays private for now**, revisited at the start of Phase 8.
    Recorded in [`BACKLOG.md`](../../BACKLOG.md) with the trigger and the exact
    commands. Consequence: `main` still has no server-side protection.
+
+---
+
+## Phase 2 progress log
+
+Appended as each component lands on `feat/phase-2-llm-provider`, so an
+interrupted session can resume from the last line rather than from the diff.
+
+- **`EST-0003` logged** — 4.5h active, confidence 0.45, class `llm-integration`,
+  no bias correction (n=1 in two disagreeing classes, below `BiasDetective`'s
+  threshold) but a scope correction that prices the tests. Next: the request and
+  response types in `praxis/llm/types.py`.
+- **Request/response types landed** — `praxis/llm/{__init__,types,errors}.py`,
+  48 tests. Two API facts checked against the docs rather than recalled and
+  cited in the modules: sampling parameters are a 400 on the routed models, so
+  the seam has no temperature; and structured output goes through
+  `output_config.format`, not forced tool use. Next: the request hash in
+  `praxis/llm/hashing.py`.
+- **Replay key landed** — `praxis/llm/hashing.py`, 128-bit digest over sorted,
+  unescaped canonical JSON, 18 tests including hypothesis properties. Next:
+  token and cost accounting in `praxis/llm/accounting.py`.
+- **Cache pricing landed** — `CACHE_READ_MULTIPLIER` (0.1×) and
+  `CACHE_WRITE_MULTIPLIER` (1.25×) in `praxis/config/models.py`, cited to the
+  prompt-caching docs. They are model-independent multiples of the base input
+  rate, so they are constants rather than two more `ModelSpec` price columns
+  that could drift apart at the next deprecation. Next: token and cost
+  accounting in `praxis/llm/accounting.py`.
+- **Accounting landed** — `praxis/llm/accounting.py`, 26 tests. `cost_of`
+  prices cache reads and writes off the base rate; `CostLedger` is per-run and
+  not global, and `check_affordable` refuses *before* the call using a bound
+  that prices the full output cap plus a pessimistic 2 chars/token for input.
+  `record_free` keeps the token columns populated on a mock run. Next: the
+  `LLMProvider` interface in `praxis/llm/provider.py`.
+- **Trace row landed** — `praxis/llm/trace.py`, 21 tests. `LLMTrace` is one row
+  per *attempt*; `TraceSink` is a `Protocol`, which is what keeps `praxis.llm`
+  from importing `praxis.store`, and `MemoryTraceSink` is the offline default.
+  The boundary the handover asked for is held: traces and audit events stay two
+  tables. Next: the SQLite sink, migration `003_traces.sql` plus
+  `praxis/store/traces.py`.
+- **Trace table landed** — migration `003_traces.sql` and
+  `praxis/store/traces.py`, 29 tests. `llm_trace` has no `node` row and no
+  `record_version`; append-only by trigger; `cost_usd` is exact decimal text
+  summed in Python, never SQL `SUM` over a cast. The store imports
+  `praxis.llm.trace` and not the other way round. `tests/test_cli.py` no longer
+  hardcodes schema version 2. Next: the `LLMProvider` base class in
+  `praxis/llm/provider.py` — routing, the ceiling check, timing and the trace
+  write, with `_invoke` left to each implementation.
+- **Provider seam landed** — `praxis/llm/provider.py`, 29 tests against a stub
+  rather than an implementation, so the guarantees are proven for the live path
+  too. `complete()` routes, checks the ceiling *before* `_invoke`, times, traces
+  (failure path included) and raises on a refusal. `bills` is the class-level
+  flag that exempts the offline providers from the ceiling. Next: `MockProvider`
+  in `praxis/llm/mock.py` — plausible structured output per response shape, not
+  a fixed string.
+- **Synthesis landed** — `praxis/llm/synthesis.py`, 58 tests. A walk over the
+  response schema, seeded from the replay key, filling quotation fields with
+  sentences that really occur in the prompt and id fields with ids really
+  supplied, so `VerifierAgent` has something to check offline. Nothing in it
+  names an agent, which is ADR 0005's first assumption stated as code. A prompt
+  carrying no ids gets a well-formed *wrong* span id on purpose — that is what
+  a live model does in the same position. Next: `MockProvider` in
+  `praxis/llm/mock.py`, which is now the seam plus a call to this.
+- **Mock provider landed** — `praxis/llm/mock.py`, 31 tests. Deterministic per
+  replay key rather than per call order, free but token-counted, honest about
+  latency, and able to produce the two failures worth imitating —
+  `malformed_share` and `refusal_share`, both keyed off the request so a
+  failing call fails every time. `LLMRequest.source_text` was added and the
+  mock quotes *that*: the system prompt is instruction, not evidence, and a
+  citation lifted from the brief fails `VerifierAgent` for the wrong reason.
+  Next: `ReplayProvider` in `praxis/llm/replay.py` — fixture files keyed by
+  replay key, loud `ReplayCacheMissError`, never a fallback to the network.
+- **Replay provider landed** — `praxis/llm/replay.py`, 26 tests. Fixtures live
+  at `<replay_dir>/<agent>/<key>.json`, indented so they can be diffed. Three
+  checks before playback: the recorded request still hashes to its filename,
+  the model is the one routing chose today, and the file parses whole. All
+  three raise `ReplayCacheMissError`, which grew an optional `detail` rather
+  than the module growing three classes for one response. `PRAXIS_RECORD_REPLAY`
+  now exists in `Settings` — the miss message had been promising it since the
+  error vocabulary landed, and `extra="forbid"` meant setting it would raise.
+  Next: `AnthropicProvider` in `praxis/llm/anthropic.py` — the only module that
+  imports the SDK, translating every vendor exception at the boundary, and
+  writing a recording when `record_replay` is on.
+- **Live provider landed** — `praxis/llm/anthropic.py`, 38 tests, `anthropic`
+  added as an optional `live` extra and a dev dependency. Four API facts cited
+  in the module, not recalled: `output_config.format` for structured output,
+  `stop_details` populated only on a refusal, thinking on by default with
+  `max_tokens` covering thinking *plus* answer, and the SDK's own 408/409/429/5xx
+  retries (so this module adds none). A 400 raises the base `ProviderError`, not
+  `ProviderUnavailableError` — retrying will not fix Praxis's own bug.
+  `RecordingAnthropicProvider` is a subclass so a mock's answer can never seed
+  the fixture corpus. Tests build real `anthropic.types.Message` objects, which
+  is how the cache token counts arriving as `None` was caught. Next: the
+  boundary test `tests/test_boundaries.py`, which `praxis/llm/__init__.py` has
+  been promising since the package was created.
+- **Boundary test landed** — `tests/test_boundaries.py`, 75 tests. Parses every
+  module with `ast` (not by importing — an import-based check would pass on a
+  machine without the optional SDK, which is CI) and fails on a crossing. The
+  stdlib names are in the forbidden set beside the third-party ones, or "no HTTP
+  client" would only mean "no third-party HTTP client". The detector is itself
+  run against a module that *does* cross, and the seam file is asserted to exist
+  and to still import the SDK, so deleting the guarded thing cannot turn the
+  suite green. Next: `provider_for(settings)` — the factory that makes ADR 0005's
+  second assumption (`files_changed_to_enable_live_models == 1`) true, and then
+  `praxis doctor` reporting which provider a run would use.
+- **Factory landed** — `praxis/llm/factory.py`, 15 tests. `provider_for()` is
+  the only place that reads `PRAXIS_LLM_PROVIDER`, which is what makes ADR
+  0005's second assumption checkable. The live import is inside its branch, so
+  an offline run needs neither the key nor the optional `live` extra. Recording
+  is selected here rather than inside the provider. The mock is the last branch
+  because it is the default; the test walks every `ProviderName` member and
+  asserts the provider returned reports that same name, so a future member
+  falling through fails a test rather than a demo. Next: `praxis doctor` making
+  one real mock call, so "runs with no credentials" is checked end to end
+  instead of inferred from configuration.

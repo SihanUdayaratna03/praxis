@@ -8,6 +8,7 @@ import pytest
 from praxis import __version__
 from praxis.cli import app
 from praxis.config.settings import get_settings
+from praxis.store.migrations import latest_version
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -51,6 +52,24 @@ def test_doctor_fails_when_configured_to_need_credentials(
 
     assert result.exit_code == 1
     assert "FAIL" in result.output
+
+
+def test_doctor_answers_a_real_call_rather_than_reading_the_setting() -> None:
+    # The offline claim is the phase's central one, and a routing table, a
+    # schema walk and a trace write all have to work before it is true. None
+    # of that is visible in a configuration value, so doctor makes the call.
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0, result.output
+    assert "one structured call answered" in result.output
+
+
+def test_doctor_reports_what_the_offline_call_cost_in_tokens() -> None:
+    # Zero tokens would mean the answer was empty, which is the failure this
+    # probe exists to catch and the one a passing exit code would hide.
+    result = runner.invoke(app, ["doctor"])
+
+    assert " 0 tokens" not in result.output
 
 
 def test_doctor_creates_the_runtime_directories() -> None:
@@ -106,8 +125,12 @@ def test_init_creates_a_store_at_the_configured_path() -> None:
 def test_init_reports_the_schema_it_brought_the_store_to() -> None:
     result = runner.invoke(app, ["init"])
 
+    # Against the shipped migration count rather than a literal: the number
+    # this asserted was 2 until a migration was added, and a test that has to
+    # be edited by every schema change is a test people learn to edit without
+    # reading.
     assert "schema" in result.output
-    assert "version 2" in result.output
+    assert f"version {latest_version()}" in result.output
 
 
 def test_init_can_be_run_twice() -> None:

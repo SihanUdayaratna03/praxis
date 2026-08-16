@@ -13,6 +13,11 @@ https://platform.claude.com/docs/en/pricing
 Prices are USD per million tokens and are held as Decimal, never float. Cost is
 money; binary floating point is the wrong representation for it, and these
 figures are summed over thousands of calls in the eval harness.
+
+`input_usd_per_mtok` is the *base* input rate: what an uncached token costs.
+Cached tokens are billed off that same base by a multiplier rather than by a
+separate per-model price, which is why the two multipliers below are model
+independent and why the registry carries one input figure and not three.
 """
 
 from __future__ import annotations
@@ -25,6 +30,20 @@ from types import MappingProxyType
 from typing import Final
 
 TOKENS_PER_MILLION: Final = Decimal(1_000_000)
+
+# Prompt caching is priced as a multiple of a model's base input rate, the same
+# multiple for every model, so it belongs here as a constant rather than as a
+# third and fourth price column on ModelSpec. Read from the Anthropic docs on
+# 2026-08-16, not recalled:
+# https://platform.claude.com/docs/en/build-with-claude/prompt-caching
+CACHE_READ_MULTIPLIER: Final = Decimal("0.1")
+"""A cache hit costs a tenth of an ordinary input token."""
+
+CACHE_WRITE_MULTIPLIER: Final = Decimal("1.25")
+"""Writing the 5-minute cache costs a quarter more than sending the tokens
+plainly. Praxis sends no `cache_control` yet, so this prices zero tokens today;
+it is here so that the first agent to turn caching on cannot quietly make the
+eval harness's cost column wrong."""
 
 # MockProvider records this in traces so that every LLM call in the store has a
 # model field, offline runs included. It is not a real model and never reaches
