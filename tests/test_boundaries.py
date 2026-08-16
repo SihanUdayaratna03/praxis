@@ -20,6 +20,7 @@ from pathlib import Path
 
 import praxis
 import pytest
+from praxis.config.models import NON_LLM_AGENTS
 
 PACKAGE_ROOT = Path(praxis.__file__).resolve().parent
 
@@ -159,6 +160,39 @@ def test_the_model_layer_never_imports_the_store(path: Path):
 def test_only_the_store_knows_the_database_driver(path: Path):
     """`sqlite3` stops at `praxis.store`, in the failure path as well as the query path."""
     assert "sqlite3" not in imports_of(path)
+
+
+DETERMINISTIC_MODULES = {
+    "SourceAdapter": "praxis/ingest/adapters.py",
+    "VerifierAgent": "praxis/ingest/verifier.py",
+}
+"""Where each deterministic agent implemented so far lives.
+
+`NON_LLM_AGENTS` says these must never make a model call and `role_for_agent`
+refuses to route them, but both of those are about a *name*. This maps the name
+onto the file, so the rule is checked against the code rather than against the
+registry that describes it.
+"""
+
+
+@pytest.mark.parametrize(
+    ("agent", "module"), sorted(DETERMINISTIC_MODULES.items()), ids=sorted(DETERMINISTIC_MODULES)
+)
+def test_a_deterministic_agent_cannot_reach_a_model(agent, module):
+    """Invariant 3, checked in the place it would actually be broken.
+
+    A verifier that could call a model is not a verifier, and the way that
+    would happen is one convenient import in a file nobody re-read -- not
+    somebody editing `NON_LLM_AGENTS` to remove the name.
+    """
+    assert agent in NON_LLM_AGENTS
+    assert "praxis.llm" not in _dotted_imports(PACKAGE_ROOT.parent / module)
+
+
+def test_the_deterministic_modules_named_here_all_exist():
+    """A parametrised test over paths that were deleted passes silently."""
+    for module in DETERMINISTIC_MODULES.values():
+        assert (PACKAGE_ROOT.parent / module).is_file()
 
 
 def _dotted_imports(path: Path) -> set[str]:
