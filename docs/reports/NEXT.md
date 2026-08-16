@@ -233,3 +233,13 @@ interrupted session can resume from the last line rather than from the diff.
   suite green. Next: `provider_for(settings)` — the factory that makes ADR 0005's
   second assumption (`files_changed_to_enable_live_models == 1`) true, and then
   `praxis doctor` reporting which provider a run would use.
+- **Factory landed** — `praxis/llm/factory.py`, 15 tests. `provider_for()` is
+  the only place that reads `PRAXIS_LLM_PROVIDER`, which is what makes ADR
+  0005's second assumption checkable. The live import is inside its branch, so
+  an offline run needs neither the key nor the optional `live` extra. Recording
+  is selected here rather than inside the provider. The mock is the last branch
+  because it is the default; the test walks every `ProviderName` member and
+  asserts the provider returned reports that same name, so a future member
+  falling through fails a test rather than a demo. Next: `praxis doctor` making
+  one real mock call, so "runs with no credentials" is checked end to end
+  instead of inferred from configuration.
