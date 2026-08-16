@@ -185,3 +185,11 @@ last line rather than from the diff.
   `ordinals_in` so the mock answers with labels it was actually shown, without
   which the code that honours a good grouping would never run offline.
   **Next:** `VerifierAgent` on `feat/phase-3-verifier`.
+- **`VerifierAgent` landed** on `feat/phase-3-verifier`: span resolution and
+  the invariant-6 claim gate, both deterministic. Documents are *resolved*
+  through a `DocumentSource`, so a span citing a document nothing ingested is
+  refused as `UNKNOWN_DOCUMENT` (new member of `SpanDefect`). Whitespace is the
+  only latitude; case and punctuation are not normalised. `test_boundaries.py`
+  now maps each `NON_LLM_AGENTS` name onto its module and asserts the module
+  cannot import `praxis.llm`. **Next:** ADR 0012 and the corpus generator on
+  `feat/phase-3-corpus`.
