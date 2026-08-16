@@ -177,3 +177,11 @@ last line rather than from the diff.
   document exactly — every non-whitespace character in exactly one block — and
   is the segmenter's degradation floor. **Next:** ADR 0011, then the
   structured-output layer and `SegmenterAgent` on `feat/phase-3-segmenter`.
+- **ADR 0011, the structured-output layer and `SegmenterAgent` landed** on
+  `feat/phase-3-segmenter`. The layer deferred from Phase 2 is
+  `praxis/llm/structured.py`: reduce, describe the stripped bound, close every
+  object, validate locally — the same four steps the official SDKs document,
+  cited. The agent answers in block numbers only. `synthesis.py` gained
+  `ordinals_in` so the mock answers with labels it was actually shown, without
+  which the code that honours a good grouping would never run offline.
+  **Next:** `VerifierAgent` on `feat/phase-3-verifier`.
