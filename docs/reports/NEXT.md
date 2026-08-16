@@ -183,3 +183,11 @@ interrupted session can resume from the last line rather than from the diff.
   flag that exempts the offline providers from the ceiling. Next: `MockProvider`
   in `praxis/llm/mock.py` — plausible structured output per response shape, not
   a fixed string.
+- **Synthesis landed** — `praxis/llm/synthesis.py`, 58 tests. A walk over the
+  response schema, seeded from the replay key, filling quotation fields with
+  sentences that really occur in the prompt and id fields with ids really
+  supplied, so `VerifierAgent` has something to check offline. Nothing in it
+  names an agent, which is ADR 0005's first assumption stated as code. A prompt
+  carrying no ids gets a well-formed *wrong* span id on purpose — that is what
+  a live model does in the same position. Next: `MockProvider` in
+  `praxis/llm/mock.py`, which is now the seam plus a call to this.
