@@ -191,3 +191,12 @@ interrupted session can resume from the last line rather than from the diff.
   carrying no ids gets a well-formed *wrong* span id on purpose — that is what
   a live model does in the same position. Next: `MockProvider` in
   `praxis/llm/mock.py`, which is now the seam plus a call to this.
+- **Mock provider landed** — `praxis/llm/mock.py`, 31 tests. Deterministic per
+  replay key rather than per call order, free but token-counted, honest about
+  latency, and able to produce the two failures worth imitating —
+  `malformed_share` and `refusal_share`, both keyed off the request so a
+  failing call fails every time. `LLMRequest.source_text` was added and the
+  mock quotes *that*: the system prompt is instruction, not evidence, and a
+  citation lifted from the brief fails `VerifierAgent` for the wrong reason.
+  Next: `ReplayProvider` in `praxis/llm/replay.py` — fixture files keyed by
+  replay key, loud `ReplayCacheMissError`, never a fallback to the network.
