@@ -211,3 +211,15 @@ interrupted session can resume from the last line rather than from the diff.
   Next: `AnthropicProvider` in `praxis/llm/anthropic.py` — the only module that
   imports the SDK, translating every vendor exception at the boundary, and
   writing a recording when `record_replay` is on.
+- **Live provider landed** — `praxis/llm/anthropic.py`, 38 tests, `anthropic`
+  added as an optional `live` extra and a dev dependency. Four API facts cited
+  in the module, not recalled: `output_config.format` for structured output,
+  `stop_details` populated only on a refusal, thinking on by default with
+  `max_tokens` covering thinking *plus* answer, and the SDK's own 408/409/429/5xx
+  retries (so this module adds none). A 400 raises the base `ProviderError`, not
+  `ProviderUnavailableError` — retrying will not fix Praxis's own bug.
+  `RecordingAnthropicProvider` is a subclass so a mock's answer can never seed
+  the fixture corpus. Tests build real `anthropic.types.Message` objects, which
+  is how the cache token counts arriving as `None` was caught. Next: the
+  boundary test `tests/test_boundaries.py`, which `praxis/llm/__init__.py` has
+  been promising since the package was created.
