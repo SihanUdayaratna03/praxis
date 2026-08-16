@@ -1,10 +1,10 @@
 # Architecture
 
 > Status: this describes the system Praxis is being built toward. Phase 0
-> shipped the foundation — config, logging, CLI, CI, hooks — and Phase 1 the
-> data model and the store. Sections marked *(built)* exist and are tested;
-> everything else is the target, not the present. Each phase updates this file
-> when something structural lands.
+> shipped the foundation — config, logging, CLI, CI, hooks — Phase 1 the data
+> model and the store, and Phase 2 the model access layer. Sections marked
+> *(built)* exist and are tested; everything else is the target, not the
+> present. Each phase updates this file when something structural lands.
 
 ## The shape of the thing
 
@@ -142,7 +142,7 @@ runs over one corpus with one seed must produce identical numbers, or the
 ablation table means nothing. See
 [ADR 0004](docs/adr/0004-custom-async-orchestrator.md).
 
-## Model access *(Phase 2)*
+## Model access *(Phase 2, built)*
 
 ```
         agent asks for a ROLE, never a model
@@ -160,9 +160,24 @@ ablation table means nothing. See
 ```
 
 Every call records agent name, model, prompt hash, token counts, latency, cost
-and full input/output to the trace store. See
+and full input/output to the trace store — one row per *attempt*, failures
+included, in a table of its own. The trace store records what an agent was
+*told*; the audit trail records what it *changed*. They stay two tables. See
 [ADR 0005](docs/adr/0005-offline-first-llm-provider.md) and
 [ADR 0006](docs/adr/0006-model-routing-table.md).
+
+`provider_for()` is the only code that reads `PRAXIS_LLM_PROVIDER`, so going
+live is an edit to `.env` and nothing else. `MockProvider` does not return
+fixed strings: it walks the response schema and builds an answer out of the
+prompt, quoting sentences and span ids that really occur in it, so
+`VerifierAgent` has something real to check offline — and can still reject it.
+`praxis doctor` makes one such call rather than reading the setting, because a
+configuration that looks credential-free and a pipeline that answers without a
+key are different claims.
+
+`praxis/llm/anthropic.py` is the only module in the repository that imports a
+vendor SDK or an HTTP client, and `tests/test_boundaries.py` parses every
+module to keep it that way.
 
 ## What is deterministic, and why it matters
 
@@ -200,6 +215,18 @@ praxis/
   store/graph.py       edge reads and the two recursive walks
   store/reports.py     search and counting
   store/errors.py      the store's exception vocabulary; where sqlite3 stops
+  store/traces.py      the llm_trace table; append-only, exact decimal cost
+  llm/types.py         request, response, usage, stop and outcome vocabulary
+  llm/errors.py        the seam's exceptions; where a vendor SDK stops
+  llm/hashing.py       the replay key: one identity per request
+  llm/accounting.py    what a call cost, and the ceiling checked before it
+  llm/trace.py         the trace row and the sink protocol
+  llm/provider.py      the seam: route, price, time, trace, raise
+  llm/synthesis.py     a plausible answer built from a schema and the prompt
+  llm/mock.py          the offline default; deterministic, free, counted
+  llm/replay.py        recorded fixtures, and a loud miss
+  llm/anthropic.py     the only module that imports an SDK  ← the boundary
+  llm/factory.py       the only code that reads PRAXIS_LLM_PROVIDER
   obs/logging.py       structured JSON logging
 tests/                 pytest + hypothesis
 docs/adr/              decisions, in Praxis's own schema

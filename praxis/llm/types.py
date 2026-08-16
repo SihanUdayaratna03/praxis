@@ -122,9 +122,10 @@ class ResponseSchema:
         name: The Pydantic model's name. Recorded on the trace so a run can be
             grouped by what it was asking for, and used by `MockProvider` to
             find the generator that answers this shape.
-        json_schema: The schema as the API's `output_config.format` accepts it
-            -- already reduced by `praxis.llm.structured`, which drops the
-            keywords that dialect does not support.
+        json_schema: The schema as the API's `output_config.format` accepts
+            it. Reducing a Pydantic model to that dialect -- which has no
+            recursion and ignores several keywords -- is the caller's job
+            until Phase 3 adds the layer that does it; see `BACKLOG.md`.
     """
 
     name: str

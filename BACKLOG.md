@@ -58,6 +58,14 @@ irreversible in reputation terms even though the flag itself is not.
 | Dependency vulnerability scanning | Four runtime dependencies, all first-party-maintained. Add before Phase 12 when the dependency surface is final. |
 | A `CONTRIBUTING.md` | Single contributor. `CLAUDE.md` carries the conventions. Write one if the project is opened up. |
 
+## Deferred from Phase 2
+
+| Item | Why not now |
+| ---- | ----------- |
+| The structured-output layer: Pydantic model → reduced JSON schema, parse, and the repair loop | Phase 2 built the seam, not the layer above it. `ResponseSchema` takes a schema the caller already reduced, and `MalformedOutputError` is in the vocabulary with nothing raising it yet — deliberately, because the repair loop's shape is decided by what the first agents actually get back, and writing it now would be guessing at a failure distribution nobody has measured. The first agent in Phase 3 builds it, and `MockProvider(malformed_share=...)` already exists to give it something to repair. |
+| Streaming responses | The seam makes one non-streaming call, capped at `MAX_TOKENS_WITHOUT_STREAMING`. No agent needs a longer answer yet, and streaming changes the trace row's shape (one row per attempt becomes one row per attempt plus a stream of deltas). Add it with the first agent that needs an answer over 16k tokens. |
+| Prompt caching (`cache_control` on the request) | The pricing multipliers are in `praxis/config/models.py` and `cost_of` already prices cache reads and writes, so turning it on cannot silently make the cost column wrong. Not turned on because caching is a prefix-stability problem, and no prompt has a stable prefix until the agents that build prompts exist. |
+
 ## Deferred by design (revisit with data, not opinion)
 
 | Item | Why not now |
