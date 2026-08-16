@@ -31,8 +31,14 @@ Repository = "https://github.com/SihanUdayaratna03/praxis"
 [project.scripts]
 praxis = "praxis.cli:app"
 
+[project.optional-dependencies]
+live = [
+    "anthropic>=0.116",
+]
+
 [dependency-groups]
 dev = [
+  "anthropic>=0.116",
   "hypothesis>=6.112",
   "mypy>=1.11",
   "pre-commit>=3.8",
