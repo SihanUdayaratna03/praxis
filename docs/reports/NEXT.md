@@ -200,3 +200,14 @@ interrupted session can resume from the last line rather than from the diff.
   citation lifted from the brief fails `VerifierAgent` for the wrong reason.
   Next: `ReplayProvider` in `praxis/llm/replay.py` — fixture files keyed by
   replay key, loud `ReplayCacheMissError`, never a fallback to the network.
+- **Replay provider landed** — `praxis/llm/replay.py`, 26 tests. Fixtures live
+  at `<replay_dir>/<agent>/<key>.json`, indented so they can be diffed. Three
+  checks before playback: the recorded request still hashes to its filename,
+  the model is the one routing chose today, and the file parses whole. All
+  three raise `ReplayCacheMissError`, which grew an optional `detail` rather
+  than the module growing three classes for one response. `PRAXIS_RECORD_REPLAY`
+  now exists in `Settings` — the miss message had been promising it since the
+  error vocabulary landed, and `extra="forbid"` meant setting it would raise.
+  Next: `AnthropicProvider` in `praxis/llm/anthropic.py` — the only module that
+  imports the SDK, translating every vendor exception at the boundary, and
+  writing a recording when `record_replay` is on.
