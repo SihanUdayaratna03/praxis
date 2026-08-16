@@ -103,6 +103,16 @@ class Settings(BaseSettings):
         description="Recorded provider responses, used when llm_provider is 'replay'.",
     )
 
+    record_replay: bool = Field(
+        default=False,
+        description=(
+            "Write every live response to replay_dir as it arrives. Only the "
+            "live provider records; a replayed or mocked response is not a "
+            "recording of anything, and writing one would let a fixture corpus "
+            "be seeded with synthesised answers."
+        ),
+    )
+
     seed: int = Field(
         default=20260809,
         ge=0,

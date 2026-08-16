@@ -69,25 +69,35 @@ class ReplayCacheMissError(ProviderError):
     silently non-reproducible: the numbers would depend on which fixtures
     happened to be present, which is the failure replay is meant to rule out.
 
+    A fixture that exists but cannot be used -- corrupt, edited since it was
+    recorded, or answered by a different model -- raises this too. It is one
+    class rather than four because the response to all of them is the same:
+    record it again. `detail` says which it was, so the message stays true.
+
     Attributes:
         prompt_hash: The key that was looked up.
         agent: The agent whose call missed.
         path: Where the fixture was expected.
+        detail: Why the recording was unusable, when one was found at all.
     """
 
-    def __init__(self, prompt_hash: str, agent: str, path: Path) -> None:
-        """Record the key, the caller and the path.
+    def __init__(self, prompt_hash: str, agent: str, path: Path, detail: str | None = None) -> None:
+        """Record the key, the caller, the path and what was wrong.
 
         Args:
-            prompt_hash: The replay key that matched no fixture.
+            prompt_hash: The replay key that matched no usable fixture.
             agent: The agent whose call missed.
-            path: The fixture file that does not exist.
+            path: The fixture file that does not exist, or cannot be used.
+            detail: Why an existing fixture was rejected. Omitted when the file
+                simply is not there.
         """
         self.prompt_hash = prompt_hash
         self.agent = agent
         self.path = path
+        self.detail = detail
+        problem = "no recorded response" if detail is None else detail
         super().__init__(
-            f"no recorded response for {agent} at {prompt_hash} ({path}); "
+            f"{problem} for {agent} at {prompt_hash} ({path}); "
             f"record it with PRAXIS_LLM_PROVIDER=anthropic and "
             f"PRAXIS_RECORD_REPLAY=true, or use the mock provider"
         )
