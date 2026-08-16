@@ -161,4 +161,11 @@ Carried forward, because every one of them cost something.
 Appended as each component lands, so an interrupted session can resume from the
 last line rather than from the diff.
 
-*(nothing yet — the first line is `EST-0004`)*
+- **`EST-0004` logged** on `feat/phase-3-ingestion` before any `praxis/ingest`
+  file existed: **5.5h active, 20h blocked**, confidence 0.45, class
+  `agent-implementation`. No bias correction, for the fourth time and the same
+  reason — three work classes, `n = 1` each, directions disagreeing, and
+  `BiasDetective` refuses below `n = 5`. First estimate to carry
+  `active_quantity` and `blocked_quantity` as separate fields, matching the
+  `Estimate` record's own shape. **Next:** `SourceAdapter` on
+  `feat/phase-3-adapter`.
