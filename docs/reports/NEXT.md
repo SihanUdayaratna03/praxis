@@ -169,3 +169,11 @@ last line rather than from the diff.
   `active_quantity` and `blocked_quantity` as separate fields, matching the
   `Estimate` record's own shape. **Next:** `SourceAdapter` on
   `feat/phase-3-adapter`.
+- **Adapter and block grid landed** on `feat/phase-3-adapter`:
+  `praxis/ingest/{errors,adapters,blocks}.py`. Normalisation is exactly three
+  transformations (BOM, line endings, NFC) and the tests pin what it must *not*
+  do as hard as what it does. JSON is re-rendered one `path: value` block per
+  leaf so its prose is quotable. The block grid is property-tested to tile a
+  document exactly — every non-whitespace character in exactly one block — and
+  is the segmenter's degradation floor. **Next:** ADR 0011, then the
+  structured-output layer and `SegmenterAgent` on `feat/phase-3-segmenter`.
