@@ -223,3 +223,13 @@ interrupted session can resume from the last line rather than from the diff.
   is how the cache token counts arriving as `None` was caught. Next: the
   boundary test `tests/test_boundaries.py`, which `praxis/llm/__init__.py` has
   been promising since the package was created.
+- **Boundary test landed** — `tests/test_boundaries.py`, 75 tests. Parses every
+  module with `ast` (not by importing — an import-based check would pass on a
+  machine without the optional SDK, which is CI) and fails on a crossing. The
+  stdlib names are in the forbidden set beside the third-party ones, or "no HTTP
+  client" would only mean "no third-party HTTP client". The detector is itself
+  run against a module that *does* cross, and the seam file is asserted to exist
+  and to still import the SDK, so deleting the guarded thing cannot turn the
+  suite green. Next: `provider_for(settings)` — the factory that makes ADR 0005's
+  second assumption (`files_changed_to_enable_live_models == 1`) true, and then
+  `praxis doctor` reporting which provider a run would use.
