@@ -25,6 +25,7 @@ from praxis.llm.synthesis import (
     MAX_DEPTH,
     MIN_SENTENCE_CHARS,
     identifiers_in,
+    ordinals_in,
     sentences_of,
     synthesise_answer,
     synthesise_prose,
@@ -126,6 +127,44 @@ class TestIdentifiers:
 
     def test_ids_are_offered_once_each(self):
         assert identifiers_in("DOC-0007 and DOC-0007") == ("DOC-0007",)
+
+
+class TestOrdinals:
+    """The other kind of reference this pipeline hands a model.
+
+    `SegmenterAgent` shows a numbered listing and asks which entries belong
+    together. An answer drawn from a range instead of from the listing would
+    refer to entries that were never offered -- every time, which is a
+    systematic failure rather than a realistic one, and it would leave the code
+    that honours a good answer never exercised offline.
+    """
+
+    def test_a_bracketed_label_is_found(self):
+        assert ordinals_in("[0] heading\n\n[1] paragraph") == (0, 1)
+
+    def test_labels_are_offered_once_each_in_the_order_shown(self):
+        assert ordinals_in("[3] a\n[1] b\n[3] c") == (3, 1)
+
+    def test_a_number_that_is_not_a_label_is_not_offered(self):
+        """A document full of dates and version numbers would otherwise supply
+        most of the candidates, and an answer drawn from those refers to
+        nothing."""
+        assert ordinals_in("In 2026 we cut the estimate from 12 weeks to 6.") == ()
+
+    def test_a_field_that_asks_for_a_block_gets_one_that_was_shown(self):
+        listing = "[0] heading\nChosen\n\n[1] paragraph\nWe picked SQLite."
+        schema = {
+            "type": "object",
+            "properties": {"first_block": {"type": "integer"}},
+        }
+
+        for seed in (str(index) for index in range(30)):
+            assert synthesise_value(schema, listing, seed)["first_block"] in (0, 1)
+
+    def test_a_prompt_with_no_listing_falls_back_to_a_plausible_range(self):
+        schema = {"type": "object", "properties": {"first_block": {"type": "integer"}}}
+
+        assert isinstance(synthesise_value(schema, PROMPT, "seed")["first_block"], int)
 
 
 class TestDeterminism:

@@ -99,6 +99,17 @@ _ID_PATTERN: Final = re.compile(
     )
 )
 
+_ORDINAL_LABEL: Final = re.compile(r"\[(\d{1,5})\]")
+"""How this pipeline presents an enumerated listing to a model.
+
+`praxis.ingest.segmenter` renders `[12] paragraph` and asks for entries back by
+number. Matching the label rather than any integer in the prompt is the point:
+a document full of dates and version numbers would otherwise supply most of the
+candidates, and an answer drawn from those refers to nothing.
+"""
+
+_ORDINAL_HINTS: Final = ("block", "index", "ordinal", "position")
+
 _QUOTE_HINTS: Final = (
     "quote",
     "text",
@@ -194,6 +205,20 @@ def identifiers_in(text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(_ID_PATTERN.findall(text)))
 
 
+def ordinals_in(text: str) -> tuple[int, ...]:
+    """Return the bracketed ordinal labels a prompt presents, deduplicated.
+
+    The same argument `identifiers_in` makes, for the other kind of reference
+    this pipeline hands a model. An agent shown an enumerated listing --
+    `[0] heading`, `[1] paragraph` -- and asked which entries belong together
+    answers with numbers from that listing. Drawing them from a range instead
+    would make almost every answer refer to an entry that was never offered,
+    which is a systematic failure rather than a realistic one, and it would
+    leave the code that honours a *good* answer never exercised offline.
+    """
+    return tuple(dict.fromkeys(int(found) for found in _ORDINAL_LABEL.findall(text)))
+
+
 def synthesise_answer(schema: ResponseSchema | None, source_text: str, seed: str) -> str:
     """Answer one request as text, structured or free.
 
@@ -244,6 +269,7 @@ class _Answerer:
         self._rng = random.Random(_seed_int(seed))  # noqa: S311 -- reproducibility, not secrecy
         self._sentences = sentences_of(source_text) or (_NOTHING_TO_QUOTE,)
         self._identifiers = identifiers_in(source_text)
+        self._ordinals = ordinals_in(source_text)
         self._defs: Mapping[str, Any] = {}
 
     def value(self, schema: Mapping[str, Any], *, name: str = "", depth: int = 0) -> Any:
@@ -309,6 +335,8 @@ class _Answerer:
 
     def _number(self, schema: Mapping[str, Any], name: str, *, integral: bool) -> float | int:
         """Draw a number inside both the schema's bounds and a plausible range."""
+        if integral and self._ordinals and _mentions(name.lower(), _ORDINAL_HINTS):
+            return self._ordinal()
         low, high = _bounds(schema, name)
         if not integral:
             # Rounded to two places because that is what a model writes, then
@@ -339,6 +367,16 @@ class _Answerer:
     def _quote(self) -> str:
         """A sentence that really occurs in the prompt."""
         return self._pick(self._sentences)
+
+    def _ordinal(self) -> int:
+        """A label from an enumerated listing the prompt really presented.
+
+        Deliberately drawn independently per field, so a pair of them is as
+        likely to be reversed as ordered. A mock that emitted well-formed
+        ranges would be imitating a competent model rather than a model, and
+        the code that refuses a reversed range would never run offline.
+        """
+        return self._pick(self._ordinals)
 
     def _label(self) -> str:
         """A short title-shaped string, still drawn from the source."""
