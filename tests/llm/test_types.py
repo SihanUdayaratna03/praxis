@@ -107,9 +107,8 @@ class TestCanonicalForm:
 
 class TestPromptText:
     def test_it_is_everything_the_model_reads(self):
-        # MockProvider quotes from this to build citations that really appear
-        # in the input, so it has to be the whole prompt and not just the
-        # last turn.
+        # What the cost estimate is measured over, so it has to include the
+        # system prompt the API bills like any other input.
         text = request(
             messages=(
                 Message(role=MessageRole.USER, content="first"),
@@ -121,6 +120,30 @@ class TestPromptText:
         assert "first" in text
         assert "second" in text
         assert "third" in text
+
+
+class TestSourceText:
+    def test_it_is_every_turn_of_the_conversation(self):
+        # MockProvider quotes from this to build citations that really appear
+        # in the input, so it has to be the whole conversation and not just
+        # the last turn.
+        text = request(
+            messages=(
+                Message(role=MessageRole.USER, content="first"),
+                Message(role=MessageRole.ASSISTANT, content="second"),
+                Message(role=MessageRole.USER, content="third"),
+            )
+        ).source_text
+        assert "first" in text
+        assert "second" in text
+        assert "third" in text
+
+    def test_the_brief_is_not_part_of_the_source(self):
+        # The system prompt is instruction, not evidence. A quotation lifted
+        # from it cites nothing in any document, so every offline citation
+        # would fail VerifierAgent the same way -- a systematic bias rather
+        # than the near-miss citations the mock exists to produce.
+        assert "You find decisions." not in request().source_text
 
 
 class TestContinuation:

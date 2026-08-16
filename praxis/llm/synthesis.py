@@ -165,7 +165,7 @@ def sentences_of(text: str) -> tuple[str, ...]:
     reason that has nothing to do with the agent under test.
 
     Args:
-        text: Every word the model was given, usually `LLMRequest.prompt_text`.
+        text: Every word the model was given, usually `LLMRequest.source_text`.
 
     Returns:
         Each distinct sentence of at least `MIN_SENTENCE_CHARS`, in the order
@@ -194,12 +194,12 @@ def identifiers_in(text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(_ID_PATTERN.findall(text)))
 
 
-def synthesise_answer(schema: ResponseSchema | None, prompt_text: str, seed: str) -> str:
+def synthesise_answer(schema: ResponseSchema | None, source_text: str, seed: str) -> str:
     """Answer one request as text, structured or free.
 
     Args:
         schema: The shape demanded, or `None` for a free-text call.
-        prompt_text: Every word the model was given.
+        source_text: Every word the model was given.
         seed: Any stable string identifying the request -- in practice its
             replay key, which is what makes the answer a function of the
             question.
@@ -213,37 +213,37 @@ def synthesise_answer(schema: ResponseSchema | None, prompt_text: str, seed: str
         SchemaNotSupportedError: if the schema nests past `MAX_DEPTH`.
     """
     if schema is None:
-        return synthesise_prose(prompt_text, seed)
-    return canonical_json(synthesise_value(schema.json_schema, prompt_text, seed))
+        return synthesise_prose(source_text, seed)
+    return canonical_json(synthesise_value(schema.json_schema, source_text, seed))
 
 
-def synthesise_value(json_schema: Mapping[str, Any], prompt_text: str, seed: str) -> Any:
-    """Build a Python value satisfying `json_schema` out of `prompt_text`.
+def synthesise_value(json_schema: Mapping[str, Any], source_text: str, seed: str) -> Any:
+    """Build a Python value satisfying `json_schema` out of `source_text`.
 
     Raises:
         SchemaNotSupportedError: if the schema nests past `MAX_DEPTH`.
     """
-    return _Answerer(prompt_text, seed).value(json_schema)
+    return _Answerer(source_text, seed).value(json_schema)
 
 
-def synthesise_prose(prompt_text: str, seed: str) -> str:
+def synthesise_prose(source_text: str, seed: str) -> str:
     """Answer a free-text call with a sentence lifted from what was asked.
 
     Free-text calls are the minority in this pipeline and none of them feeds the
     store directly, so the answer only has to be the right kind of thing: prose
     that demonstrably read its input.
     """
-    return _Answerer(prompt_text, seed).prose()
+    return _Answerer(source_text, seed).prose()
 
 
 class _Answerer:
     """One request's worth of synthesis: a seeded generator over a prompt."""
 
-    def __init__(self, prompt_text: str, seed: str) -> None:
+    def __init__(self, source_text: str, seed: str) -> None:
         """Seed the generator from the request and index what can be quoted."""
         self._rng = random.Random(_seed_int(seed))  # noqa: S311 -- reproducibility, not secrecy
-        self._sentences = sentences_of(prompt_text) or (_NOTHING_TO_QUOTE,)
-        self._identifiers = identifiers_in(prompt_text)
+        self._sentences = sentences_of(source_text) or (_NOTHING_TO_QUOTE,)
+        self._identifiers = identifiers_in(source_text)
         self._defs: Mapping[str, Any] = {}
 
     def value(self, schema: Mapping[str, Any], *, name: str = "", depth: int = 0) -> Any:

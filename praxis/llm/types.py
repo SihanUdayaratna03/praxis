@@ -189,12 +189,25 @@ class LLMRequest:
 
     @property
     def prompt_text(self) -> str:
-        """Every word the model will read, for the mock's benefit.
+        """Every word the model will read.
 
-        `MockProvider` derives its answer from the prompt -- quoting spans that
-        are really in it -- and this is what it reads.
+        What the cost estimate is measured over, since the API bills the system
+        prompt like any other input.
         """
         return "\n".join([self.system, *(message.content for message in self.messages)])
+
+    @property
+    def source_text(self) -> str:
+        """The material the answer is supposed to be *about*, without the brief.
+
+        The system prompt is instruction, not evidence. `MockProvider` quotes
+        this rather than `prompt_text` because a quotation lifted from the
+        instructions cites nothing that exists in any document -- every offline
+        citation would then fail `VerifierAgent` the same way, which is a
+        systematic bias rather than a realistic failure, and it would hide the
+        near-miss citations the mock exists to produce.
+        """
+        return "\n".join(message.content for message in self.messages)
 
     def canonical(self) -> dict[str, Any]:
         """Render the request as the plain data that identifies it.
