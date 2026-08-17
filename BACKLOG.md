@@ -62,9 +62,18 @@ irreversible in reputation terms even though the flag itself is not.
 
 | Item | Why not now |
 | ---- | ----------- |
-| The structured-output layer: Pydantic model → reduced JSON schema, parse, and the repair loop | Phase 2 built the seam, not the layer above it. `ResponseSchema` takes a schema the caller already reduced, and `MalformedOutputError` is in the vocabulary with nothing raising it yet — deliberately, because the repair loop's shape is decided by what the first agents actually get back, and writing it now would be guessing at a failure distribution nobody has measured. The first agent in Phase 3 builds it, and `MockProvider(malformed_share=...)` already exists to give it something to repair. |
-| Streaming responses | The seam makes one non-streaming call, capped at `MAX_TOKENS_WITHOUT_STREAMING`. No agent needs a longer answer yet, and streaming changes the trace row's shape (one row per attempt becomes one row per attempt plus a stream of deltas). Add it with the first agent that needs an answer over 16k tokens. |
-| Prompt caching (`cache_control` on the request) | The pricing multipliers are in `praxis/config/models.py` and `cost_of` already prices cache reads and writes, so turning it on cannot silently make the cost column wrong. Not turned on because caching is a prefix-stability problem, and no prompt has a stable prefix until the agents that build prompts exist. |
+| ~~The structured-output layer: Pydantic model → reduced JSON schema, parse, and the repair loop~~ | **Built in Phase 3**, by the first agent that needed one, exactly as this entry said it would be: `praxis/llm/structured.py`, tested against `MockProvider(malformed_share=...)`. Kept here because the reason it waited turned out to be right — the reduction is shaped by what the API actually rejects, and that was read from the docs rather than guessed. |
+| Streaming responses | The seam makes one non-streaming call, capped at `MAX_TOKENS_WITHOUT_STREAMING`. Still true after Phase 3: `SegmenterAgent` windows a document into 40 blocks precisely so no single answer approaches the cap. Streaming changes the trace row's shape (one row per attempt becomes one row per attempt plus a stream of deltas). Add it with the first agent that needs an answer over 16k tokens. |
+| Prompt caching (`cache_control` on the request) | The pricing multipliers are in `praxis/config/models.py` and `cost_of` already prices cache reads and writes, so turning it on cannot silently make the cost column wrong. Phase 3 produced the first stable prefix — `SegmenterAgent`'s system prompt is identical on every call — but one agent's system prompt is far below the minimum cacheable length, so turning it on would cost a cache write and buy nothing. Revisit when several agents share a long preamble. |
+
+## Deferred from Phase 3
+
+| Item | Why not now |
+| ---- | ----------- |
+| A `Finding` for a rejected citation | The pipeline reports refused spans in its result and logs one warning each; it does not write a record. `FindingKind` has no member for a fabricated citation, and the SQL `CHECK` constraints mirror that enum, so adding one is a migration — for a record nothing reads until the reporting layer exists. Build it with the first consumer, in Phase 9 or Phase 11. The evidence is already in the right shape: `SpanRejection` carries the defect and the detail a `Finding.prosecution` would quote. |
+| Cross-document edges in the corpus ground truth | Item ids are corpus-global and `ExpectedLink` can already name any of them, so nothing structural is missing. The templates only assert edges inside one document because the interesting cross-document case — an ADR's assumption against a status update's estimate — is exactly what `FusionBridge` has to *infer*, and planting it as ground truth before Phase 8 exists would fix the answer before anyone has asked the question. Add it with the Phase 10 harness, once the metric it feeds is written. |
+| Streaming or incremental ingestion | Unchanged from Phase 0's entry below, and now measured rather than assumed: the whole 12-document corpus ingests in one call per document. Revisit if a real integration lands. |
+| Segmentation quality measurement | ADR 0011 assumption 1 (`segmenter_f1 - paragraph_floor_f1 >= 0.05`) cannot be evaluated without a grader, and the grader is Phase 10. The floor is built and the pipeline already runs on it whenever a model answers badly, so the ablation is a configuration change rather than a rewrite when the harness exists. |
 
 ## Deferred by design (revisit with data, not opinion)
 
@@ -74,7 +83,7 @@ irreversible in reputation terms even though the flag itself is not.
 | Caching identical LLM calls across eval runs | Premature before there is a measurement showing the eval harness is slow. Deterministic replay already covers the correctness case. |
 | Incremental / streaming ingestion | Phase 3 handles a fixed local corpus. Streaming matters only if a real integration lands, which is out of scope for the competition. |
 | Multi-user or multi-tenant storage | Single-writer is an explicit assumption in ADR 0003. Adding tenancy now would complicate every query for a requirement nobody has. |
-| Anything beyond markdown, txt and json as a source | Email, chat exports, transcripts and issue trackers are named in the architecture as later adapters. The `SourceAdapter` interface exists so they are additive. |
+| Anything beyond markdown, txt and json as a source | Email, chat exports, transcripts and issue trackers are named in the architecture as later adapters. The `SourceAdapter` protocol exists and has three implementations, so a fourth is additive — and ADR 0011 assumption 2 is written to fire if a new source kind turns out to need its own block rules. |
 
 ## Known risks being carried
 

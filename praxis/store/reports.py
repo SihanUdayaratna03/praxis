@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from praxis.domain.enums import RecordKind
-from praxis.domain.ids import NodeId
+from praxis.domain.ids import DocumentId, NodeId
 from praxis.domain.links import LinkType
 from praxis.store import audit
 from praxis.store.errors import translating_sqlite_errors
@@ -93,6 +93,41 @@ def search(connection: sqlite3.Connection, query: str, *, limit: int = 20) -> tu
         )
         for row in rows
     )
+
+
+_BY_CONTENT_HASH_SQL: Final = """
+    SELECT d.id AS id
+    FROM document AS d
+    JOIN record_head AS h ON h.id = d.id AND h.version = d.version
+    JOIN record_version AS rv ON rv.id = d.id AND rv.version = d.version
+    WHERE d.content_hash = ? AND rv.retracted = 0
+    ORDER BY d.id
+    LIMIT 1
+"""
+"""The re-ingestion lookup the `document_content_hash` index was built for.
+
+Narrowed to current, unretracted versions on purpose: a document whose content
+was superseded by a new version should be re-ingested rather than recognised,
+and a retracted one should come back as if it had never been seen.
+"""
+
+
+def document_with_content(connection: sqlite3.Connection, content_hash: str) -> DocumentId | None:
+    """Return the document already holding these exact bytes, if there is one.
+
+    What makes ingesting a corpus twice cost nothing and, more importantly,
+    produce nothing: the second run recognises every document instead of
+    writing a second copy under a new id, which would fork every span cut from
+    it and double-count the corpus in every metric computed over it.
+
+    Args:
+        connection: An open store.
+        content_hash: `Document.content_hash` -- of the *normalised* content,
+            which is the only thing two ingestions of one file agree on.
+    """
+    with translating_sqlite_errors():
+        row = connection.execute(_BY_CONTENT_HASH_SQL, (content_hash,)).fetchone()
+    return None if row is None else DocumentId(str(row["id"]))
 
 
 def stats(connection: sqlite3.Connection) -> StoreStats:

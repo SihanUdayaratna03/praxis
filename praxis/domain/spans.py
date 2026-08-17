@@ -22,6 +22,16 @@ from praxis.domain.records import Document, Span
 class SpanDefect(StrEnum):
     """Why a span failed to resolve. One member per way a citation can lie."""
 
+    UNKNOWN_DOCUMENT = "unknown_document"
+    """The document the span cites is not there to be read.
+
+    The one member `verify_span` never returns, because it is handed the
+    document to check against. `praxis.ingest.verifier` returns it when a
+    citation names a document nothing has ever ingested, which is the most
+    complete way a citation can be fabricated. It lives here rather than in a
+    second enum next to the verifier: "why a citation failed" is one
+    vocabulary, and splitting it would mean every consumer joins two."""
+
     WRONG_DOCUMENT = "wrong_document"
     """Checked against a document the span does not point at. A caller error
     rather than a bad span, and worth distinguishing for that reason."""

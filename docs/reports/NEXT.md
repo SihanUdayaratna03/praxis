@@ -161,4 +161,58 @@ Carried forward, because every one of them cost something.
 Appended as each component lands, so an interrupted session can resume from the
 last line rather than from the diff.
 
-*(nothing yet — the first line is `EST-0004`)*
+- **`EST-0004` logged** on `feat/phase-3-ingestion` before any `praxis/ingest`
+  file existed: **5.5h active, 20h blocked**, confidence 0.45, class
+  `agent-implementation`. No bias correction, for the fourth time and the same
+  reason — three work classes, `n = 1` each, directions disagreeing, and
+  `BiasDetective` refuses below `n = 5`. First estimate to carry
+  `active_quantity` and `blocked_quantity` as separate fields, matching the
+  `Estimate` record's own shape. **Next:** `SourceAdapter` on
+  `feat/phase-3-adapter`.
+- **Adapter and block grid landed** on `feat/phase-3-adapter`:
+  `praxis/ingest/{errors,adapters,blocks}.py`. Normalisation is exactly three
+  transformations (BOM, line endings, NFC) and the tests pin what it must *not*
+  do as hard as what it does. JSON is re-rendered one `path: value` block per
+  leaf so its prose is quotable. The block grid is property-tested to tile a
+  document exactly — every non-whitespace character in exactly one block — and
+  is the segmenter's degradation floor. **Next:** ADR 0011, then the
+  structured-output layer and `SegmenterAgent` on `feat/phase-3-segmenter`.
+- **ADR 0011, the structured-output layer and `SegmenterAgent` landed** on
+  `feat/phase-3-segmenter`. The layer deferred from Phase 2 is
+  `praxis/llm/structured.py`: reduce, describe the stripped bound, close every
+  object, validate locally — the same four steps the official SDKs document,
+  cited. The agent answers in block numbers only. `synthesis.py` gained
+  `ordinals_in` so the mock answers with labels it was actually shown, without
+  which the code that honours a good grouping would never run offline.
+  **Next:** `VerifierAgent` on `feat/phase-3-verifier`.
+- **`VerifierAgent` landed** on `feat/phase-3-verifier`: span resolution and
+  the invariant-6 claim gate, both deterministic. Documents are *resolved*
+  through a `DocumentSource`, so a span citing a document nothing ingested is
+  refused as `UNKNOWN_DOCUMENT` (new member of `SpanDefect`). Whitespace is the
+  only latitude; case and punctuation are not normalised. `test_boundaries.py`
+  now maps each `NON_LLM_AGENTS` name onto its module and asserts the module
+  cannot import `praxis.llm`. **Next:** ADR 0012 and the corpus generator on
+  `feat/phase-3-corpus`.
+- **ADR 0012 and the ground-truth format landed** on `feat/phase-3-corpus`:
+  `praxis/corpus/{groundtruth,topics}.py`. Offsets are into the *normalised
+  content*, not the file on disk, so the answer key and a `Span` share one
+  coordinate system and `content_sha256` is exactly `Document.content_hash`.
+  `verify_corpus` re-reads every offset and returns all problems rather than
+  the first. The JSON rendering helpers in `adapters.py` are public so the
+  generator can place an offset without searching for it. **Next:** the
+  generator itself, then the end-to-end pipeline.
+- **The corpus generator landed** on `feat/phase-3-corpus`:
+  `praxis/corpus/{drafting,templates,generator}.py`. 12 documents across four
+  shapes (ADR, meeting notes, status update, JSON export) and eight topics,
+  with 30 real items and 12 distractors. `generate_corpus` verifies what it
+  wrote and refuses to return a corpus with a problem in it. Every ADR carries
+  an effort assumption with an `estimated_as` edge, so the fusion relationship
+  is labelled in the corpus before the agent that finds it exists. Tests
+  ingest the generated documents and build a real `Span` over every
+  ground-truth range. **Next:** the end-to-end pipeline on
+  `feat/phase-3-pipeline`.
+- **The pipeline and the CLI landed** on `feat/phase-3-pipeline`:
+  `praxis/ingest/pipeline.py`, `praxis ingest`, `praxis corpus generate`, and a
+  re-ingestion lookup by content hash added to `praxis/store/reports.py`. Suite
+  is **1149 passed, 98.09% coverage**. `ARCHITECTURE.md` and `BACKLOG.md`
+  updated. **Next:** the phase report, `OUT-0004`, and the PR.

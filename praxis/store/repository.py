@@ -32,6 +32,7 @@ from praxis.domain.enums import AuditAction, RecordKind
 from praxis.domain.ids import (
     CONTENT_ADDRESSED_KINDS,
     AuditEventId,
+    DocumentId,
     NodeId,
     format_sequential_id,
     ordinal_of,
@@ -365,6 +366,10 @@ class Repository:
     def search(self, query: str, *, limit: int = 20) -> tuple[reports.SearchHit, ...]:
         """Full-text search over current, unretracted records."""
         return reports.search(self._connection, query, limit=limit)
+
+    def document_with_content(self, content_hash: str) -> DocumentId | None:
+        """The document already holding these exact bytes, if there is one."""
+        return reports.document_with_content(self._connection, content_hash)
 
     def stats(self) -> reports.StoreStats:
         """Row and edge counts, for `praxis store stats` and `praxis doctor`."""
