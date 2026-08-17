@@ -30,6 +30,7 @@ from praxis.prompts.library import (
 # The one legitimate edit is a typo fixed before the prompt has ever run.
 SHIPPED: dict[str, str] = {
     "group_blocks@v1": "00f9f9da6d7485ef4157fbeb1d95620b92ff083cf96798eeb93d0999a9cef72c",
+    "scan_for_decisions@v1": ("66b4da5129cb270889d9f531ee52e5b0dfa16bc100462e86e4b5d4912b5b7103"),
 }
 
 
