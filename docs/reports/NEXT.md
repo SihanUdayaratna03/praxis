@@ -1,93 +1,123 @@
-# Handover — start of Phase 3
+# Handover — start of Phase 4
 
-Read this first, then `CLAUDE.md`. Written at the close of Phase 2 so the next
+Read this first, then `CLAUDE.md`. Written at the close of Phase 3 so the next
 session can start working instead of re-deriving state.
 
 ---
 
 ## Where we stopped
 
-Phase 2 is merged, tagged and green. Nothing is in flight.
+Phase 3 is merged, tagged and green. Nothing is in flight.
 
 | | |
 | --- | --- |
-| `main` | `7cdddec`, local and remote identical |
-| Tag | `v0.2-phase-2` → `7cdddec` (dereferenced through the API, not assumed) |
-| CI | 5/5 green on the PR |
+| `main` | `64888bd`, local and remote identical |
+| Tag | `v0.3-phase-3` → `64888bd` (dereferenced through the API, not assumed) |
+| CI | 5/5 green on [#9](https://github.com/SihanUdayaratna03/praxis/pull/9) |
 | Open PRs | none |
 | Remote branches | `main` only |
 | Working tree | clean |
-| Suite | **880 passed**, coverage **98.16%** (gate 85%) |
+| Suite | **1149 passed**, coverage **98.09%** (gate 85%) |
+| Schema | version 3 — Phase 3 needed no migration |
 
 ```bash
 cd "C:\Users\sihan\OneDrive\Desktop\Praxis Agents"
 git checkout main && git pull
 uv sync --all-groups
-uv run praxis doctor          # expect OK, including one offline model call
-uv run pytest                 # expect 880 passed
+uv run praxis doctor            # expect OK, including one offline model call
+uv run pytest                   # expect 1149 passed
+
+# the phase 3 pipeline, end to end and offline
+uv run praxis init
+uv run praxis corpus generate .praxis-tmp/corpus
+uv run praxis ingest .praxis-tmp/corpus/documents
+uv run praxis store stats       # 12 documents, 112 spans
 ```
 
-**Shipped in Phase 2:** the `LLMProvider` seam, `MockProvider` built on a
-schema-driven synthesiser, `ReplayProvider`, `AnthropicProvider` and its
-recording subclass, the replay key, token and cost accounting with a ceiling
-checked before the call, the `llm_trace` table (schema version 3), the provider
-factory, the boundary test, and `doctor` proving the offline claim by making a
-call. 427 new tests.
+**Shipped in Phase 3:** `SourceAdapter` for markdown, text and JSON; the
+deterministic block grid; `SegmenterAgent`; `VerifierAgent`; the
+structured-output layer and its repair loop (deferred from Phase 2); the
+synthetic corpus generator and its machine-gradeable ground truth; the
+end-to-end ingestion pipeline with tracing; `praxis ingest` and `praxis corpus
+generate`. 269 new tests. ADRs 0011 and 0012.
 
-**Deliberately not shipped:** the structured-output layer and its repair loop,
-streaming, and prompt caching — all three in [`BACKLOG.md`](../../BACKLOG.md)
-with reasons. No agent, no prompt, no orchestration.
+**Deliberately not shipped:** a `Finding` for a rejected citation,
+cross-document ground-truth edges, streaming, prompt caching — all in
+[`BACKLOG.md`](../../BACKLOG.md) with reasons.
 
-The full account is in [`phase-2.md`](phase-2.md). Read its last section before
-writing `EST-0004`.
+The full account is in [`phase-3.md`](phase-3.md). Read its last section before
+writing `EST-0005`.
 
 ---
 
-## Phase 2's own numbers
+## Phase 3's own numbers
 
 | | |
 | --- | --- |
-| `EST-0003` | 4.5 hours active, confidence 0.45, class `llm-integration` |
-| `OUT-0003` | ~5.6 hours active, ~30 hours wall clock, scored **`close`** |
-| Miss direction | **under-estimated, ~1.24×** |
+| `EST-0004` | 5.5h active, 20h blocked, confidence 0.45, class `agent-implementation` |
+| `OUT-0004` | ~4.2h active, ~12.8h blocked, scored **`close`** |
+| Miss direction | **over-estimated, ~1.3×** |
 
-The scope correction OUT-0002 asked for worked: the estimate priced ~2,200
-production and ~3,000 test lines as line items, and the actual is 2,246 and
-2,566. The test figure is short by about the one component that was deferred.
+Four outcomes now exist in four work classes and they still disagree in
+direction — over 2.3×, under 2.1×, under 1.24×, over 1.3×, `n = 1` each.
+**Do not correct `EST-0005` for any of them.** `BiasDetective` refuses below
+`n = 5` and so should its author.
 
-Three outcomes now exist in three work classes and they disagree in direction —
-over 2.3×, under 2.1×, under 1.24×, `n = 1` each. **Do not correct `EST-0004`
-for any of them.** `BiasDetective` refuses below `n = 5` and so should its
-author; that refusal is the product's own thesis, and the first place to break
-it would be here.
+Two things to carry into the estimate itself:
+
+- **Price components, not phases, and count the components honestly.** The one
+  line item that went badly wrong in `EST-0004` was the one described in four
+  words. Tests came in at 2,826 against ~2,600 predicted; production came in at
+  3,740 against ~1,900, and the whole gap is the corpus generator, priced as a
+  single item and delivered as five modules.
+- **Commit before a session is likely to end.** Phase 3's active figure is the
+  softest number in the corpus because a session limit landed between two
+  commits, leaving the first window bounded on one side only. A `wip:` commit
+  on a strand branch never reaches `main`'s history and is the difference
+  between a bounded window and a guess.
 
 ---
 
-## What Phase 3 is
+## What Phase 4 is
 
-Ingestion, from [`ARCHITECTURE.md`](../../ARCHITECTURE.md): `SourceAdapter` →
-`SegmenterAgent`, turning markdown, text and JSON into `Document` and `Span`
-records with stable ids and exact source offsets. This is the first phase with
-an agent in it, so it is also where the model layer stops being theoretical.
+Orchestration, from [`ARCHITECTURE.md`](../../ARCHITECTURE.md) and
+[ADR 0004](../adr/0004-custom-async-orchestrator.md): a small async state
+machine over a typed message bus, written for this project. No agent framework.
+
+The requirement that drives the design is already written down: **two runs over
+one corpus with one seed must produce identical numbers**, or the Phase 10
+ablation table means nothing.
+
+That property is currently true of everything Phase 3 built, and each piece has
+a test saying so — the segmenter's spans, the corpus's bytes, the answer key,
+and the mock's answers are all functions of their inputs. Phase 4 is where it
+is easy to lose: concurrency, `asyncio` scheduling order, and anything that
+reads a clock or a set iteration order.
 
 Do not design it here. The first action of the phase is the estimate, before
 any file is created:
 
-1. `git checkout -b feat/phase-3-<slug>` off `main`.
-2. Append `EST-0004` to `docs/dogfood/estimates.jsonl` **before** the work
-   starts. A phase with no prediction is a hole in the Phase 12 demo.
+1. `git checkout -b feat/phase-4-<slug>` off `main`.
+2. Append `EST-0005` to `docs/dogfood/estimates.jsonl` **before** the work
+   starts, with `active_quantity` and `blocked_quantity`.
 3. Then work the phase per `CLAUDE.md` § Workflow per phase.
 
-Two things Phase 2 left standing for it:
+Three things Phase 3 left standing for it:
 
-- **The structured-output layer belongs to the first agent that needs it.**
-  `MalformedOutputError` is in the vocabulary with nothing raising it, and
-  `MockProvider(malformed_share=...)` exists to give a repair loop something to
-  repair. Build it when there is a real failure distribution to build against.
-- **Every agent asks `provider_for()` for a provider and `praxis.config.models`
-  for a role.** An agent that names a provider or a model breaks ADR 0005's
-  first assumption and invariant 2 respectively, and `praxis doctor` plus
-  `tests/test_boundaries.py` are what notice.
+- **`SegmenterAgent` is the only agent so far, and it is the shape the rest
+  follow.** It takes a provider it did not choose, asks
+  `praxis.llm.structured.ask_for` for a Pydantic model, degrades rather than
+  raising on a bad answer about one document, and lets a failure about the
+  *run* propagate. Phase 4's orchestrator should be able to run it without
+  knowing any of that.
+- **`IngestionPipeline` is a hand-rolled sequence, and Phase 4 is what replaces
+  its wiring.** Its stages are the right ones; what it lacks is a run id
+  threaded through every write (`Repository.add` already takes `run_id` and the
+  pipeline does not pass one), and any notion of concurrency.
+- **`praxis/corpus/` is the fixture corpus for every later phase.** Regenerate
+  it rather than editing it, and never hand-edit `ground_truth.json` — the
+  offsets are written by construction and `verify_corpus` will catch a drift,
+  but only if someone runs it.
 
 ---
 
@@ -95,51 +125,60 @@ Two things Phase 2 left standing for it:
 
 Carried forward, because every one of them cost something.
 
+**From Phase 3:**
+
+- **A test built from two identical-looking literals tests nothing.** The NFC
+  test compared two spellings of `café` that were the same string in the source
+  file. Build both from `chr(...)` and assert they differ *before* asserting
+  normalisation collapses them.
+- **`stats.records` omits kinds with no rows.** It is a `GROUP BY`, so
+  `records[RecordKind.SPAN]` raises `KeyError` on an empty store. Use `.get(kind, 0)`.
+- **A `conftest` fixture inside a `@given` test needs
+  `suppress_health_check=[HealthCheck.function_scoped_fixture]`.**
+- **Ruff's auto-fix strips an import added before its use lands** — true of the
+  `post_edit_verify` hook *and* of a manual `ruff check` between two edits. Add
+  the import and its use in the same edit.
+- **The structured-output dialect rejects unsupported keywords with a 400**, it
+  does not ignore them. `praxis/llm/structured.py` strips them and says them in
+  the description instead, which is what the official SDKs do; the Pydantic
+  model stays the only validator.
+- **Generated prose has to be read by a person.** Nothing automated catches
+  "This rests on the index stays under 50 GB".
+
 **From Phase 2:**
 
-- **A single-seed test of a random generator tests one number.** The
-  synthesiser rounded values back outside their own exclusive bounds, and only
-  a thirty-seed loop caught it.
-- **Build test doubles out of the real object where one exists.** The live
-  provider's tests construct real `anthropic.types.Message` values; that is how
-  the SDK reporting cache token counts as `None` rather than zero was found
-  before a live run could find it. A stub agrees with whatever you assumed.
+- **A single-seed test of a random generator tests one number.**
+- **Build test doubles out of the real object where one exists.** The
+  segmenter's mechanism tests use a real `LLMProvider` subclass, so they still
+  go through routing, the ledger and the trace sink.
 - **`assert_never` and mypy's `warn_unreachable` disagree** on an exhaustive
-  `if` chain — the exhaustiveness proof makes the `assert_never` unreachable
-  code. Put the check in a test instead of silencing a gate.
-- **`guard_no_secrets.py` reads a long value after `api_key=` as a credential**
-  and is right to. Bind it to a local first.
-- **`mypy --strict` cannot check a `**kwargs` dictionary through a call.** Pass
-  the arguments explicitly.
-- **The trace store and the audit trail are two tables and must stay two.** One
-  records what an agent was *told*, the other what it *changed*.
+  `if` chain. Put the check in a test.
+- **`guard_no_secrets.py` reads a long value after `api_key=` as a credential.**
+  Bind it to a local first.
+- **`mypy --strict` cannot check a `**kwargs` dictionary through a call.**
+- **The trace store and the audit trail are two tables and must stay two.**
 
 **From Phase 1 and 0:**
 
-- **Long text goes to a file.** This shell has a ~965-byte parse limit and
-  PowerShell 5.1 mangles embedded quotes passed to native executables. Use
-  `gh pr create --body-file .praxis-tmp/pr-body.md` and
-  `git commit -F .praxis-tmp/commit-msg.txt`. `.praxis-tmp/` is gitignored.
-- **Branch protection does not exist** — `PUT .../branches/main/protection`
-  returns `403 Upgrade to GitHub Pro`. `main` is protected only by the
-  pre-commit `no-commit-to-branch` hook and `guard_git_workflow.py`, both
-  client-side. Branch and open a PR even for a one-line docs change.
-- **The `post_edit_verify` hook runs `ruff --fix`**, which deletes an import
-  added in one edit before the edit that uses it lands. Add the import and its
-  use in the same edit.
+- **Long text goes to a file.** ~965-byte shell parse limit, and PowerShell 5.1
+  mangles embedded quotes passed to native executables. `gh pr create
+  --body-file`, `git commit -F`. `.praxis-tmp/` is gitignored.
+- **Branch protection does not exist** — `403 Upgrade to GitHub Pro`. `main` is
+  protected only by client-side hooks. Branch and open a PR even for a one-line
+  docs change.
+- **A merge commit message must be a conventional commit.** The `commit-msg`
+  hook rejects `merge: ...`; the strand merges use `chore: merge the ... strand`.
 - **A check about other people's machines must not be tested only on this one.**
-  Use `PureWindowsPath` / `PurePosixPath` for path literals in tests.
-- **`executescript` commits any open transaction before it runs**, so migration
-  transaction control lives *inside* the script.
+- **`executescript` commits any open transaction before it runs.**
 - **An FTS5 table cannot be aliased on the left of `MATCH`.**
-- **`strategy.example()` inside a test raises** under
-  `filterwarnings = ["error"]`. Compose the strategy into the `@given`.
+- **`strategy.example()` inside a test raises** under `filterwarnings = ["error"]`.
 - **Editing a file with a Python script on this machine writes CRLF**, and the
-  pre-commit `mixed line ending` hook rewrites it and aborts the commit. Just
-  `git add` again and re-run the commit; the second one succeeds.
+  pre-commit `mixed line ending` hook rewrites it and aborts. `git add` again
+  and re-run the commit.
 - **Nothing in `praxis/store/` or `praxis/llm/` is expected to need further
-  work.** If a later test finds a bug, fix it there — but do not redesign
-  either.
+  work.** Phase 3 added one read to `store/reports.py` and one generator hint to
+  `llm/synthesis.py`, both additive. Fix a bug if a test finds one; do not
+  redesign either.
 
 ---
 
@@ -151,68 +190,14 @@ Carried forward, because every one of them cost something.
    Recorded in [`BACKLOG.md`](../../BACKLOG.md) with the trigger and the exact
    commands. Consequence: `main` still has no server-side protection.
 3. **No API key exists and none is expected.** `PRAXIS_LLM_PROVIDER=mock` is
-   the default, CI has no secret, and Phase 2 made that checkable rather than
-   asserted. Do not write anything that needs a credential to run.
+   the default, CI has no secret, and `praxis doctor` checks the claim by making
+   a call rather than reading a setting.
 
 ---
 
-## Phase 3 progress log
+## Phase 4 progress log
 
 Appended as each component lands, so an interrupted session can resume from the
 last line rather than from the diff.
 
-- **`EST-0004` logged** on `feat/phase-3-ingestion` before any `praxis/ingest`
-  file existed: **5.5h active, 20h blocked**, confidence 0.45, class
-  `agent-implementation`. No bias correction, for the fourth time and the same
-  reason — three work classes, `n = 1` each, directions disagreeing, and
-  `BiasDetective` refuses below `n = 5`. First estimate to carry
-  `active_quantity` and `blocked_quantity` as separate fields, matching the
-  `Estimate` record's own shape. **Next:** `SourceAdapter` on
-  `feat/phase-3-adapter`.
-- **Adapter and block grid landed** on `feat/phase-3-adapter`:
-  `praxis/ingest/{errors,adapters,blocks}.py`. Normalisation is exactly three
-  transformations (BOM, line endings, NFC) and the tests pin what it must *not*
-  do as hard as what it does. JSON is re-rendered one `path: value` block per
-  leaf so its prose is quotable. The block grid is property-tested to tile a
-  document exactly — every non-whitespace character in exactly one block — and
-  is the segmenter's degradation floor. **Next:** ADR 0011, then the
-  structured-output layer and `SegmenterAgent` on `feat/phase-3-segmenter`.
-- **ADR 0011, the structured-output layer and `SegmenterAgent` landed** on
-  `feat/phase-3-segmenter`. The layer deferred from Phase 2 is
-  `praxis/llm/structured.py`: reduce, describe the stripped bound, close every
-  object, validate locally — the same four steps the official SDKs document,
-  cited. The agent answers in block numbers only. `synthesis.py` gained
-  `ordinals_in` so the mock answers with labels it was actually shown, without
-  which the code that honours a good grouping would never run offline.
-  **Next:** `VerifierAgent` on `feat/phase-3-verifier`.
-- **`VerifierAgent` landed** on `feat/phase-3-verifier`: span resolution and
-  the invariant-6 claim gate, both deterministic. Documents are *resolved*
-  through a `DocumentSource`, so a span citing a document nothing ingested is
-  refused as `UNKNOWN_DOCUMENT` (new member of `SpanDefect`). Whitespace is the
-  only latitude; case and punctuation are not normalised. `test_boundaries.py`
-  now maps each `NON_LLM_AGENTS` name onto its module and asserts the module
-  cannot import `praxis.llm`. **Next:** ADR 0012 and the corpus generator on
-  `feat/phase-3-corpus`.
-- **ADR 0012 and the ground-truth format landed** on `feat/phase-3-corpus`:
-  `praxis/corpus/{groundtruth,topics}.py`. Offsets are into the *normalised
-  content*, not the file on disk, so the answer key and a `Span` share one
-  coordinate system and `content_sha256` is exactly `Document.content_hash`.
-  `verify_corpus` re-reads every offset and returns all problems rather than
-  the first. The JSON rendering helpers in `adapters.py` are public so the
-  generator can place an offset without searching for it. **Next:** the
-  generator itself, then the end-to-end pipeline.
-- **The corpus generator landed** on `feat/phase-3-corpus`:
-  `praxis/corpus/{drafting,templates,generator}.py`. 12 documents across four
-  shapes (ADR, meeting notes, status update, JSON export) and eight topics,
-  with 30 real items and 12 distractors. `generate_corpus` verifies what it
-  wrote and refuses to return a corpus with a problem in it. Every ADR carries
-  an effort assumption with an `estimated_as` edge, so the fusion relationship
-  is labelled in the corpus before the agent that finds it exists. Tests
-  ingest the generated documents and build a real `Span` over every
-  ground-truth range. **Next:** the end-to-end pipeline on
-  `feat/phase-3-pipeline`.
-- **The pipeline and the CLI landed** on `feat/phase-3-pipeline`:
-  `praxis/ingest/pipeline.py`, `praxis ingest`, `praxis corpus generate`, and a
-  re-ingestion lookup by content hash added to `praxis/store/reports.py`. Suite
-  is **1149 passed, 98.09% coverage**. `ARCHITECTURE.md` and `BACKLOG.md`
-  updated. **Next:** the phase report, `OUT-0004`, and the PR.
+*(nothing yet — the first line is `EST-0005`)*
