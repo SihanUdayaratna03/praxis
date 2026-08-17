@@ -41,7 +41,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -71,6 +71,12 @@ MAX_TITLE_CHARS: Final = 120
 A title is a convenience for a human reading `praxis store stats`; guessing one
 out of a paragraph would put a sentence fragment in a column people skim.
 """
+
+BLOCK_SEPARATOR: Final = "\n\n"
+"""What separates two blocks of text anywhere Praxis writes one.
+
+The JSON rendering uses it, and so does the corpus generator, which is why it
+is named once here rather than spelled in both."""
 
 _BOM: Final = "﻿"
 _ROOT_LABEL: Final = "value"
@@ -348,16 +354,32 @@ def _fit_title(candidate: str) -> str | None:
     return stripped if 0 < len(stripped) <= MAX_TITLE_CHARS else None
 
 
-def _render_json(parsed: Any) -> str:
-    """Render a parsed JSON document as one `path: value` block per leaf."""
-    blocks = [_render_leaf(path, value) for path, value in _leaves(parsed, "")]
-    return "\n\n".join(blocks) + "\n"
+def json_leaves(parsed: Any) -> tuple[tuple[str, str], ...]:
+    """Return a parsed JSON document's leaves, each with its dotted path.
+
+    Public because the corpus generator builds a JSON document out of leaves
+    and has to know the byte offset of each one in the *rendering*, which is
+    what a span addresses. Sharing the function is what makes those offsets
+    right by construction rather than by a search over the finished text --
+    ADR 0012's rejected shortcut.
+    """
+    return tuple(_leaves(parsed, ""))
 
 
-def _render_leaf(path: str, value: str) -> str:
-    """Render one leaf, keeping a multi-line value on lines of its own."""
+def render_leaf(path: str, value: str) -> str:
+    """Render one leaf as its block: `path: value`, or the value on its own lines."""
     label = path or _ROOT_LABEL
     return f"{label}:\n{value}" if "\n" in value else f"{label}: {value}"
+
+
+def render_leaves(leaves: Sequence[tuple[str, str]]) -> str:
+    """Join rendered leaves into the text a JSON document normalises to."""
+    return BLOCK_SEPARATOR.join(render_leaf(path, value) for path, value in leaves) + "\n"
+
+
+def _render_json(parsed: Any) -> str:
+    """Render a parsed JSON document as one `path: value` block per leaf."""
+    return render_leaves(json_leaves(parsed))
 
 
 def _leaves(value: Any, path: str) -> Iterator[tuple[str, str]]:
