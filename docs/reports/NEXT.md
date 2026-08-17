@@ -211,3 +211,8 @@ last line rather than from the diff.
   ingest the generated documents and build a real `Span` over every
   ground-truth range. **Next:** the end-to-end pipeline on
   `feat/phase-3-pipeline`.
+- **The pipeline and the CLI landed** on `feat/phase-3-pipeline`:
+  `praxis/ingest/pipeline.py`, `praxis ingest`, `praxis corpus generate`, and a
+  re-ingestion lookup by content hash added to `praxis/store/reports.py`. Suite
+  is **1149 passed, 98.09% coverage**. `ARCHITECTURE.md` and `BACKLOG.md`
+  updated. **Next:** the phase report, `OUT-0004`, and the PR.

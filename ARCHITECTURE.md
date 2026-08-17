@@ -2,15 +2,16 @@
 
 > Status: this describes the system Praxis is being built toward. Phase 0
 > shipped the foundation — config, logging, CLI, CI, hooks — Phase 1 the data
-> model and the store, and Phase 2 the model access layer. Sections marked
-> *(built)* exist and are tested; everything else is the target, not the
-> present. Each phase updates this file when something structural lands.
+> model and the store, Phase 2 the model access layer, and Phase 3 ingestion:
+> the first real agents. Sections marked *(built)* exist and are tested;
+> everything else is the target, not the present. Each phase updates this file
+> when something structural lands.
 
 ## The shape of the thing
 
 ```
                     ┌──────────────────────────────────────────┐
-   sources ────────▶│ SourceAdapter → SegmenterAgent           │  ingestion
+   sources ────────▶│ SourceAdapter → SegmenterAgent  (built)  │  ingestion
    (md, txt, json)  │   Document → Span (stable ids, offsets)  │
                     └────────────────────┬─────────────────────┘
                                          │
@@ -134,6 +135,71 @@ the platform data directory rather than the repository, because the repository
 is on a synced filesystem and WAL sidecars corrupt under one —
 [ADR 0010](docs/adr/0010-store-location-under-a-syncing-filesystem.md).
 
+## Ingestion *(Phase 3, built)*
+
+```
+   bytes ──▶ SourceAdapter ──▶ block grid ──▶ SegmenterAgent ──▶ VerifierAgent ──▶ store
+             deterministic      deterministic   picks block        deterministic
+             md / txt / json    the only place  numbers, never     re-reads every
+                                a cut may fall  an offset          span
+```
+
+Segmentation is two decisions and only one of them is a model's.
+`praxis/ingest/blocks.py` cuts a document deterministically into headings,
+paragraphs, list items, whole tables and whole fenced code, and
+`SegmenterAgent` is shown that grid numbered and asked which contiguous runs
+belong together. **It answers in block numbers.** The offsets are read off the
+grid and the text is sliced out of the document, so a citation of text that is
+not there is not something this pipeline can express — see
+[ADR 0011](docs/adr/0011-semantic-segmentation-over-a-deterministic-block-grid.md).
+
+The grid is also the floor. A group that cannot be honoured exactly is dropped
+with a reason, blocks no group claimed become spans of their own, and a window
+the model refused or never answered usably degrades to one span per block. The
+worst answer available therefore costs segmentation quality and never
+correctness, and the spans always partition the document's blocks.
+
+`VerifierAgent` re-reads everything anyway, because "impossible by
+construction" and "checked regardless" is the only pairing worth making a
+promise out of. It resolves each span's document rather than being handed one,
+so a citation of a document nothing ever ingested is refused as such — the most
+complete way a citation can be fabricated.
+
+Normalisation is three transformations and no more: drop the byte-order mark,
+collapse CRLF and a bare CR to LF, normalise to NFC. Each closes a way the same
+document could produce two byte lengths on two machines, and therefore two sets
+of content-addressed span ids. A JSON source is re-rendered one `path: value`
+block per leaf, so **its spans address the rendering rather than the file** —
+prose left inside a JSON string is prose behind escape sequences.
+
+`praxis/llm/structured.py` arrived with the first agent that needed it, as
+Phase 2 said it would: a Pydantic model is reduced to the dialect the API
+accepts — strip the unsupported keyword, say it in the description instead,
+close every object, and validate locally against the original — and a malformed
+answer is repaired by continuing the conversation, one trace row per attempt.
+
+## The synthetic corpus *(Phase 3, built)*
+
+Phase 10 grades extractions automatically, which needs a corpus whose answers
+are written down in a shape a program can compare against.
+`praxis/corpus/` writes one, and emits the answer key **by construction**:
+each document is assembled from fragments and the byte range of every fragment
+is recorded as it is appended, never found by searching the finished text.
+
+The key carries byte offsets into the *normalised content* (the same
+coordinate system a `Span` uses, so `content_sha256` is exactly
+`Document.content_hash`), stable item ids, the typed edges between them, per
+field an expected value and a comparison mode, and `is_distractor` for text
+that looks extractable and must not be extracted — without labelled negatives
+only recall is measurable. See
+[ADR 0012](docs/adr/0012-machine-gradeable-corpus-ground-truth.md).
+
+Every generated ADR carries two assumptions: one about the world, and one about
+how long the work will take — a quantified forward-looking claim, which is an
+estimate wearing an assumption's clothes. The second carries an `estimated_as`
+edge, so the corpus contains the fusion relationship the product exists to find,
+labelled, before the agent that has to find it is written.
+
 ## Orchestration *(Phase 4)*
 
 A small async state machine over a typed message bus, written for this project.
@@ -186,6 +252,7 @@ These never call a model:
 | Component | Why |
 | --------- | --- |
 | `SourceAdapter` | Normalisation is parsing |
+| The block grid | Where a document *may* be cut is not a judgement call, and it is what makes the segmenter's answer checkable |
 | `VerifierAgent` | A hallucination check that could hallucinate is not a check |
 | `BiasDetective` | Bias, sample size and intervals are arithmetic |
 | `ScoringAgent` | Brier, log score and MAPE are arithmetic |
@@ -198,7 +265,9 @@ these acquires a model route.
 
 ```
 praxis/
-  cli.py               typer app: version, config, doctor, init, store stats
+  cli.py               typer app: version, config, doctor, init, ingest,
+                       store stats, corpus generate
+  cli_tables.py        what the CLI's output looks like
   config/settings.py   pydantic-settings; PRAXIS_* environment
   config/models.py     model ids, prices, roles, routing  ← the only place
   domain/ids.py        typed ids; sequential and content-addressed
@@ -227,6 +296,18 @@ praxis/
   llm/replay.py        recorded fixtures, and a loud miss
   llm/anthropic.py     the only module that imports an SDK  ← the boundary
   llm/factory.py       the only code that reads PRAXIS_LLM_PROVIDER
+  llm/structured.py    pydantic -> the API's dialect, and the repair loop
+  ingest/adapters.py   bytes -> the exact text every offset addresses
+  ingest/blocks.py     the deterministic grid a segmenter may group
+  ingest/segmenter.py  the first agent: block numbers in, spans out
+  ingest/verifier.py   the citation gate. No model, ever
+  ingest/pipeline.py   adapter -> segmenter -> verifier -> store, traced
+  ingest/errors.py     what can go wrong between a file and a span
+  corpus/groundtruth.py the answer key's shape, and what makes it gradeable
+  corpus/drafting.py   assembling a document while recording where it landed
+  corpus/templates.py  four document shapes, four extraction problems
+  corpus/topics.py     the material: eight engineering decisions
+  corpus/generator.py  writes the corpus, then verifies it against itself
   obs/logging.py       structured JSON logging
 tests/                 pytest + hypothesis
 docs/adr/              decisions, in Praxis's own schema

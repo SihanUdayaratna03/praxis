@@ -8,6 +8,7 @@ import pytest
 from praxis import __version__
 from praxis.cli import app
 from praxis.config.settings import get_settings
+from praxis.corpus.groundtruth import verify_corpus
 from praxis.store.migrations import latest_version
 from typer.testing import CliRunner
 
@@ -214,3 +215,84 @@ def test_init_warns_before_it_writes_to_a_synced_path(
     assert result.exit_code == 0, result.output
     assert "warning" in result.output
     assert "PRAXIS_JOURNAL_MODE=delete" in result.output
+
+
+# --- Phase 3: ingestion and the corpus ------------------------------------
+
+
+def test_corpus_generate_writes_a_corpus_that_verifies(tmp_path: Path) -> None:
+    root = tmp_path / "corpus"
+
+    result = runner.invoke(app, ["corpus", "generate", str(root), "--documents", "4"])
+
+    assert result.exit_code == 0, result.output
+    assert "OK" in result.output
+    assert verify_corpus(root) == ()
+    assert "4 distractors" in result.output
+
+
+def test_corpus_generate_takes_its_seed_from_the_configuration(tmp_path: Path) -> None:
+    """So that a corpus regenerated on another machine is the same corpus,
+    without anyone having to remember a number."""
+    result = runner.invoke(app, ["corpus", "generate", str(tmp_path / "c"), "--documents", "2"])
+
+    assert f"seed {get_settings().seed}" in result.output
+
+
+def test_corpus_generate_reports_a_bad_request_as_a_sentence(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["corpus", "generate", str(tmp_path / "c"), "--documents", "0"])
+
+    assert result.exit_code == 1
+    assert "at least one document" in result.output
+
+
+def test_ingest_reads_a_corpus_into_the_store(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    runner.invoke(app, ["corpus", "generate", str(corpus), "--documents", "3"])
+    runner.invoke(app, ["init"])
+
+    result = runner.invoke(app, ["ingest", str(corpus / "documents")])
+
+    assert result.exit_code == 0, result.output
+    assert "3 written" in result.output
+    assert "0 refused" in result.output
+    assert "calls via mock" in result.output
+
+
+def test_ingest_recognises_a_corpus_it_has_already_read(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    runner.invoke(app, ["corpus", "generate", str(corpus), "--documents", "2"])
+    runner.invoke(app, ["init"])
+    runner.invoke(app, ["ingest", str(corpus / "documents")])
+
+    result = runner.invoke(app, ["ingest", str(corpus / "documents")])
+
+    assert result.exit_code == 0, result.output
+    assert "0 written, 2 already present" in result.output
+
+
+def test_ingest_exits_non_zero_when_a_source_fails(tmp_path: Path) -> None:
+    runner.invoke(app, ["init"])
+    broken = tmp_path / "broken.md"
+    broken.write_bytes(b"not utf-8: \xff\xfe")
+
+    result = runner.invoke(app, ["ingest", str(broken)])
+
+    assert result.exit_code == 1
+    assert "failed" in result.output
+
+
+def test_ingest_without_a_store_says_to_run_init(tmp_path: Path) -> None:
+    source = tmp_path / "notes.md"
+    source.write_text("# Notes\n\nA decision was made.\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["ingest", str(source)])
+
+    assert result.exit_code == 1
+    assert "praxis init" in result.output
+
+
+def test_bare_corpus_shows_its_subcommands() -> None:
+    result = runner.invoke(app, ["corpus"])
+
+    assert "generate" in result.output
