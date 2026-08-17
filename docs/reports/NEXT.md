@@ -200,4 +200,16 @@ Carried forward, because every one of them cost something.
 Appended as each component lands, so an interrupted session can resume from the
 last line rather than from the diff.
 
-*(nothing yet — the first line is `EST-0005`)*
+**Correction to "What Phase 4 is" above.** That section was written at the close
+of Phase 3 and says Phase 4 is orchestration. The owner re-scoped it: Phase 4 is
+**Half A core agents** — `DecisionScout`, `DecisionStructurer`,
+`AssumptionExtractor`, the pipeline wiring them onto Phase 3's ingestion, and
+the first evaluation harness. Orchestration moves later.
+[ADR 0004](../adr/0004-custom-async-orchestrator.md) still stands; nothing about
+it changed except when it is built.
+
+- `EST-0005` logged on the phase branch before any Phase 4 file existed: **6.0h
+  active, 16.0h blocked**, confidence 0.40, class `agent-implementation`. No
+  bias correction, for the fifth time — four outcomes, four classes, `n = 1`
+  each, still disagreeing in direction. The eval harness is priced as four line
+  items rather than one, which is the lesson `OUT-0004` paid for.
