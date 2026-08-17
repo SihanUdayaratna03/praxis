@@ -136,6 +136,25 @@ class TestTracing:
         stub.complete(call)
         assert stub.sink.traces[0].prompt_hash == prompt_hash(call)
 
+    def test_the_trace_names_the_prompt_version_that_produced_it(self):
+        # ADR 0014. A metrics table is only a measurement if the question that
+        # produced it can still be read.
+        stub = provider()
+        stub.complete(request(prompt_id="scan_for_decisions@v1", prompt_sha="c" * 64))
+        assert stub.sink.traces[0].prompt_id == "scan_for_decisions@v1"
+        assert stub.sink.traces[0].prompt_sha == "c" * 64
+
+    def test_a_call_with_no_stored_prompt_records_no_version(self):
+        stub = provider()
+        stub.complete(request())
+        assert stub.sink.traces[0].prompt_id is None
+
+    def test_the_prompt_id_does_not_change_the_replay_key(self):
+        # The system text the id names is already in the hash, so adding the id
+        # would change no identity -- it would only make a fixture recorded
+        # under one spelling of a version fail to replay under another.
+        assert prompt_hash(request()) == prompt_hash(request(prompt_id="a_task@v1"))
+
     def test_the_trace_carries_every_word_the_model_read(self):
         stub = provider()
         stub.complete(request(system="a very specific instruction"))

@@ -52,6 +52,13 @@ class LLMTrace:
         model_id: The model that answered, or `MOCK_MODEL_ID` offline.
         prompt_hash: The replay key, so "how often was this exact question
             asked" is a query rather than a diff.
+        prompt_id: Which stored prompt produced the system text, as
+            `<task>@v<n>`. `None` for a call whose system prompt was not
+            rendered from the library, and for every row written before
+            migration 004 -- which is an honest answer rather than an invented
+            one. ADR 0014.
+        prompt_sha: The digest of that prompt's bytes, which is what catches a
+            prompt file edited in place rather than versioned.
         attempt: 1 for the first try, 2+ for a repair after malformed output.
         outcome: How the attempt ended.
         stop_reason: Why the model stopped, when it answered at all.
@@ -78,6 +85,8 @@ class LLMTrace:
     latency_ms: int
     request_json: str
     attempt: int = 1
+    prompt_id: str | None = None
+    prompt_sha: str | None = None
     stop_reason: StopReason | None = None
     response_text: str = ""
     error: str | None = None

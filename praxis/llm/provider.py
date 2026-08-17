@@ -231,6 +231,8 @@ class LLMProvider(ABC):
             latency_ms=latency_ms,
             request_json=canonical_json(request.canonical()),
             attempt=request.attempt,
+            prompt_id=request.prompt_id,
+            prompt_sha=request.prompt_sha,
             stop_reason=stop_reason,
             response_text=response_text,
             error=error,

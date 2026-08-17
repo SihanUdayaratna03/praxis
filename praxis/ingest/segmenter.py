@@ -223,11 +223,14 @@ class SegmenterAgent:
         self, document: Document, window: tuple[Block, ...]
     ) -> tuple[SegmentationPlan | None, int]:
         """Ask for one window's groups, returning `None` if the answer was unusable."""
+        prompt = _prompt()
         request = LLMRequest(
             agent=self.name,
             task=SEGMENT_TASK,
-            system=_prompt().render(max_blocks=MAX_BLOCKS_PER_GROUP),
+            system=prompt.render(max_blocks=MAX_BLOCKS_PER_GROUP),
             messages=(Message(role=MessageRole.USER, content=_render(window)),),
+            prompt_id=prompt.id,
+            prompt_sha=prompt.sha256,
             metadata={
                 "doc_id": document.id,
                 "first_block": str(window[0].index),
