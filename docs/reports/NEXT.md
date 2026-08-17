@@ -218,3 +218,6 @@ it changed except when it is built.
   `tests/prompts/test_library.py` pins every digest to enforce it. The
   segmenter's Phase 3 prompt moved in **byte-identical**, so no prompt hash and
   no mock answer changed.
+- Migration **004** — `prompt_id` and `prompt_sha` on `llm_trace`, nullable.
+  Schema is now at version 4. `LLMRequest.prompt_id` is excluded from
+  `canonical()`; the system text it names is already in the hash. ADR 0014.
