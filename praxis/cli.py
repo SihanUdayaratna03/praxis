@@ -19,31 +19,34 @@ import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Annotated
 
 import typer
 from rich.console import Console
-from rich.table import Table
 
 from praxis import __version__
+from praxis.cli_tables import configuration_table, links_table, records_table, routing_table
 from praxis.config.models import (
     NON_LLM_AGENTS,
-    ModelRole,
     resolve,
     role_for_agent,
     routed_agents,
 )
 from praxis.config.settings import ProviderName, Settings, get_settings
-from praxis.domain.enums import GRAPH_KINDS, RecordKind
-from praxis.domain.links import LinkType
+from praxis.corpus.generator import DEFAULT_DOCUMENTS, CorpusError, generate_corpus
+from praxis.ingest.pipeline import IngestionPipeline, IngestionRun
 from praxis.llm.errors import ProviderError
+from praxis.llm.factory import provider_for
 from praxis.llm.mock import MockProvider
-from praxis.llm.trace import MemoryTraceSink
+from praxis.llm.trace import MemoryTraceSink, new_run_id
 from praxis.llm.types import LLMRequest, Message, MessageRole, ResponseSchema
 from praxis.obs.logging import configure_logging
 from praxis.store.errors import StoreError
 from praxis.store.location import sync_warning
-from praxis.store.reports import StoreStats
 from praxis.store.repository import Repository, open_repository
+from praxis.store.traces import SqliteTraceSink
 
 app = typer.Typer(
     name="praxis",
@@ -60,6 +63,12 @@ store_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(store_app, name="store")
+
+corpus_app = typer.Typer(
+    help="Build the synthetic corpus and its answer key.",
+    no_args_is_help=True,
+)
+app.add_typer(corpus_app, name="corpus")
 
 console = Console()
 
@@ -78,48 +87,8 @@ def show_config() -> None:
     """
     settings = get_settings()
 
-    table = Table(title="Configuration", show_header=True, header_style="bold")
-    table.add_column("Setting")
-    table.add_column("Value")
-
-    key_state = "set" if settings.anthropic_api_key is not None else "not set"
-    for name, value in (
-        ("llm_provider", settings.llm_provider.value),
-        ("anthropic_api_key", key_state),
-        ("offline", str(settings.is_offline)),
-        ("data_dir", str(settings.data_dir)),
-        ("db_path", str(settings.db_path)),
-        ("trace_dir", str(settings.trace_dir)),
-        ("seed", str(settings.seed)),
-        ("cost_ceiling_usd", f"{settings.cost_ceiling_usd:.2f}"),
-        ("log_level", settings.log_level),
-        ("log_format", settings.log_format.value),
-    ):
-        table.add_row(name, value)
-
-    console.print(table)
-    console.print(_routing_table())
-
-
-def _routing_table() -> Table:
-    table = Table(title="Model routing", show_header=True, header_style="bold")
-    table.add_column("Role")
-    table.add_column("Model")
-    table.add_column("USD / Mtok in")
-    table.add_column("USD / Mtok out")
-    table.add_column("Agents")
-
-    for role in ModelRole:
-        spec = resolve(role)
-        agents = sorted(a for a in routed_agents() if role_for_agent(a) is role)
-        table.add_row(
-            role.value,
-            spec.model_id,
-            f"{spec.input_usd_per_mtok}",
-            f"{spec.output_usd_per_mtok}",
-            "\n".join(agents) or "-",
-        )
-    return table
+    console.print(configuration_table(settings))
+    console.print(routing_table())
 
 
 @contextmanager
@@ -188,35 +157,116 @@ def store_stats() -> None:
     with _opened(settings, create=False) as repository:
         stats = repository.stats()
 
-    console.print(_records_table(stats))
-    console.print(_links_table(stats))
+    console.print(records_table(stats))
+    console.print(links_table(stats))
     console.print(f"schema version {stats.schema_version}")
     # The gap between these two is the store's history: every version that was
     # ever current and is now superseded.
     console.print(f"{stats.versions} versions written, {stats.audit_events} audit events")
 
 
-def _records_table(stats: StoreStats) -> Table:
-    """Current, unretracted records per kind, zeros included."""
-    table = Table(title="Records", show_header=True, header_style="bold")
-    table.add_column("Kind")
-    table.add_column("Current", justify="right")
+@app.command()
+def ingest(
+    paths: Annotated[
+        list[Path],
+        typer.Argument(help="Files or directories to read. Directories are walked in full."),
+    ],
+) -> None:
+    """Read sources into the store as documents and verified spans.
 
-    for kind in RecordKind:
-        if kind in GRAPH_KINDS:
-            table.add_row(kind.value, str(stats.records.get(kind, 0)))
-    return table
+    The whole ingestion pipeline: normalise, segment, verify, write. Every
+    model call is traced into the store, so a run can be accounted for
+    afterwards without having been watched.
+
+    Exits non-zero if any source failed or any citation was refused. A refused
+    citation should be impossible -- the segmenter answers in block numbers and
+    the offsets are read off the grid -- so one appearing is worth a non-zero
+    exit rather than a line of output nobody reads.
+    """
+    settings = get_settings()
+    configure_logging(settings)
+    _warn_about_sync(settings)
+
+    with _opened(settings, create=False) as repository:
+        provider = provider_for(
+            settings, sink=SqliteTraceSink(repository.connection), run_id=new_run_id()
+        )
+        run = IngestionPipeline(repository, provider).ingest_paths(_files_under(paths))
+
+    _report_ingestion(run, settings)
 
 
-def _links_table(stats: StoreStats) -> Table:
-    """Current, unretracted edges per type, zeros included."""
-    table = Table(title="Edges", show_header=True, header_style="bold")
-    table.add_column("Type")
-    table.add_column("Current", justify="right")
+def _files_under(paths: list[Path]) -> list[Path]:
+    """Expand directories, sorted, so ids are allocated in the same order twice.
 
-    for link_type in LinkType:
-        table.add_row(link_type.value, str(stats.links.get(link_type, 0)))
-    return table
+    Document ids are sequential, so the order sources arrive in is the order
+    they are numbered in -- and filesystem order is not the same on two
+    machines.
+    """
+    found: list[Path] = []
+    for path in paths:
+        if path.is_dir():
+            found.extend(sorted(child for child in path.rglob("*") if child.is_file()))
+        else:
+            found.append(path)
+    return found
+
+
+def _report_ingestion(run: IngestionRun, settings: Settings) -> None:
+    """Print what a run did, and exit non-zero if any of it went wrong."""
+    recognised = len(run.ingested) - run.documents_written
+    console.print(
+        "[bold green]praxis ingest: OK[/bold green]"
+        if run.ok
+        else "[bold red]praxis ingest: problems[/bold red]"
+    )
+    console.print(f"  documents  {run.documents_written} written, {recognised} already present")
+    console.print(f"  spans      {run.spans_written} written, {run.spans_rejected} refused")
+    console.print(f"  model      {run.calls} calls via {settings.llm_provider.value}")
+    degraded = sum(1 for result in run.ingested if result.degraded)
+    if degraded:
+        console.print(f"  [yellow]degraded   {degraded} documents fell back to one span per block")
+    for failure in run.failed:
+        console.print(f"  [bold red]failed[/bold red]     {failure.source_uri}: {failure.reason}")
+    if not run.ok:
+        raise typer.Exit(code=1)
+
+
+@corpus_app.command(name="generate")
+def corpus_generate(
+    root: Annotated[Path, typer.Argument(help="Directory to write the corpus into.")],
+    documents: Annotated[
+        int, typer.Option(help="How many documents to write.")
+    ] = DEFAULT_DOCUMENTS,
+    seed: Annotated[int | None, typer.Option(help="Overrides PRAXIS_SEED for this corpus.")] = None,
+) -> None:
+    """Write the synthetic corpus and the answer key Phase 10 grades against.
+
+    Deterministic: the same seed produces the same bytes, so regenerating is
+    safe and a corpus in version control has a legible diff. The generated
+    corpus verifies against itself before this returns.
+    """
+    settings = get_settings()
+    configure_logging(settings)
+
+    try:
+        truth = generate_corpus(
+            root,
+            documents=documents,
+            seed=settings.seed if seed is None else seed,
+            generated_at=datetime.now(UTC),
+        )
+    except (CorpusError, ValueError, OSError) as exc:
+        console.print(f"[bold red]praxis corpus generate: {exc}[/bold red]")
+        raise typer.Exit(code=1) from exc
+
+    counts = truth.counts()
+    distractors = sum(1 for item in truth.items if item.is_distractor)
+    console.print("[bold green]praxis corpus generate: OK[/bold green]")
+    console.print(f"  corpus     {root}")
+    console.print(f"  documents  {len(truth.documents)}, seed {truth.seed}")
+    console.print(f"  items      {', '.join(f'{n} {k.value}' for k, n in counts.items())}")
+    console.print(f"  negatives  {distractors} distractors")
 
 
 @app.command()
