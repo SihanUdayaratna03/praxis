@@ -221,3 +221,7 @@ it changed except when it is built.
 - Migration **004** — `prompt_id` and `prompt_sha` on `llm_trace`, nullable.
   Schema is now at version 4. `LLMRequest.prompt_id` is excluded from
   `canonical()`; the system text it names is already in the hash. ADR 0014.
+- `praxis/agents/offering.py` — the numbered span listing every extraction cites
+  through, plus `praxis/agents/errors.py`'s refusal vocabulary. ADR 0015. An
+  ordinal resolves or is refused; a *wrong* citation still survives and is named
+  `IN_ANOTHER_OFFERED_SPAN` separately from `NOWHERE`.
