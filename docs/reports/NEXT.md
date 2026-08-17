@@ -213,3 +213,8 @@ it changed except when it is built.
   bias correction, for the fifth time — four outcomes, four classes, `n = 1`
   each, still disagreeing in direction. The eval harness is priced as four line
   items rather than one, which is the lesson `OUT-0004` paid for.
+- `praxis/prompts/` — the prompt library. Files named `<task>.v<n>.md`, read
+  through `importlib.resources`; a version bump is a new file and
+  `tests/prompts/test_library.py` pins every digest to enforce it. The
+  segmenter's Phase 3 prompt moved in **byte-identical**, so no prompt hash and
+  no mock answer changed.
