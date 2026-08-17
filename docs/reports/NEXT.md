@@ -201,3 +201,13 @@ last line rather than from the diff.
   the first. The JSON rendering helpers in `adapters.py` are public so the
   generator can place an offset without searching for it. **Next:** the
   generator itself, then the end-to-end pipeline.
+- **The corpus generator landed** on `feat/phase-3-corpus`:
+  `praxis/corpus/{drafting,templates,generator}.py`. 12 documents across four
+  shapes (ADR, meeting notes, status update, JSON export) and eight topics,
+  with 30 real items and 12 distractors. `generate_corpus` verifies what it
+  wrote and refuses to return a corpus with a problem in it. Every ADR carries
+  an effort assumption with an `estimated_as` edge, so the fusion relationship
+  is labelled in the corpus before the agent that finds it exists. Tests
+  ingest the generated documents and build a real `Span` over every
+  ground-truth range. **Next:** the end-to-end pipeline on
+  `feat/phase-3-pipeline`.
