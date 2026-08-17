@@ -229,3 +229,33 @@ it changed except when it is built.
   ordinals only, no quotation and therefore no mis-attribution possible. No
   floor to degrade to — a blind window is recorded as blind, because "every
   passage holds a decision" would pay the structurer for the whole corpus.
+- `DecisionStructurer` on `feat/phase-4-structurer` — **agent committed, tests
+  not written yet.** Green under ruff and `mypy --strict`; `tests/agents/
+  test_structurer.py` does not exist. Committed mid-component deliberately,
+  per `OUT-0004`'s note about a session limit landing between two commits.
+
+### Resume here
+
+Branch `feat/phase-4-structurer` (not merged). Working tree clean, everything
+pushed. Next, in order:
+
+1. **`tests/agents/test_structurer.py`**, then merge the strand `--no-ff`.
+   Model on `tests/agents/test_scout.py` — the `Answering` provider there is a
+   real `LLMProvider` subclass, so routing, the ledger and the trace sink stay
+   in the path. Cover: the four `Refusal` members this agent can return
+   (`UNOFFERED_SPAN`, `MIS_ATTRIBUTED_QUOTE`, `FABRICATED_QUOTE`,
+   `INCOHERENT_RECORD`), `EMPTY_ANSWER` when `found` is false, the
+   `justified_by` edge carrying the rationale, and `date_was_stated` in both
+   directions.
+2. **`feat/phase-4-extractor`** — `AssumptionExtractor` on `REASON`, prompt
+   `extract_assumptions.v1.md`. It must write an `Assumption` **and** an
+   `Estimate` joined by `estimated_as` whenever a predicate is quantified and
+   forward-looking. `work_class` falls back to `unclassified` when the model
+   gives none — `WorkClassifier` owns that field and arrives in Half B.
+3. **`praxis/agents/extraction.py`** (+ ADR 0013 for the routing table) and
+   then `praxis/eval/` as four components — `matching`, `metrics`, `harness`,
+   `report` — which `EST-0005` priced as four line items on purpose.
+
+Still to do after that: `praxis extract` / `praxis eval` CLI commands,
+`docs/reports/phase-4.md` with the metrics table, `ARCHITECTURE.md` updated
+for Half A and schema version 4, the PR, tag `v0.4-phase-4`, and `OUT-0005`.
