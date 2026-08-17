@@ -225,3 +225,7 @@ it changed except when it is built.
   through, plus `praxis/agents/errors.py`'s refusal vocabulary. ADR 0015. An
   ordinal resolves or is refused; a *wrong* citation still survives and is named
   `IN_ANOTHER_OFFERED_SPAN` separately from `NOWHERE`.
+- `DecisionScout` on `feat/phase-4-scout`, merged `--no-ff`. Scan tier,
+  ordinals only, no quotation and therefore no mis-attribution possible. No
+  floor to degrade to — a blind window is recorded as blind, because "every
+  passage holds a decision" would pay the structurer for the whole corpus.
