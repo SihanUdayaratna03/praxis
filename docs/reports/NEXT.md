@@ -193,3 +193,21 @@ last line rather than from the diff.
   now maps each `NON_LLM_AGENTS` name onto its module and asserts the module
   cannot import `praxis.llm`. **Next:** ADR 0012 and the corpus generator on
   `feat/phase-3-corpus`.
+- **ADR 0012 and the ground-truth format landed** on `feat/phase-3-corpus`:
+  `praxis/corpus/{groundtruth,topics}.py`. Offsets are into the *normalised
+  content*, not the file on disk, so the answer key and a `Span` share one
+  coordinate system and `content_sha256` is exactly `Document.content_hash`.
+  `verify_corpus` re-reads every offset and returns all problems rather than
+  the first. The JSON rendering helpers in `adapters.py` are public so the
+  generator can place an offset without searching for it. **Next:** the
+  generator itself, then the end-to-end pipeline.
+- **The corpus generator landed** on `feat/phase-3-corpus`:
+  `praxis/corpus/{drafting,templates,generator}.py`. 12 documents across four
+  shapes (ADR, meeting notes, status update, JSON export) and eight topics,
+  with 30 real items and 12 distractors. `generate_corpus` verifies what it
+  wrote and refuses to return a corpus with a problem in it. Every ADR carries
+  an effort assumption with an `estimated_as` edge, so the fusion relationship
+  is labelled in the corpus before the agent that finds it exists. Tests
+  ingest the generated documents and build a real `Span` over every
+  ground-truth range. **Next:** the end-to-end pipeline on
+  `feat/phase-3-pipeline`.
