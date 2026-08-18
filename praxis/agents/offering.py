@@ -220,13 +220,13 @@ def windows_of(spans: Sequence[Span], size: int) -> tuple[Offering, ...]:
 
 
 def around(spans: Sequence[Span], index: int, *, reach: int) -> Offering:
-    """The span at `index` with its neighbours, as one listing.
+    """The span at `index` with its neighbours either side, as one listing.
 
-    What the structurer and the extractor are given: a candidate is rarely
-    self-contained -- an ADR states its decision under one heading and its
-    assumptions under another -- so the material is the candidate plus what sits
-    beside it. The candidate keeps no special ordinal; an agent that has to pick
-    it out of its neighbours is being asked the question the live run asks.
+    What the structurer is given: a candidate is rarely self-contained -- an ADR
+    states its decision under one heading and its alternatives under another --
+    so the material is the candidate plus what sits beside it. The candidate
+    keeps no special ordinal; an agent that has to pick it out of its neighbours
+    is being asked the question the live run asks.
 
     Raises:
         ValueError: if `reach` is negative or `index` is outside `spans`.
@@ -234,11 +234,32 @@ def around(spans: Sequence[Span], index: int, *, reach: int) -> Offering:
     if reach < 0:
         message = f"reach is a distance, so it cannot be {reach}"
         raise ValueError(message)
+    return spread(spans, index, behind=reach, ahead=reach)
+
+
+def spread(spans: Sequence[Span], index: int, *, behind: int, ahead: int) -> Offering:
+    """The same, with a different amount of context on each side.
+
+    What the extractor is given, and the asymmetry is a fact about the corpus
+    rather than a preference: in every document shape this project generates,
+    a decision's assumptions are written *after* it -- an ADR puts them under a
+    later heading, meeting notes under "what we are carrying". Reaching equally
+    in both directions would spend half the listing on the title block.
+
+    The total is what ADR 0015's second assumption is about, so it is the sum
+    that matters and not either part: `behind + ahead + 1` is how many passages
+    an agent has to keep unambiguous.
+
+    Raises:
+        ValueError: if either distance is negative or `index` is outside `spans`.
+    """
+    if behind < 0 or ahead < 0:
+        message = f"a distance cannot be negative, got behind={behind}, ahead={ahead}"
+        raise ValueError(message)
     if not 0 <= index < len(spans):
         message = f"{index} is not a position in {len(spans)} spans"
         raise ValueError(message)
-    start = max(0, index - reach)
-    return offering_of(spans[start : index + reach + 1])
+    return offering_of(spans[max(0, index - behind) : index + ahead + 1])
 
 
 def _shown(text: str) -> str:
