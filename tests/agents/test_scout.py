@@ -9,7 +9,6 @@ real defects. Only `_invoke` is replaced.
 from __future__ import annotations
 
 import json
-from decimal import Decimal
 
 import pytest
 from praxis.agents.errors import Refusal
@@ -21,58 +20,13 @@ from praxis.agents.scout import (
     DecisionScout,
     DecisionSightings,
 )
-from praxis.config.models import MOCK_MODEL_ID, ModelRole, role_for_agent
-from praxis.config.settings import ProviderName, Settings
-from praxis.llm.accounting import CostLedger
+from praxis.config.models import ModelRole, role_for_agent
+from praxis.config.settings import Settings
 from praxis.llm.mock import MockProvider
-from praxis.llm.provider import LLMProvider
 from praxis.llm.trace import MemoryTraceSink
-from praxis.llm.types import LLMResponse, StopReason, TokenUsage
 from praxis.prompts.library import load
 
-
-class Answering(LLMProvider):
-    """A real provider whose answers a test decides.
-
-    Built on `LLMProvider` so the seam's guarantees -- routing, the ledger, one
-    trace row per attempt -- are exercised rather than bypassed.
-    """
-
-    name = ProviderName.MOCK
-    bills = False
-
-    def __init__(self, answers, **kwargs) -> None:
-        kwargs.setdefault("sink", MemoryTraceSink())
-        kwargs.setdefault("ledger", CostLedger(ceiling_usd=Decimal("5")))
-        kwargs.setdefault("settings", Settings())
-        super().__init__(**kwargs)
-        self.answers = list(answers)
-        self.requests = []
-
-    def _invoke(self, request, spec):
-        self.requests.append(request)
-        text = self.answers.pop(0) if self.answers else "{}"
-        if isinstance(text, BaseException):
-            raise text
-        return LLMResponse(
-            text=text,
-            model_id=MOCK_MODEL_ID,
-            usage=TokenUsage(input_tokens=10, output_tokens=5),
-            stop_reason=StopReason.END_TURN,
-        )
-
-
-class Refusing(Answering):
-    """A provider that declines every call."""
-
-    def _invoke(self, request, spec):
-        self.requests.append(request)
-        return LLMResponse(
-            text="",
-            model_id=MOCK_MODEL_ID,
-            usage=TokenUsage(),
-            stop_reason=StopReason.REFUSAL,
-        )
+from tests.agents.conftest import Answering, Refusing
 
 
 def sightings(*entries) -> str:
