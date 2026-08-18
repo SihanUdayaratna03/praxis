@@ -22,6 +22,7 @@ from praxis.agents.offering import (
     Rejection,
     around,
     offering_of,
+    spread,
     windows_of,
 )
 from praxis.domain.records import Span
@@ -213,3 +214,35 @@ class TestContextAroundACandidate:
     def test_an_index_outside_the_spans_is_refused(self, spans, index):
         with pytest.raises(ValueError, match="not a position"):
             around(spans, index, reach=1)
+
+
+class TestALopsidedWindow:
+    def test_context_can_be_asked_for_unequally(self, spans):
+        # What the extractor needs: assumptions are written after a decision in
+        # every document shape this project generates, so reaching equally
+        # spends half the listing on the title block.
+        assert spread(spans, 4, behind=1, ahead=3).spans == tuple(spans[3:8])
+
+    def test_reaching_only_forward_still_offers_the_span_itself(self, spans):
+        assert spread(spans, 4, behind=0, ahead=2).spans == tuple(spans[4:7])
+
+    def test_both_ends_are_still_clamped(self, spans):
+        assert spread(spans, 1, behind=5, ahead=10_000).spans == tuple(spans)
+
+    def test_the_span_keeps_no_special_ordinal(self, spans):
+        listing = spread(spans, 4, behind=1, ahead=3)
+        assert [entry.ordinal for entry in listing.entries] == [0, 1, 2, 3, 4]
+
+    @pytest.mark.parametrize(("behind", "ahead"), [(-1, 2), (2, -1), (-1, -1)])
+    def test_a_negative_distance_is_refused(self, spans, behind, ahead):
+        with pytest.raises(ValueError, match="cannot be negative"):
+            spread(spans, 1, behind=behind, ahead=ahead)
+
+    @pytest.mark.parametrize("index", [-1, 10_000])
+    def test_an_index_outside_the_spans_is_refused(self, spans, index):
+        with pytest.raises(ValueError, match="not a position"):
+            spread(spans, index, behind=1, ahead=1)
+
+    def test_reaching_equally_is_exactly_what_around_does(self, spans):
+        # One place knows how a window is cut, so the two cannot drift.
+        assert spread(spans, 4, behind=2, ahead=2) == around(spans, 4, reach=2)
