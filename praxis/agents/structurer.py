@@ -32,13 +32,10 @@ instead of a reader assuming.
 
 **The agent verifies its own citation before returning anything.** It holds a
 `VerifierAgent` and refuses its own output, so no caller is ever handed an
-unverified `Decision` that it could write. `Offering.where_quoted` then says
-*which* citation failure it was -- a quotation from another offered passage is
-a mis-attribution and a quotation from none of them is a fabrication, and ADR
-0015 argues why those stay apart. A cited span that no longer resolves against
-its document at all is asked about first and named separately again, because
-that one is not about the model: it means the document changed underneath the
-run, and charging it to the model would hide a re-ingestion as a hallucination.
+unverified `Decision` that it could write. Which of the four citation failures
+it was is `praxis.agents.citation`'s to say, and deliberately not this file's:
+the extractor asks the same question about the same listing, and two agents
+answering it separately would be two vocabularies in one eval table.
 """
 
 from __future__ import annotations
@@ -50,8 +47,9 @@ from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from praxis.agents.citation import CitationGate, Uncited
 from praxis.agents.errors import ExtractionError, Refusal
-from praxis.agents.offering import Offering, QuoteVerdict, Rejection, around
+from praxis.agents.offering import Offering, around
 from praxis.agents.scout import Candidate
 from praxis.domain.enums import DecisionScope, DecisionStatus, Impact
 from praxis.domain.ids import DecisionId
@@ -321,24 +319,15 @@ class DecisionStructurer:
         mean a fabricated citation is caught only after a `Decision` object
         exists, and an object that exists is an object something can write.
         """
-        cited = _cited_span(answer, offering)
-        if isinstance(cited, StructureRejection):
-            return cited
-        resolution = self._verifier.verify_spans((cited,), document)
-        if not resolution.ok:
-            # Asked before the quotation is judged, because the two failures
-            # have different causes and only one of them is about the model. A
-            # span this pipeline produced that no longer resolves means the
-            # document changed underneath the run, and reporting that as a
-            # fabricated quotation would blame the model for a re-ingestion.
+        gate = CitationGate(
+            offering=offering, document=document, verifier=self._verifier, subject="decision"
+        )
+        evidence = gate.check(answer.evidence_ordinal, answer.evidence_quote)
+        if isinstance(evidence, Uncited):
             return StructureRejection(
-                refusal=Refusal.SPAN_DOES_NOT_RESOLVE,
-                detail=resolution.rejected[0].detail,
+                refusal=evidence.refusal, detail=evidence.detail, ordinal=evidence.ordinal
             )
-        quote = answer.evidence_quote or ""
-        verdict = self._verifier.verify_claim(quote, cited, document)
-        if not verdict.ok:
-            return _citation_rejection(offering, quote, cited, verdict.detail)
+        cited = evidence.span
 
         stated = answer.decided_on is not None
         try:
@@ -375,51 +364,10 @@ class DecisionStructurer:
                 created_at=at,
                 span_id=cited.id,
             ),
-            quote=quote,
-            quote_match=verdict.match,
+            quote=evidence.quote,
+            quote_match=evidence.match,
             date_was_stated=stated,
         )
-
-
-def _cited_span(answer: DecisionAnswer, offering: Offering) -> Span | StructureRejection:
-    """Resolve the ordinal the model cited, or refuse it."""
-    if answer.evidence_ordinal is None:
-        return StructureRejection(
-            refusal=Refusal.UNOFFERED_SPAN,
-            detail="the answer claims a decision was found and cites no passage",
-        )
-    resolved = offering.resolve(answer.evidence_ordinal)
-    if isinstance(resolved, Rejection):
-        return StructureRejection(
-            refusal=Refusal.UNOFFERED_SPAN,
-            detail=resolved.reason,
-            ordinal=resolved.ordinal,
-        )
-    return resolved
-
-
-def _citation_rejection(
-    offering: Offering, quote: str, cited: Span, detail: str
-) -> StructureRejection:
-    """Say which citation failure this was.
-
-    The distinction ADR 0015 argues for: a quotation found in another passage
-    the agent was shown is a model that read the material and mis-attributed,
-    and a quotation found in none of them is a model that invented. Both are
-    refused; only one of them means the material was read.
-    """
-    where = offering.where_quoted(quote, cited.id)
-    if where is QuoteVerdict.IN_ANOTHER_OFFERED_SPAN:
-        return StructureRejection(
-            refusal=Refusal.MIS_ATTRIBUTED_QUOTE,
-            detail=f"the quotation is in another passage that was offered, not {cited.id}",
-        )
-    if not quote.strip():
-        return StructureRejection(
-            refusal=Refusal.FABRICATED_QUOTE,
-            detail="the answer claims a decision was found and quotes nothing",
-        )
-    return StructureRejection(refusal=Refusal.FABRICATED_QUOTE, detail=detail)
 
 
 def _rejected(answer: DecisionAnswer) -> tuple[RejectedOption, ...]:

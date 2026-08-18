@@ -246,19 +246,40 @@ it changed except when it is built.
   chance. The eval harness will measure the plumbing rather than the model, and
   `docs/reports/phase-4.md` has to say so beside the table.
 
+- `praxis/agents/citation.py` — the one gate every extracted claim's citation
+  passes through, lifted out of the structurer before the extractor could grow
+  a second copy. The order of its checks is the substance: an unoffered ordinal
+  beats everything downstream, and a span that will not resolve beats a bad
+  quotation.
+- `praxis/agents/offering.py` gained `spread(spans, index, behind=, ahead=)`,
+  and `around` now delegates to it, so one place knows how a window is cut.
+- `AssumptionExtractor` on `feat/phase-4-extractor`, merged `--no-ff`. Reason
+  tier, one call per decision, writing an `Assumption`, its `justified_by` edge,
+  the decision's `assumes` edge, and — when the claim is quantified and
+  forward-looking — an `Estimate` with **its own citation** plus the
+  `estimated_as` edge. 56 tests, `extractor.py` at 100%.
+- **ADR 0016**: the extractor writes the first `estimated_as` edge, which
+  `ARCHITECTURE.md` assigns to `FusionBridge`. The corpus labels those edges by
+  construction and nothing produced one to grade against; the cheap half of the
+  recognition is free in a call already holding the assumption and its quantity,
+  and the cross-document half is still `FusionBridge`'s.
+- **The extractor's window is 3 behind and 8 ahead**, which is 12 passages —
+  exactly ADR 0015's `spans_per_offering <= 12`. Assumptions are written *after*
+  a decision in both corpus shapes, so reaching equally would spend half the
+  listing on the title block and still stop short of the effort section.
+  Widening either part breaches a recorded assumption rather than editing a
+  constant.
+
 ### Resume here
 
 Branch `feat/phase-4-half-a-agents` (the phase branch). Working tree clean,
 everything pushed. Next, in order:
 
-1. **`feat/phase-4-extractor`** — `AssumptionExtractor` on `REASON`, prompt
-   `extract_assumptions.v1.md`. It must write an `Assumption` **and** an
-   `Estimate` joined by `estimated_as` whenever a predicate is quantified and
-   forward-looking. `work_class` falls back to `unclassified` when the model
-   gives none — `WorkClassifier` owns that field and arrives in Half B.
-2. **`praxis/agents/extraction.py`** (+ ADR 0013 for the routing table) and
+1. **`praxis/agents/extraction.py`** (+ ADR 0013 for the routing table) and
    then `praxis/eval/` as four components — `matching`, `metrics`, `harness`,
-   `report` — which `EST-0005` priced as four line items on purpose.
+   `report` — which `EST-0005` priced as four line items on purpose. ADR 0013's
+   number is still free; the routing table it was reserved for is unchanged
+   from ADR 0006, so record it only if the pipeline actually decides something.
 
 Still to do after that: `praxis extract` / `praxis eval` CLI commands,
 `docs/reports/phase-4.md` with the metrics table, `ARCHITECTURE.md` updated
