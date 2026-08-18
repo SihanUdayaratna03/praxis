@@ -270,16 +270,35 @@ it changed except when it is built.
   Widening either part breaches a recorded assumption rather than editing a
   constant.
 
+- `praxis/agents/extraction.py` and `praxis/agents/results.py` on
+  `feat/phase-4-pipeline`, merged `--no-ff`. `ExtractionPipeline` runs scout →
+  structurer → extractor over a store and writes in dependency order. 23 tests
+  reading every assertion back out of SQLite; both modules at 100%. **No ADR
+  0013** — the routing table it was reserved for is unchanged from ADR 0006 and
+  the pipeline decided nothing that file did not already say. The number stays
+  free rather than being spent on a restatement.
+- Three things the pipeline had to settle, each in its docstring: ids come from
+  a counter seeded off the store (`next_id` reads the highest ordinal, and one
+  extractor call builds three assumptions before any is written); a document
+  that already holds decisions is recognised rather than redone (sequential ids
+  would fork it, content-addressed `Link` ids would collide); and the extractor
+  runs once per *verified* decision, so a refused one is never paid for twice.
+- `run_id` is threaded through every write, which is the gap Phase 3's handover
+  flagged on `Repository.add`. Nothing generates one yet — the caller passes it
+  or it stays null, and ADR 0004's orchestrator is what will mint them.
+
 ### Resume here
 
 Branch `feat/phase-4-half-a-agents` (the phase branch). Working tree clean,
 everything pushed. Next, in order:
 
-1. **`praxis/agents/extraction.py`** (+ ADR 0013 for the routing table) and
-   then `praxis/eval/` as four components — `matching`, `metrics`, `harness`,
-   `report` — which `EST-0005` priced as four line items on purpose. ADR 0013's
-   number is still free; the routing table it was reserved for is unchanged
-   from ADR 0006, so record it only if the pipeline actually decides something.
+1. **`praxis/eval/`** as four components — `matching`, `metrics`, `harness`,
+   `report` — which `EST-0005` priced as four line items on purpose. Grade
+   `ExtractionRun` against `praxis.corpus`'s answer key: match by span overlap,
+   compare each `ExpectedField` by its own `Comparison`, and report precision,
+   recall and citation integrity per `ItemKind` **plus** the fusion recall over
+   `estimated_as`. Read ADR 0016's last section before writing the table —
+   every offline number is about the plumbing, and the report has to say so.
 
 Still to do after that: `praxis extract` / `praxis eval` CLI commands,
 `docs/reports/phase-4.md` with the metrics table, `ARCHITECTURE.md` updated
