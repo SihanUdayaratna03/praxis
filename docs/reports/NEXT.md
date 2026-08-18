@@ -229,30 +229,34 @@ it changed except when it is built.
   ordinals only, no quotation and therefore no mis-attribution possible. No
   floor to degrade to — a blind window is recorded as blind, because "every
   passage holds a decision" would pay the structurer for the whole corpus.
-- `DecisionStructurer` on `feat/phase-4-structurer` — **agent committed, tests
-  not written yet.** Green under ruff and `mypy --strict`; `tests/agents/
-  test_structurer.py` does not exist. Committed mid-component deliberately,
-  per `OUT-0004`'s note about a session limit landing between two commits.
+- `DecisionStructurer` on `feat/phase-4-structurer`, merged `--no-ff`. Extract
+  tier, one call per candidate. The rationale is on the `justified_by` edge and
+  not on the record, a decision with no alternatives is recorded as one rather
+  than invented into two, and a missing date falls back to `ingested_at` with
+  `date_was_stated` carrying the difference. 51 tests, `praxis/agents/
+  structurer.py` at 100%. `Answering` and `Refusing` moved into
+  `tests/agents/conftest.py` so both agents' tests share one copy.
+- **A moved document is not a fabricating model.** `verify_claim` was asked
+  first, so a span that no longer resolved came back `ABSENT` and was reported
+  as `FABRICATED_QUOTE`. `SPAN_DOES_NOT_RESOLVE` existed and nothing returned
+  it. Span resolution is now asked about before the quotation is judged.
+- **Offline, almost every extraction is refused, and that is the mock working.**
+  `praxis.llm.synthesis` draws the cited ordinal from the bracketed labels and
+  the quotation from the passages *independently*, so the two agree only by
+  chance. The eval harness will measure the plumbing rather than the model, and
+  `docs/reports/phase-4.md` has to say so beside the table.
 
 ### Resume here
 
-Branch `feat/phase-4-structurer` (not merged). Working tree clean, everything
-pushed. Next, in order:
+Branch `feat/phase-4-half-a-agents` (the phase branch). Working tree clean,
+everything pushed. Next, in order:
 
-1. **`tests/agents/test_structurer.py`**, then merge the strand `--no-ff`.
-   Model on `tests/agents/test_scout.py` — the `Answering` provider there is a
-   real `LLMProvider` subclass, so routing, the ledger and the trace sink stay
-   in the path. Cover: the four `Refusal` members this agent can return
-   (`UNOFFERED_SPAN`, `MIS_ATTRIBUTED_QUOTE`, `FABRICATED_QUOTE`,
-   `INCOHERENT_RECORD`), `EMPTY_ANSWER` when `found` is false, the
-   `justified_by` edge carrying the rationale, and `date_was_stated` in both
-   directions.
-2. **`feat/phase-4-extractor`** — `AssumptionExtractor` on `REASON`, prompt
+1. **`feat/phase-4-extractor`** — `AssumptionExtractor` on `REASON`, prompt
    `extract_assumptions.v1.md`. It must write an `Assumption` **and** an
    `Estimate` joined by `estimated_as` whenever a predicate is quantified and
    forward-looking. `work_class` falls back to `unclassified` when the model
    gives none — `WorkClassifier` owns that field and arrives in Half B.
-3. **`praxis/agents/extraction.py`** (+ ADR 0013 for the routing table) and
+2. **`praxis/agents/extraction.py`** (+ ADR 0013 for the routing table) and
    then `praxis/eval/` as four components — `matching`, `metrics`, `harness`,
    `report` — which `EST-0005` priced as four line items on purpose.
 
