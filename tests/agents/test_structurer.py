@@ -38,7 +38,7 @@ from praxis.llm.mock import MockProvider
 from praxis.llm.trace import MemoryTraceSink
 from praxis.prompts.library import load
 
-from tests.agents.conftest import AT, Answering, Refusing, make_document, spans_of
+from tests.agents.conftest import ADR_BODY, AT, Answering, Refusing, make_document, spans_of
 
 DECISION_INDEX = 3
 """Which span of the fixture ADR states the decision. See `conftest.ADR_BODY`."""
@@ -337,6 +337,15 @@ class TestCitationsItRefuses:
         result = structure(Answering([answer(evidence_quote=None)]), spans, document)
         assert result.rejection.refusal is Refusal.FABRICATED_QUOTE
         assert "quotes nothing" in result.rejection.detail
+
+    def test_a_span_that_no_longer_resolves_is_not_charged_to_the_model(self, spans, document):
+        # A different failure with a different cause: the citation is fine and
+        # the document moved. Reporting it as a fabrication would read as a
+        # hallucinating model in the eval table when it is a re-ingested corpus.
+        rewritten = make_document(text=ADR_BODY.replace("OpenSearch", "Solr"))
+        result = structure(Answering([answer()]), spans, rewritten)
+        assert result.rejection.refusal is Refusal.SPAN_DOES_NOT_RESOLVE
+        assert result.decision is None
 
     def test_a_refused_citation_produces_no_decision_at_all(self, spans, document):
         # Not a decision with a warning attached. An object that exists is an

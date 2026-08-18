@@ -35,7 +35,10 @@ instead of a reader assuming.
 unverified `Decision` that it could write. `Offering.where_quoted` then says
 *which* citation failure it was -- a quotation from another offered passage is
 a mis-attribution and a quotation from none of them is a fabrication, and ADR
-0015 argues why those stay apart.
+0015 argues why those stay apart. A cited span that no longer resolves against
+its document at all is asked about first and named separately again, because
+that one is not about the model: it means the document changed underneath the
+run, and charging it to the model would hide a re-ingestion as a hallucination.
 """
 
 from __future__ import annotations
@@ -321,6 +324,17 @@ class DecisionStructurer:
         cited = _cited_span(answer, offering)
         if isinstance(cited, StructureRejection):
             return cited
+        resolution = self._verifier.verify_spans((cited,), document)
+        if not resolution.ok:
+            # Asked before the quotation is judged, because the two failures
+            # have different causes and only one of them is about the model. A
+            # span this pipeline produced that no longer resolves means the
+            # document changed underneath the run, and reporting that as a
+            # fabricated quotation would blame the model for a re-ingestion.
+            return StructureRejection(
+                refusal=Refusal.SPAN_DOES_NOT_RESOLVE,
+                detail=resolution.rejected[0].detail,
+            )
         quote = answer.evidence_quote or ""
         verdict = self._verifier.verify_claim(quote, cited, document)
         if not verdict.ok:
