@@ -31,6 +31,7 @@ from praxis.prompts.library import (
 SHIPPED: dict[str, str] = {
     "group_blocks@v1": "00f9f9da6d7485ef4157fbeb1d95620b92ff083cf96798eeb93d0999a9cef72c",
     "scan_for_decisions@v1": ("66b4da5129cb270889d9f531ee52e5b0dfa16bc100462e86e4b5d4912b5b7103"),
+    "structure_decision@v1": ("c74ca84ae7ae94fb4bda71eb97bfb44c77fe2b5784178ef664caf89c43b8fc6a"),
 }
 
 

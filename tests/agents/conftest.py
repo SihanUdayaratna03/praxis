@@ -5,18 +5,31 @@ a span in these tests is the same object ingestion produces. Building spans by
 hand would make every agent test pass against coordinates the pipeline never
 emits, which is the failure mode `tests/ingest/test_verifier.py` exists to
 cover from the other side.
+
+The provider doubles live here for the same reason. `Answering` is a real
+`LLMProvider` subclass, so routing, the cost ledger and the trace sink stay in
+every agent's path and only `_invoke` is replaced -- and one copy rather than
+one per agent, because two copies drifting apart would read as a difference
+between the agents rather than between their tests.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 from praxis.agents.offering import Offering, offering_of
+from praxis.config.models import MOCK_MODEL_ID
+from praxis.config.settings import ProviderName, Settings
 from praxis.domain.ids import DocumentId
 from praxis.domain.records import Document, Span
 from praxis.ingest.adapters import MARKDOWN_ADAPTER, document_from
 from praxis.ingest.blocks import blocks_in
+from praxis.llm.accounting import CostLedger
+from praxis.llm.provider import LLMProvider
+from praxis.llm.trace import MemoryTraceSink
+from praxis.llm.types import LLMResponse, StopReason, TokenUsage
 
 AT = datetime(2026, 8, 16, 12, 0, tzinfo=UTC)
 
@@ -99,3 +112,49 @@ def offering(spans: tuple[Span, ...]) -> Offering:
 @pytest.fixture
 def documents(document: Document) -> Documents:
     return Documents(document)
+
+
+class Answering(LLMProvider):
+    """A real provider whose answers a test decides.
+
+    Built on `LLMProvider` so the seam's guarantees -- routing, the ledger, one
+    trace row per attempt -- are exercised rather than bypassed. Shared by every
+    Half A agent's tests, because a second copy would drift from this one and
+    the drift would look like an agent difference.
+    """
+
+    name = ProviderName.MOCK
+    bills = False
+
+    def __init__(self, answers, **kwargs) -> None:
+        kwargs.setdefault("sink", MemoryTraceSink())
+        kwargs.setdefault("ledger", CostLedger(ceiling_usd=Decimal("5")))
+        kwargs.setdefault("settings", Settings())
+        super().__init__(**kwargs)
+        self.answers = list(answers)
+        self.requests = []
+
+    def _invoke(self, request, spec):
+        self.requests.append(request)
+        text = self.answers.pop(0) if self.answers else "{}"
+        if isinstance(text, BaseException):
+            raise text
+        return LLMResponse(
+            text=text,
+            model_id=MOCK_MODEL_ID,
+            usage=TokenUsage(input_tokens=10, output_tokens=5),
+            stop_reason=StopReason.END_TURN,
+        )
+
+
+class Refusing(Answering):
+    """A provider that declines every call."""
+
+    def _invoke(self, request, spec):
+        self.requests.append(request)
+        return LLMResponse(
+            text="",
+            model_id=MOCK_MODEL_ID,
+            usage=TokenUsage(),
+            stop_reason=StopReason.REFUSAL,
+        )

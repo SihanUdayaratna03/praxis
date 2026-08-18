@@ -229,3 +229,37 @@ it changed except when it is built.
   ordinals only, no quotation and therefore no mis-attribution possible. No
   floor to degrade to — a blind window is recorded as blind, because "every
   passage holds a decision" would pay the structurer for the whole corpus.
+- `DecisionStructurer` on `feat/phase-4-structurer`, merged `--no-ff`. Extract
+  tier, one call per candidate. The rationale is on the `justified_by` edge and
+  not on the record, a decision with no alternatives is recorded as one rather
+  than invented into two, and a missing date falls back to `ingested_at` with
+  `date_was_stated` carrying the difference. 51 tests, `praxis/agents/
+  structurer.py` at 100%. `Answering` and `Refusing` moved into
+  `tests/agents/conftest.py` so both agents' tests share one copy.
+- **A moved document is not a fabricating model.** `verify_claim` was asked
+  first, so a span that no longer resolved came back `ABSENT` and was reported
+  as `FABRICATED_QUOTE`. `SPAN_DOES_NOT_RESOLVE` existed and nothing returned
+  it. Span resolution is now asked about before the quotation is judged.
+- **Offline, almost every extraction is refused, and that is the mock working.**
+  `praxis.llm.synthesis` draws the cited ordinal from the bracketed labels and
+  the quotation from the passages *independently*, so the two agree only by
+  chance. The eval harness will measure the plumbing rather than the model, and
+  `docs/reports/phase-4.md` has to say so beside the table.
+
+### Resume here
+
+Branch `feat/phase-4-half-a-agents` (the phase branch). Working tree clean,
+everything pushed. Next, in order:
+
+1. **`feat/phase-4-extractor`** — `AssumptionExtractor` on `REASON`, prompt
+   `extract_assumptions.v1.md`. It must write an `Assumption` **and** an
+   `Estimate` joined by `estimated_as` whenever a predicate is quantified and
+   forward-looking. `work_class` falls back to `unclassified` when the model
+   gives none — `WorkClassifier` owns that field and arrives in Half B.
+2. **`praxis/agents/extraction.py`** (+ ADR 0013 for the routing table) and
+   then `praxis/eval/` as four components — `matching`, `metrics`, `harness`,
+   `report` — which `EST-0005` priced as four line items on purpose.
+
+Still to do after that: `praxis extract` / `praxis eval` CLI commands,
+`docs/reports/phase-4.md` with the metrics table, `ARCHITECTURE.md` updated
+for Half A and schema version 4, the PR, tag `v0.4-phase-4`, and `OUT-0005`.
