@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from praxis import __version__
+from praxis import __version__, cli_eval
+from praxis.agents.extraction import ExtractionPipeline
+from praxis.agents.results import DocumentExtraction, ExtractionRun
 from praxis.cli import app
 from praxis.config.settings import get_settings
 from praxis.corpus.groundtruth import verify_corpus
+from praxis.domain.enums import SourceKind
+from praxis.domain.ids import DocumentId
+from praxis.domain.records import Document
+from praxis.llm.errors import ProviderError
+from praxis.store.errors import StoreError
 from praxis.store.migrations import latest_version
 from typer.testing import CliRunner
 
@@ -296,3 +305,240 @@ def test_bare_corpus_shows_its_subcommands() -> None:
     result = runner.invoke(app, ["corpus"])
 
     assert "generate" in result.output
+
+
+# --- Phase 4: extraction and the eval harness -----------------------------
+
+
+def a_corpus(tmp_path: Path, documents: int = 3) -> Path:
+    """A generated corpus, through the command a user would type."""
+    root = tmp_path / "corpus"
+    runner.invoke(app, ["corpus", "generate", str(root), "--documents", str(documents)])
+    return root
+
+
+def an_ingested_store(tmp_path: Path, documents: int = 3) -> Path:
+    """A store holding a corpus's spans, ready to extract from."""
+    corpus = a_corpus(tmp_path, documents)
+    runner.invoke(app, ["init"])
+    runner.invoke(app, ["ingest", str(corpus / "documents")])
+    return corpus
+
+
+def a_document() -> Document:
+    """One document, for a run built by hand rather than by the pipeline."""
+    return Document(
+        id=DocumentId("DOC-0001"),
+        source_uri="adr.md",
+        source_kind=SourceKind.MARKDOWN,
+        content="# An ADR",
+        ingested_at=datetime(2026, 8, 21, 3, 0, tzinfo=UTC),
+        created_by="test",
+        created_at=datetime(2026, 8, 21, 3, 0, tzinfo=UTC),
+    )
+
+
+def test_extract_runs_all_three_agents_over_the_store(tmp_path: Path) -> None:
+    an_ingested_store(tmp_path)
+
+    result = runner.invoke(app, ["extract"])
+
+    assert result.exit_code == 0, result.output
+    assert "3 read" in result.output
+    assert "candidates" in result.output
+    assert "calls via mock" in result.output
+
+
+def test_extract_exits_zero_although_the_gate_refused_citations(tmp_path: Path) -> None:
+    """The difference from `ingest`, and it is deliberate.
+
+    A refused span in ingestion is a bug -- the segmenter answers in block
+    numbers. A refused quotation in extraction is the gate working, and offline
+    it is almost every claim (ADR 0016). Exiting non-zero would mean this
+    command fails on every run without a key, which is every run.
+    """
+    an_ingested_store(tmp_path)
+
+    result = runner.invoke(app, ["extract"])
+
+    assert result.exit_code == 0, result.output
+    assert "refused" in result.output
+
+
+def test_extract_without_a_store_says_to_run_init(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["extract"])
+
+    assert result.exit_code == 1
+    assert "praxis init" in result.output
+
+
+def test_eval_grades_a_corpus_and_prints_every_section(tmp_path: Path) -> None:
+    corpus = a_corpus(tmp_path)
+
+    result = runner.invoke(app, ["eval", str(corpus)])
+
+    assert result.exit_code == 0, result.output
+    assert "## Extraction quality" in result.output
+    assert "## Citation integrity" in result.output
+    assert "## Fusion" in result.output
+    assert "Documents graded: 3" in result.output
+
+
+def test_eval_names_the_provider_the_seed_and_the_prompt_versions(tmp_path: Path) -> None:
+    corpus = a_corpus(tmp_path)
+
+    result = runner.invoke(app, ["eval", str(corpus)])
+
+    assert "**provider**: mock" in result.output
+    assert f"**corpus_seed**: {get_settings().seed}" in result.output
+    assert "**scan_for_decisions**: v1" in result.output
+
+
+def test_eval_prints_the_offline_caveat_beside_the_table(tmp_path: Path) -> None:
+    """Because a metrics table outlives the conversation that produced it."""
+    result = runner.invoke(app, ["eval", str(a_corpus(tmp_path))])
+
+    assert "measure the pipeline, not a model" in result.output
+
+
+def test_eval_leaves_the_configured_store_alone(tmp_path: Path) -> None:
+    """The corpus is synthetic, and its decisions were never made by anyone."""
+    corpus = a_corpus(tmp_path)
+    runner.invoke(app, ["init"])
+
+    runner.invoke(app, ["eval", str(corpus)])
+    result = runner.invoke(app, ["store", "stats"])
+
+    assert "0 versions written" in result.output
+
+
+def test_eval_writes_the_numbers_as_data_when_asked(tmp_path: Path) -> None:
+    corpus = a_corpus(tmp_path)
+    written = tmp_path / "out" / "metrics.json"
+
+    result = runner.invoke(app, ["eval", str(corpus), "--json", str(written)])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(written.read_text(encoding="utf-8"))
+    assert payload["documents"] == 3
+    assert payload["provenance"]["provider"] == "mock"
+    assert set(payload["kinds"]) == {"decision", "assumption", "estimate"}
+
+
+def test_eval_writes_the_same_table_it_printed(tmp_path: Path) -> None:
+    corpus = a_corpus(tmp_path)
+    written = tmp_path / "table.md"
+
+    result = runner.invoke(app, ["eval", str(corpus), "--markdown", str(written)])
+
+    assert written.read_text(encoding="utf-8").strip() in result.output
+
+
+def test_eval_can_keep_its_scratch_store_for_digging_into(tmp_path: Path) -> None:
+    corpus = a_corpus(tmp_path)
+    kept = tmp_path / "scratch" / "eval.db"
+
+    result = runner.invoke(app, ["eval", str(corpus), "--keep", str(kept)])
+
+    assert result.exit_code == 0, result.output
+    assert kept.is_file()
+
+
+def test_eval_says_so_when_a_directory_holds_no_answer_key(tmp_path: Path) -> None:
+    empty = tmp_path / "not-a-corpus"
+    empty.mkdir()
+
+    result = runner.invoke(app, ["eval", str(empty)])
+
+    assert result.exit_code == 1
+    assert "corpus generate" in result.output
+
+
+def test_two_evals_of_one_corpus_report_the_same_numbers(tmp_path: Path) -> None:
+    """The property the Phase 10 ablation table rests on, through the CLI."""
+    corpus = a_corpus(tmp_path)
+    first, second = tmp_path / "a.json", tmp_path / "b.json"
+
+    runner.invoke(app, ["eval", str(corpus), "--json", str(first)])
+    runner.invoke(app, ["eval", str(corpus), "--json", str(second)])
+
+    assert first.read_text(encoding="utf-8") == second.read_text(encoding="utf-8")
+
+
+def test_extract_reports_a_provider_failure_as_a_sentence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure about the run, not about one document, stops the command.
+
+    The agents already degrade rather than raise on a bad answer about a single
+    document. What reaches here is the other kind -- a budget exhausted, a
+    provider that cannot answer at all -- and it is a sentence rather than a
+    traceback for the same reason every store failure is.
+    """
+    an_ingested_store(tmp_path, documents=1)
+    monkeypatch.setattr(
+        ExtractionPipeline,
+        "extract_store",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ProviderError("the budget is spent")),
+    )
+
+    result = runner.invoke(app, ["extract"])
+
+    assert result.exit_code == 1
+    assert "the budget is spent" in result.output
+
+
+def test_extract_reports_windows_nothing_was_ever_learned_about(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blind window is not a negative answer, and the report says which it is."""
+    an_ingested_store(tmp_path, documents=1)
+    blind = DocumentExtraction(document=a_document(), blind_windows=2)
+    monkeypatch.setattr(
+        ExtractionPipeline,
+        "extract_store",
+        lambda *_args, **_kwargs: ExtractionRun(documents=(blind,)),
+    )
+
+    result = runner.invoke(app, ["extract"])
+
+    assert result.exit_code == 0, result.output
+    assert "2 windows never answered about" in result.output
+
+
+def test_eval_reports_a_failed_run_as_a_sentence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    corpus = a_corpus(tmp_path, documents=1)
+    monkeypatch.setattr(
+        cli_eval,
+        "evaluate",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ProviderError("no answer to be had")),
+    )
+
+    result = runner.invoke(app, ["eval", str(corpus)])
+
+    assert result.exit_code == 1
+    assert "no answer to be had" in result.output
+
+
+def test_eval_closes_its_scratch_store_when_the_migration_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A half-opened store is closed rather than left to a garbage collector.
+
+    Worth its own test because the connection is opened before the thing that
+    can fail, so the cleanup is a `BaseException` handler rather than a
+    context manager, and an untested one of those is a leak nobody sees.
+    """
+    corpus = a_corpus(tmp_path, documents=1)
+    monkeypatch.setattr(
+        cli_eval,
+        "migrate",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(StoreError("the schema will not apply")),
+    )
+
+    result = runner.invoke(app, ["eval", str(corpus)])
+
+    assert result.exit_code == 1
+    assert "the schema will not apply" in result.output
