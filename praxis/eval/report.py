@@ -43,6 +43,9 @@ SCORE_HEADINGS: Final = (
     "Exact",
 )
 
+PROVENANCE_SEPARATOR: Final = " -- "
+"""Between two provenance entries. ASCII; see `_provenance`."""
+
 NOTHING_TO_GRADE: Final = "--"
 """Shown where a rate exists by convention but no evidence went into it."""
 
@@ -209,8 +212,16 @@ def _citation_lines(citations: CitationIntegrity) -> list[str]:
 
 
 def _provenance(provenance: Mapping[str, str]) -> str:
-    """What produced these numbers, on one line, in a stable order."""
-    return " · ".join(f"**{key}**: {value}" for key, value in sorted(provenance.items()))
+    """What produced these numbers, on one line, in a stable order.
+
+    The separator is ASCII, and that is not fussiness. `praxis eval` prints this
+    table, and a person redirecting it into a file on Windows gets the console's
+    codepage rather than UTF-8 -- so a middot arrives as a replacement byte and
+    the artefact is mojibake at exactly the line that says which run it was.
+    """
+    return PROVENANCE_SEPARATOR.join(
+        f"**{key}**: {value}" for key, value in sorted(provenance.items())
+    )
 
 
 def _row(cells: tuple[str, ...] | list[str]) -> str:

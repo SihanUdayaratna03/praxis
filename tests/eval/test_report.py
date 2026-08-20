@@ -171,6 +171,17 @@ def test_the_run_s_own_counts_are_reported_beside_the_scores():
 # -- provenance and the caveat -------------------------------------------------
 
 
+def test_provenance_is_ascii_so_a_redirected_table_is_not_mojibake():
+    """`praxis eval` prints this, and a redirect on Windows is not UTF-8.
+
+    The line that says which run produced a table is the worst line to lose to
+    a codepage, because it is the one that makes the table comparable at all.
+    """
+    markdown = as_markdown(a_result(), provenance=PROVENANCE)
+
+    markdown.encode("ascii")
+
+
 def test_provenance_is_rendered_in_a_stable_order():
     first = as_markdown(a_result(), provenance=PROVENANCE)
     second = as_markdown(a_result(), provenance=dict(reversed(list(PROVENANCE.items()))))
