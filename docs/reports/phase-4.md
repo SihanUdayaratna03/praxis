@@ -234,7 +234,18 @@ else.
 | | |
 | --- | --- |
 | `EST-0005` | 6.0 hours active, 16 hours blocked, confidence 0.40, class `agent-implementation` |
-| `OUT-0005` | see `docs/dogfood/outcomes.jsonl` |
+| `OUT-0005` | ~2.75 hours active, ~72 hours blocked, scored **`partial`** |
+| Miss direction | **over-estimated, ~2.2×** |
+
+Three sessions, and unlike `OUT-0004` **every window is bounded from both ends
+by commits**: 01:30–01:58 and 14:41–15:28 on 2026-08-18, and ~03:05–04:00 on
+2026-08-21. Phase 3's handover asked for exactly that, and the fix was
+mechanical — commit before a session is likely to end.
+
+Blocked came to ~72 hours against 16 predicted, and that is not an estimation
+error in any useful sense: it is two nights and two days of wall clock between
+sessions, recorded only so the elapsed figure reconciles. Compare active
+against active.
 
 ### Where the estimate was right, and where it was not
 
@@ -273,11 +284,15 @@ first work class in this corpus with a history instead of a point.
 | 1 | `data-modelling` | under 2.1× |
 | 2 | `llm-integration` | under 1.24× |
 | 3 | `agent-implementation` | over 1.3× |
-| 4 | `agent-implementation` | see `OUT-0005` |
+| 4 | `agent-implementation` | **over 2.2×** |
+
+Both `agent-implementation` outcomes are over-estimates, which is the first
+time any class in this corpus has pointed the same way twice.
 
 **Still no bias correction, for the fifth time.** `BiasDetective` refuses below
-`n = 5` and so does its author. Two points in one class is not a bias; it is
-two points. The value of writing it down is that by Phase 8 or so one class
+`n = 5` and so does its author. Two points agreeing is not a bias; it is two
+points agreeing, and the temptation to read it as one is precisely the
+unprincipled adjustment this product exists to replace. The value of writing it down is that by Phase 8 or so one class
 reaches five, and the demo becomes Praxis telling its author which way he
 leans — which is worth more than any single phase's estimate being right.
 

@@ -308,19 +308,17 @@ it changed except when it is built.
   replacement byte in the one line naming the provider, seed and prompt
   versions.
 
+- `docs/reports/phase-4.md`, `ARCHITECTURE.md` (Half A, evaluation, schema
+  version 4, orchestration moved to Phase 5+) and the README quickstart, which
+  now runs the whole pipeline end to end with no credentials.
+- **One commit was rewritten.** `c94a2f7` carried a copy of the previous
+  commit's subject while its diff was the whole of `praxis/eval/`. Reworded on
+  the unmerged branch and pushed with `--force-with-lease`, because this
+  history is meant to be a valid corpus and a subject that contradicts its own
+  diff is a bad row in it.
+
 ### Resume here
 
-Branch `feat/phase-4-half-a-agents` (the phase branch). Working tree clean,
-everything pushed. Next, in order:
-
-1. **`praxis/eval/`** as four components — `matching`, `metrics`, `harness`,
-   `report` — which `EST-0005` priced as four line items on purpose. Grade
-   `ExtractionRun` against `praxis.corpus`'s answer key: match by span overlap,
-   compare each `ExpectedField` by its own `Comparison`, and report precision,
-   recall and citation integrity per `ItemKind` **plus** the fusion recall over
-   `estimated_as`. Read ADR 0016's last section before writing the table —
-   every offline number is about the plumbing, and the report has to say so.
-
-Still to do after that: `praxis extract` / `praxis eval` CLI commands,
-`docs/reports/phase-4.md` with the metrics table, `ARCHITECTURE.md` updated
-for Half A and schema version 4, the PR, tag `v0.4-phase-4`, and `OUT-0005`.
+Phase 4 is complete: merged, tagged `v0.4-phase-4`, `OUT-0005` closed. Phase 5
+starts by reading `docs/reports/phase-4.md`'s last section, then logging
+`EST-0006` on a fresh branch **before** any Phase 5 file exists.
