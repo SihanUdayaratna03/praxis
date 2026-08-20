@@ -125,6 +125,18 @@ Three things Phase 3 left standing for it:
 
 Carried forward, because every one of them cost something.
 
+**From Phase 4:**
+
+- **Rich wraps a `console.print` at the terminal width, and CI's is narrower
+  than yours.** An error message carrying a path folded `praxis corpus
+  generate` in half on CI's 80 columns and passed locally. Put the remedy on
+  its own short line, and assert on that rather than on a fragment. A table
+  printed for a person to copy needs `soft_wrap=True, markup=False`.
+- **Latent, not fixed:** `test_corpus_generate_reports_a_bad_request_as_a_sentence`
+  fails at `COLUMNS=60` for the same reason. CI runs at 80 and it has always
+  passed there; it was left alone because Phase 3's output is not Phase 4's to
+  change. Worth a line when something else touches that command.
+
 **From Phase 3:**
 
 - **A test built from two identical-looking literals tests nothing.** The NFC
@@ -200,4 +212,125 @@ Carried forward, because every one of them cost something.
 Appended as each component lands, so an interrupted session can resume from the
 last line rather than from the diff.
 
-*(nothing yet — the first line is `EST-0005`)*
+**Correction to "What Phase 4 is" above.** That section was written at the close
+of Phase 3 and says Phase 4 is orchestration. The owner re-scoped it: Phase 4 is
+**Half A core agents** — `DecisionScout`, `DecisionStructurer`,
+`AssumptionExtractor`, the pipeline wiring them onto Phase 3's ingestion, and
+the first evaluation harness. Orchestration moves later.
+[ADR 0004](../adr/0004-custom-async-orchestrator.md) still stands; nothing about
+it changed except when it is built.
+
+- `EST-0005` logged on the phase branch before any Phase 4 file existed: **6.0h
+  active, 16.0h blocked**, confidence 0.40, class `agent-implementation`. No
+  bias correction, for the fifth time — four outcomes, four classes, `n = 1`
+  each, still disagreeing in direction. The eval harness is priced as four line
+  items rather than one, which is the lesson `OUT-0004` paid for.
+- `praxis/prompts/` — the prompt library. Files named `<task>.v<n>.md`, read
+  through `importlib.resources`; a version bump is a new file and
+  `tests/prompts/test_library.py` pins every digest to enforce it. The
+  segmenter's Phase 3 prompt moved in **byte-identical**, so no prompt hash and
+  no mock answer changed.
+- Migration **004** — `prompt_id` and `prompt_sha` on `llm_trace`, nullable.
+  Schema is now at version 4. `LLMRequest.prompt_id` is excluded from
+  `canonical()`; the system text it names is already in the hash. ADR 0014.
+- `praxis/agents/offering.py` — the numbered span listing every extraction cites
+  through, plus `praxis/agents/errors.py`'s refusal vocabulary. ADR 0015. An
+  ordinal resolves or is refused; a *wrong* citation still survives and is named
+  `IN_ANOTHER_OFFERED_SPAN` separately from `NOWHERE`.
+- `DecisionScout` on `feat/phase-4-scout`, merged `--no-ff`. Scan tier,
+  ordinals only, no quotation and therefore no mis-attribution possible. No
+  floor to degrade to — a blind window is recorded as blind, because "every
+  passage holds a decision" would pay the structurer for the whole corpus.
+- `DecisionStructurer` on `feat/phase-4-structurer`, merged `--no-ff`. Extract
+  tier, one call per candidate. The rationale is on the `justified_by` edge and
+  not on the record, a decision with no alternatives is recorded as one rather
+  than invented into two, and a missing date falls back to `ingested_at` with
+  `date_was_stated` carrying the difference. 51 tests, `praxis/agents/
+  structurer.py` at 100%. `Answering` and `Refusing` moved into
+  `tests/agents/conftest.py` so both agents' tests share one copy.
+- **A moved document is not a fabricating model.** `verify_claim` was asked
+  first, so a span that no longer resolved came back `ABSENT` and was reported
+  as `FABRICATED_QUOTE`. `SPAN_DOES_NOT_RESOLVE` existed and nothing returned
+  it. Span resolution is now asked about before the quotation is judged.
+- **Offline, almost every extraction is refused, and that is the mock working.**
+  `praxis.llm.synthesis` draws the cited ordinal from the bracketed labels and
+  the quotation from the passages *independently*, so the two agree only by
+  chance. The eval harness will measure the plumbing rather than the model, and
+  `docs/reports/phase-4.md` has to say so beside the table.
+
+- `praxis/agents/citation.py` — the one gate every extracted claim's citation
+  passes through, lifted out of the structurer before the extractor could grow
+  a second copy. The order of its checks is the substance: an unoffered ordinal
+  beats everything downstream, and a span that will not resolve beats a bad
+  quotation.
+- `praxis/agents/offering.py` gained `spread(spans, index, behind=, ahead=)`,
+  and `around` now delegates to it, so one place knows how a window is cut.
+- `AssumptionExtractor` on `feat/phase-4-extractor`, merged `--no-ff`. Reason
+  tier, one call per decision, writing an `Assumption`, its `justified_by` edge,
+  the decision's `assumes` edge, and — when the claim is quantified and
+  forward-looking — an `Estimate` with **its own citation** plus the
+  `estimated_as` edge. 56 tests, `extractor.py` at 100%.
+- **ADR 0016**: the extractor writes the first `estimated_as` edge, which
+  `ARCHITECTURE.md` assigns to `FusionBridge`. The corpus labels those edges by
+  construction and nothing produced one to grade against; the cheap half of the
+  recognition is free in a call already holding the assumption and its quantity,
+  and the cross-document half is still `FusionBridge`'s.
+- **The extractor's window is 3 behind and 8 ahead**, which is 12 passages —
+  exactly ADR 0015's `spans_per_offering <= 12`. Assumptions are written *after*
+  a decision in both corpus shapes, so reaching equally would spend half the
+  listing on the title block and still stop short of the effort section.
+  Widening either part breaches a recorded assumption rather than editing a
+  constant.
+
+- `praxis/agents/extraction.py` and `praxis/agents/results.py` on
+  `feat/phase-4-pipeline`, merged `--no-ff`. `ExtractionPipeline` runs scout →
+  structurer → extractor over a store and writes in dependency order. 23 tests
+  reading every assertion back out of SQLite; both modules at 100%. **No ADR
+  0013** — the routing table it was reserved for is unchanged from ADR 0006 and
+  the pipeline decided nothing that file did not already say. The number stays
+  free rather than being spent on a restatement.
+- Three things the pipeline had to settle, each in its docstring: ids come from
+  a counter seeded off the store (`next_id` reads the highest ordinal, and one
+  extractor call builds three assumptions before any is written); a document
+  that already holds decisions is recognised rather than redone (sequential ids
+  would fork it, content-addressed `Link` ids would collide); and the extractor
+  runs once per *verified* decision, so a refused one is never paid for twice.
+- `run_id` is threaded through every write, which is the gap Phase 3's handover
+  flagged on `Repository.add`. Nothing generates one yet — the caller passes it
+  or it stays null, and ADR 0004's orchestrator is what will mint them.
+
+- `praxis/eval/` landed as the four priced components — `matching`, `metrics`,
+  `harness`, `report` — with `tests/eval/test_matching.py` and
+  `test_metrics.py` covering the deterministic half. 50 tests.
+
+- `tests/eval/test_harness.py` — the corpus really generated, ingested,
+  extracted and graded. Two runs render identical JSON; a record the run never
+  reported is still graded, because grading reads SQLite. 15 tests.
+
+- `tests/eval/test_report.py` — the renderer held to the numbers it was given:
+  table and JSON never disagree about a rate, and one result rendered behind
+  two different pairings is byte-identical. 26 tests. `praxis/eval/` is done.
+
+- `praxis extract` and `praxis eval` in `praxis/cli_eval.py`, registered from
+  `cli.py`. `extract` exits zero although the gate refused, because offline
+  that is almost every claim; `eval` grades into a scratch store rather than
+  the owner's, and prints to stdout exactly what `--markdown` writes.
+- **A provenance line has to be ASCII.** Redirecting `praxis eval` into a file
+  on Windows gets the console codepage, and the middot separator arrived as a
+  replacement byte in the one line naming the provider, seed and prompt
+  versions.
+
+- `docs/reports/phase-4.md`, `ARCHITECTURE.md` (Half A, evaluation, schema
+  version 4, orchestration moved to Phase 5+) and the README quickstart, which
+  now runs the whole pipeline end to end with no credentials.
+- **One commit was rewritten.** `c94a2f7` carried a copy of the previous
+  commit's subject while its diff was the whole of `praxis/eval/`. Reworded on
+  the unmerged branch and pushed with `--force-with-lease`, because this
+  history is meant to be a valid corpus and a subject that contradicts its own
+  diff is a bad row in it.
+
+### Resume here
+
+Phase 4 is complete: merged, tagged `v0.4-phase-4`, `OUT-0005` closed. Phase 5
+starts by reading `docs/reports/phase-4.md`'s last section, then logging
+`EST-0006` on a fresh branch **before** any Phase 5 file exists.

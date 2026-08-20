@@ -64,6 +64,9 @@ Expiry conditions say when to re-check, not when the decision dies:
 | [0010](0010-store-location-under-a-syncing-filesystem.md) | Keep the store off a syncing filesystem | accepted |
 | [0011](0011-semantic-segmentation-over-a-deterministic-block-grid.md) | Segment semantically, over a deterministic block grid | accepted |
 | [0012](0012-machine-gradeable-corpus-ground-truth.md) | Ground truth as byte ranges, labelled negatives and typed edges | accepted |
+| [0014](0014-prompts-as-versioned-stored-artefacts.md) | Prompts are versioned files, and every trace names the one it read | accepted |
+| [0015](0015-extraction-cites-spans-by-offered-ordinal.md) | Extraction cites spans by offered ordinal, never by span id | accepted |
+| [0016](0016-the-extractor-writes-the-first-estimated-as-edge.md) | `AssumptionExtractor` writes the first `estimated_as` edge | accepted |
 
 0010 was decided during Phase 0 because Phase 1 needed a settled answer before
 it wrote its first database. Numbers are never reused or renumbered, so 0008

@@ -27,6 +27,7 @@ from praxis.store.migrations import migrate
 from praxis.store.traces import (
     SqliteTraceSink,
     from_row,
+    prompt_versions_in_run,
     run_cost_usd,
     to_row,
     trace_count,
@@ -281,3 +282,38 @@ def test_the_row_helpers_are_inverses(store):
     write_trace(store, trace())
     row = store.execute("SELECT * FROM llm_trace").fetchone()
     assert to_row(from_row(row)) == to_row(trace())
+
+
+class TestPromptProvenance:
+    """Migration 004: which prompt, at which version, produced this row."""
+
+    def test_the_prompt_id_and_digest_survive_the_round_trip(self, store):
+        original = trace(prompt_id="scan_for_decisions@v1", prompt_sha="b" * 64)
+        write_trace(store, original)
+        assert traces_in_run(store, RUN) == (original,)
+
+    def test_a_call_with_no_stored_prompt_records_none(self, store):
+        # Not an empty string. "No prompt version" and "a prompt version named
+        # nothing" are different claims, and every row written before migration
+        # 004 is honestly the first one.
+        write_trace(store, trace())
+        assert traces_in_run(store, RUN)[0].prompt_id is None
+        assert traces_in_run(store, RUN)[0].prompt_sha is None
+
+    def test_a_run_reports_the_prompt_versions_it_read(self, store):
+        write_trace(store, trace(prompt_id="group_blocks@v1"))
+        write_trace(store, trace(prompt_id="scan_for_decisions@v1"))
+        write_trace(store, trace(prompt_id="group_blocks@v1"))
+        assert prompt_versions_in_run(store, RUN) == (
+            "group_blocks@v1",
+            "scan_for_decisions@v1",
+        )
+
+    def test_a_run_with_no_versioned_prompts_reports_nothing(self, store):
+        write_trace(store, trace())
+        assert prompt_versions_in_run(store, RUN) == ()
+
+    def test_versions_are_not_reported_across_runs(self, store):
+        write_trace(store, trace(prompt_id="group_blocks@v1"))
+        write_trace(store, trace(run_id="RUN-000000000002", prompt_id="other@v3"))
+        assert prompt_versions_in_run(store, RUN) == ("group_blocks@v1",)

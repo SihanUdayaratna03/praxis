@@ -219,6 +219,8 @@ def _with_schema(request: LLMRequest, answer: type[BaseModel]) -> LLMRequest:
             schema=schema,
             max_tokens=request.max_tokens,
             attempt=request.attempt,
+            prompt_id=request.prompt_id,
+            prompt_sha=request.prompt_sha,
             metadata=request.metadata,
         )
     if request.schema.name != schema.name:

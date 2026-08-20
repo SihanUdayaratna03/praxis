@@ -153,6 +153,10 @@ class LLMRequest:
         attempt: 1 for the first try, 2+ for a repair after malformed output.
             Part of the record, not of the prompt -- the repair itself is a
             message, so the hash changes because the conversation changed.
+        prompt_id: Which stored prompt `system` was rendered from, as
+            `<task>@v<n>`. Recorded on the trace so a metric can be traced back
+            to the words that produced it -- ADR 0014.
+        prompt_sha: The SHA-256 of that prompt's bytes.
     """
 
     agent: str
@@ -162,6 +166,13 @@ class LLMRequest:
     schema: ResponseSchema | None = None
     max_tokens: int = 4_096
     attempt: int = 1
+    prompt_id: str | None = None
+    """Excluded from `canonical()` on purpose, and for the opposite reason to
+    `metadata`. The system text this names is *already* in the hash, so adding
+    the id would change no identity and would only make a fixture recorded
+    under one spelling of a version fail to replay under another."""
+
+    prompt_sha: str | None = None
     metadata: Mapping[str, str] = field(default_factory=dict)
     """Anything worth keeping on the trace that is not part of the prompt --
     a span id, a document id. Excluded from the hash on purpose, so a fixture
@@ -241,6 +252,8 @@ class LLMRequest:
             schema=self.schema,
             max_tokens=self.max_tokens,
             attempt=attempt,
+            prompt_id=self.prompt_id,
+            prompt_sha=self.prompt_sha,
             metadata=self.metadata,
         )
 

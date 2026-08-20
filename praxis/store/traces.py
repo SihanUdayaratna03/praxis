@@ -34,6 +34,8 @@ COLUMNS: Final[tuple[str, ...]] = (
     "provider",
     "model_id",
     "prompt_hash",
+    "prompt_id",
+    "prompt_sha",
     "attempt",
     "outcome",
     "stop_reason",
@@ -71,6 +73,8 @@ def to_row(trace: LLMTrace) -> dict[str, Any]:
         "provider": trace.provider,
         "model_id": trace.model_id,
         "prompt_hash": trace.prompt_hash,
+        "prompt_id": trace.prompt_id,
+        "prompt_sha": trace.prompt_sha,
         "attempt": trace.attempt,
         "outcome": trace.outcome.value,
         "stop_reason": None if trace.stop_reason is None else trace.stop_reason.value,
@@ -102,6 +106,8 @@ def from_row(row: sqlite3.Row) -> LLMTrace:
         provider=row["provider"],
         model_id=row["model_id"],
         prompt_hash=row["prompt_hash"],
+        prompt_id=row["prompt_id"],
+        prompt_sha=row["prompt_sha"],
         attempt=row["attempt"],
         outcome=CallOutcome(row["outcome"]),
         stop_reason=None if row["stop_reason"] is None else StopReason(row["stop_reason"]),
@@ -179,6 +185,24 @@ def traces_for_prompt(connection: sqlite3.Connection, prompt_hash: str) -> tuple
             "SELECT * FROM llm_trace WHERE prompt_hash = ? ORDER BY seq", (prompt_hash,)
         ).fetchall()
     return tuple(from_row(row) for row in rows)
+
+
+def prompt_versions_in_run(connection: sqlite3.Connection, run_id: str) -> tuple[str, ...]:
+    """Every stored prompt version one run read, sorted.
+
+    What a metrics table cites beside its numbers. Rows with no prompt id --
+    a call whose system text was not rendered from the library, or one written
+    before migration 004 -- are left out rather than reported as an empty
+    string, because "no prompt version" and "a prompt version named nothing"
+    are different claims.
+    """
+    with translating_sqlite_errors():
+        rows = connection.execute(
+            "SELECT DISTINCT prompt_id FROM llm_trace "
+            "WHERE run_id = ? AND prompt_id IS NOT NULL ORDER BY prompt_id",
+            (run_id,),
+        ).fetchall()
+    return tuple(str(row[0]) for row in rows)
 
 
 def run_cost_usd(connection: sqlite3.Connection, run_id: str) -> Decimal:

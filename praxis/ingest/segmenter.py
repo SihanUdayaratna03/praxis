@@ -43,6 +43,7 @@ from praxis.llm.provider import LLMProvider
 from praxis.llm.structured import REPAIR_ATTEMPTS, ask_for
 from praxis.llm.types import LLMRequest, Message, MessageRole
 from praxis.obs.logging import get_logger
+from praxis.prompts.library import Prompt, load
 
 _log = get_logger(__name__)
 
@@ -67,22 +68,17 @@ A citation that wide tells a reader nothing about where to look.
 """
 
 SEGMENT_TASK: Final = "group_blocks"
+"""Also the name of the prompt file this agent reads -- ADR 0014."""
 
-_SYSTEM_PROMPT: Final = f"""\
-You segment engineering documents that have already been cut into numbered \
-blocks. Your only job is to say which blocks belong together.
 
-Group consecutive blocks that form one unit of meaning -- a decision with the \
-reasoning behind it, an assumption with the condition it depends on, an \
-estimate with its caveats, a heading with the paragraph it introduces.
+def _prompt() -> Prompt:
+    """The system prompt for this call, newest version.
 
-Rules:
-- Refer to blocks only by the numbers shown. Never invent a number.
-- A group is a contiguous run: every block from the first to the last.
-- Groups must not overlap, and a group of one block is fine.
-- No group may cover more than {MAX_BLOCKS_PER_GROUP} blocks.
-- Leave a block out of every group if it belongs with nothing else.
-"""
+    Read per call rather than bound at import, so that a version bump is a file
+    landing in `praxis/prompts/texts/` and nothing else. Cheap: the library
+    caches its directory walk.
+    """
+    return load(SEGMENT_TASK)
 
 
 class BlockGroup(BaseModel):
@@ -227,11 +223,14 @@ class SegmenterAgent:
         self, document: Document, window: tuple[Block, ...]
     ) -> tuple[SegmentationPlan | None, int]:
         """Ask for one window's groups, returning `None` if the answer was unusable."""
+        prompt = _prompt()
         request = LLMRequest(
             agent=self.name,
             task=SEGMENT_TASK,
-            system=_SYSTEM_PROMPT,
+            system=prompt.render(max_blocks=MAX_BLOCKS_PER_GROUP),
             messages=(Message(role=MessageRole.USER, content=_render(window)),),
+            prompt_id=prompt.id,
+            prompt_sha=prompt.sha256,
             metadata={
                 "doc_id": document.id,
                 "first_block": str(window[0].index),
