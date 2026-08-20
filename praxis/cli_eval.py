@@ -148,10 +148,12 @@ def eval_corpus(
     configure_logging(settings)
 
     if not (corpus / GROUND_TRUTH_FILENAME).is_file():
-        console.print(
-            f"[bold red]praxis eval: no {GROUND_TRUTH_FILENAME} in {corpus}. "
-            f"Generate one with 'praxis corpus generate'.[/bold red]"
-        )
+        # Two lines rather than one, because the first carries a path and rich
+        # wraps at the console width -- which put a line break through the
+        # middle of the command being suggested on an 80-column terminal. The
+        # remedy is the half that has to survive being read.
+        console.print(f"[bold red]praxis eval: no {GROUND_TRUTH_FILENAME} in {corpus}[/bold red]")
+        console.print("Generate one with 'praxis corpus generate'.")
         raise typer.Exit(code=1)
 
     run_id = new_run_id()

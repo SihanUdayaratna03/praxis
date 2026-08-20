@@ -125,6 +125,18 @@ Three things Phase 3 left standing for it:
 
 Carried forward, because every one of them cost something.
 
+**From Phase 4:**
+
+- **Rich wraps a `console.print` at the terminal width, and CI's is narrower
+  than yours.** An error message carrying a path folded `praxis corpus
+  generate` in half on CI's 80 columns and passed locally. Put the remedy on
+  its own short line, and assert on that rather than on a fragment. A table
+  printed for a person to copy needs `soft_wrap=True, markup=False`.
+- **Latent, not fixed:** `test_corpus_generate_reports_a_bad_request_as_a_sentence`
+  fails at `COLUMNS=60` for the same reason. CI runs at 80 and it has always
+  passed there; it was left alone because Phase 3's output is not Phase 4's to
+  change. Worth a line when something else touches that command.
+
 **From Phase 3:**
 
 - **A test built from two identical-looking literals tests nothing.** The NFC

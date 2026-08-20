@@ -445,13 +445,20 @@ def test_eval_can_keep_its_scratch_store_for_digging_into(tmp_path: Path) -> Non
 
 
 def test_eval_says_so_when_a_directory_holds_no_answer_key(tmp_path: Path) -> None:
+    """And says it on a line short enough to survive a narrow terminal.
+
+    The first version put the remedy on the same line as a temp-directory path,
+    and rich folded `praxis corpus generate` in half on CI's 80 columns. A
+    suggested command that arrives with a line break through it is not a
+    suggestion.
+    """
     empty = tmp_path / "not-a-corpus"
     empty.mkdir()
 
     result = runner.invoke(app, ["eval", str(empty)])
 
     assert result.exit_code == 1
-    assert "corpus generate" in result.output
+    assert "praxis corpus generate" in result.output
 
 
 def test_two_evals_of_one_corpus_report_the_same_numbers(tmp_path: Path) -> None:
