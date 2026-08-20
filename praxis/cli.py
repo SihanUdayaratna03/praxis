@@ -27,6 +27,7 @@ import typer
 from rich.console import Console
 
 from praxis import __version__
+from praxis.cli_eval import eval_corpus, extract
 from praxis.cli_tables import configuration_table, links_table, records_table, routing_table
 from praxis.config.models import (
     NON_LLM_AGENTS,
@@ -230,6 +231,14 @@ def _report_ingestion(run: IngestionRun, settings: Settings) -> None:
         console.print(f"  [bold red]failed[/bold red]     {failure.source_uri}: {failure.reason}")
     if not run.ok:
         raise typer.Exit(code=1)
+
+
+# Registered rather than defined here: both live in `praxis.cli_eval`, which
+# keeps this file inside the size the style guide asks for, while the command
+# surface stays enumerable in one place. `eval` is spelled out as a name
+# because the function cannot be -- it is a builtin.
+app.command(name="extract")(extract)
+app.command(name="eval")(eval_corpus)
 
 
 @corpus_app.command(name="generate")

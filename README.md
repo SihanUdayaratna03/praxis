@@ -116,8 +116,26 @@ uv sync --all-groups          # installs Python 3.12 + all dependencies
 cp .env.example .env          # optional; defaults already work offline
 uv run praxis doctor          # verify the install
 uv run praxis version
-uv run praxis config show
+uv run praxis config
 ```
+
+The whole pipeline, end to end and with no credentials:
+
+```bash
+uv run praxis init                                   # create the store
+uv run praxis corpus generate .praxis-tmp/corpus     # 12 documents + answer key
+uv run praxis ingest .praxis-tmp/corpus/documents    # documents -> verified spans
+uv run praxis extract                                # spans -> decisions, assumptions, estimates
+uv run praxis store stats                            # what the store holds
+
+uv run praxis eval .praxis-tmp/corpus                # grade it against the key
+```
+
+`praxis eval` prints precision, recall and field accuracy per record kind, how
+often a citation survived the gate, and the recall over the `estimated_as`
+edges the corpus labels — the fusion relationship the product exists to find.
+Offline those numbers measure the plumbing rather than a model, and the table
+says so beneath itself.
 
 Run the checks exactly as CI does:
 

@@ -287,19 +287,38 @@ it changed except when it is built.
   flagged on `Repository.add`. Nothing generates one yet — the caller passes it
   or it stays null, and ADR 0004's orchestrator is what will mint them.
 
+- `praxis/eval/` landed as the four priced components — `matching`, `metrics`,
+  `harness`, `report` — with `tests/eval/test_matching.py` and
+  `test_metrics.py` covering the deterministic half. 50 tests.
+
+- `tests/eval/test_harness.py` — the corpus really generated, ingested,
+  extracted and graded. Two runs render identical JSON; a record the run never
+  reported is still graded, because grading reads SQLite. 15 tests.
+
+- `tests/eval/test_report.py` — the renderer held to the numbers it was given:
+  table and JSON never disagree about a rate, and one result rendered behind
+  two different pairings is byte-identical. 26 tests. `praxis/eval/` is done.
+
+- `praxis extract` and `praxis eval` in `praxis/cli_eval.py`, registered from
+  `cli.py`. `extract` exits zero although the gate refused, because offline
+  that is almost every claim; `eval` grades into a scratch store rather than
+  the owner's, and prints to stdout exactly what `--markdown` writes.
+- **A provenance line has to be ASCII.** Redirecting `praxis eval` into a file
+  on Windows gets the console codepage, and the middot separator arrived as a
+  replacement byte in the one line naming the provider, seed and prompt
+  versions.
+
+- `docs/reports/phase-4.md`, `ARCHITECTURE.md` (Half A, evaluation, schema
+  version 4, orchestration moved to Phase 5+) and the README quickstart, which
+  now runs the whole pipeline end to end with no credentials.
+- **One commit was rewritten.** `c94a2f7` carried a copy of the previous
+  commit's subject while its diff was the whole of `praxis/eval/`. Reworded on
+  the unmerged branch and pushed with `--force-with-lease`, because this
+  history is meant to be a valid corpus and a subject that contradicts its own
+  diff is a bad row in it.
+
 ### Resume here
 
-Branch `feat/phase-4-half-a-agents` (the phase branch). Working tree clean,
-everything pushed. Next, in order:
-
-1. **`praxis/eval/`** as four components — `matching`, `metrics`, `harness`,
-   `report` — which `EST-0005` priced as four line items on purpose. Grade
-   `ExtractionRun` against `praxis.corpus`'s answer key: match by span overlap,
-   compare each `ExpectedField` by its own `Comparison`, and report precision,
-   recall and citation integrity per `ItemKind` **plus** the fusion recall over
-   `estimated_as`. Read ADR 0016's last section before writing the table —
-   every offline number is about the plumbing, and the report has to say so.
-
-Still to do after that: `praxis extract` / `praxis eval` CLI commands,
-`docs/reports/phase-4.md` with the metrics table, `ARCHITECTURE.md` updated
-for Half A and schema version 4, the PR, tag `v0.4-phase-4`, and `OUT-0005`.
+Phase 4 is complete: merged, tagged `v0.4-phase-4`, `OUT-0005` closed. Phase 5
+starts by reading `docs/reports/phase-4.md`'s last section, then logging
+`EST-0006` on a fresh branch **before** any Phase 5 file exists.

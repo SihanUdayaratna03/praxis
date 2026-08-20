@@ -130,6 +130,8 @@ without touching an agent. Three things hold that boundary up:
 
 Migrations are numbered SQL files with a checksummed ledger and no framework —
 [ADR 0009](docs/adr/0009-forward-only-migrations-without-a-framework.md). The
+schema is at **version 4**: core, full-text search, traces, and the columns
+naming the prompt behind each trace. The
 store lives in
 the platform data directory rather than the repository, because the repository
 is on a synced filesystem and WAL sidecars corrupt under one —
@@ -200,13 +202,76 @@ estimate wearing an assumption's clothes. The second carries an `estimated_as`
 edge, so the corpus contains the fusion relationship the product exists to find,
 labelled, before the agent that has to find it is written.
 
-## Orchestration *(Phase 4)*
+## Half A extraction *(Phase 4, built)*
+
+Three agents in a fixed sequence, each cheaper than the one it feeds:
+
+```
+  spans ──▶ DecisionScout ──▶ DecisionStructurer ──▶ AssumptionExtractor
+            scan tier             extract tier            reason tier
+            one call per          one call per            one call per
+            window                candidate               verified decision
+```
+
+`praxis/agents/extraction.py` runs them over a store and writes in dependency
+order. A document that already holds decisions is recognised rather than
+redone, and a refused decision is never paid for twice — the extractor runs
+once per *verified* decision.
+
+**Every extraction cites a span by its ordinal in a numbered offering**, never
+by id and never by byte range, so a fabricated coordinate is not a thing an
+agent can express. `praxis/agents/offering.py` builds the listing;
+`praxis/agents/citation.py` is the single gate every claim's citation passes,
+and the order of its checks is the substance — an unoffered ordinal beats
+everything downstream, and a span that will not resolve beats a bad quotation.
+See [ADR 0015](docs/adr/0015-extraction-cites-spans-by-offered-ordinal.md).
+
+The extractor writes an `Estimate` and the first `estimated_as` edge wherever
+an assumption turns out to be a quantified forward-looking claim — the cheap
+half of the fusion recognition, in a call already holding the assumption and
+its quantity. The cross-document half is still `FusionBridge`'s. See
+[ADR 0016](docs/adr/0016-the-extractor-writes-the-first-estimated-as-edge.md).
+
+Prompts are versioned stored artefacts read through `importlib.resources`, and
+`llm_trace` records the `prompt_id` and digest behind every call, so a metrics
+table can name the bytes that produced it. See
+[ADR 0014](docs/adr/0014-prompts-as-versioned-stored-artefacts.md).
+
+## Evaluation *(Phase 4, built)*
+
+`praxis/eval/` grades a run against `praxis/corpus/`'s answer key, in four
+modules that fail in four different ways: `matching` decides *which* record
+answers *which* item, by byte overlap and a total tie-break; `metrics` counts
+the pairs and is arithmetic and nothing else; `harness` runs a corpus end to
+end; `report` renders it and does no arithmetic, so a formatting change can
+never move a number.
+
+The claims are read back **out of SQLite**, not taken from the run's result:
+the run is a report of what the agents produced, the store is what survived
+being written.
+
+Reported per `ItemKind`: precision, recall, F1, field accuracy and exact
+matches, with distractor hits counted apart from ordinary false positives —
+without labelled negatives only recall is measurable. Reported once for the
+run: citation integrity and how it failed, and the recall over the
+`estimated_as` edges the corpus labels, which is the only number that is a
+claim about the thesis rather than about extraction.
+
+`praxis eval <corpus>` is the whole of it in one command, into a scratch store
+rather than the configured one.
+
+## Orchestration *(Phase 5+)*
 
 A small async state machine over a typed message bus, written for this project.
 No agent framework. Determinism is the requirement that drives the design: two
 runs over one corpus with one seed must produce identical numbers, or the
 ablation table means nothing. See
 [ADR 0004](docs/adr/0004-custom-async-orchestrator.md).
+
+Phase 4 was re-scoped to Half A's agents; nothing about ADR 0004 changed except
+when it is built. What Phase 4 did leave for it is `run_id`: every write
+already takes one and threads it through the audit trail, and the orchestrator
+is what will mint them.
 
 ## Model access *(Phase 2, built)*
 
@@ -267,6 +332,7 @@ these acquires a model route.
 praxis/
   cli.py               typer app: version, config, doctor, init, ingest,
                        store stats, corpus generate
+  cli_eval.py          praxis extract and praxis eval
   cli_tables.py        what the CLI's output looks like
   config/settings.py   pydantic-settings; PRAXIS_* environment
   config/models.py     model ids, prices, roles, routing  ← the only place
@@ -276,7 +342,7 @@ praxis/
   domain/spans.py      the span/document integrity check
   store/location.py    where the database lives, and whether that is safe
   store/connection.py  pragmas, and the transaction every write sits inside
-  store/schema/*.sql   numbered migrations: core, then full-text search
+  store/schema/*.sql   numbered migrations: core, search, traces, prompts
   store/migrations.py  forward-only runner, checksummed ledger
   store/mapping.py     record ↔ row, one table driving both directions
   store/repository.py  add / revise / retract, reads. No update, no delete
@@ -308,6 +374,20 @@ praxis/
   corpus/templates.py  four document shapes, four extraction problems
   corpus/topics.py     the material: eight engineering decisions
   corpus/generator.py  writes the corpus, then verifies it against itself
+  prompts/library.py   versioned prompt files, read as packaged resources
+  prompts/texts/*.md   <task>.v<n>.md; a version bump is a new file
+  agents/offering.py   the numbered span listing every extraction cites through
+  agents/citation.py   the one gate every extracted claim's citation passes
+  agents/errors.py     the refusal vocabulary, and what each one costs
+  agents/scout.py      high-recall pass: which windows hold a decision
+  agents/structurer.py a candidate span -> a Decision record
+  agents/extractor.py  a decision -> its assumptions, and the estimates in them
+  agents/extraction.py scout -> structurer -> extractor, over a whole store
+  agents/results.py    what a run wrote, and everything it lost
+  eval/matching.py     which record answers which item. Byte overlap, not equality
+  eval/metrics.py      arithmetic over the pairs. No model, ever
+  eval/harness.py      a corpus end to end, graded from what SQLite holds
+  eval/report.py       the table and the JSON. No arithmetic
   obs/logging.py       structured JSON logging
 tests/                 pytest + hypothesis
 docs/adr/              decisions, in Praxis's own schema
