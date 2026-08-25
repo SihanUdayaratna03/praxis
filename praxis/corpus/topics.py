@@ -43,6 +43,13 @@ class Topic:
         team: Who the decision binds.
         work_class: The grouping key calibration is computed within.
         hypothetical: A sentence that looks like a decision and is not.
+        reversal: The same belief, later found to be wrong, in plain words.
+            What a revision note asserts, and therefore what `contradicts`
+            joins back to the original assumption.
+        reversal_predicate: The reversal as an expression. Written so that its
+            satisfying range is provably disjoint from `predicate`'s, because
+            that is what puts the planted contradiction inside what
+            `praxis.predicates.intervals` can settle without a model.
     """
 
     slug: str
@@ -59,6 +66,8 @@ class Topic:
     team: str
     work_class: str
     hypothetical: str
+    reversal: str
+    reversal_predicate: str
 
 
 TOPICS: Final[tuple[Topic, ...]] = (
@@ -80,6 +89,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         team="Discovery",
         work_class="infrastructure",
         hypothetical="If the vendor drops their price we would look at hosted search again.",
+        reversal="the index passed 50 GB well inside the year",
+        reversal_predicate="index_size_gb > 50",
     ),
     Topic(
         slug="billing-events",
@@ -102,6 +113,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         team="Payments",
         work_class="backend",
         hypothetical="Somebody suggested we could move billing onto the events platform entirely.",
+        reversal="peak billing throughput has gone past 200 events a second",
+        reversal_predicate="peak_events_per_second > 200",
     ),
     Topic(
         slug="mobile-offline",
@@ -124,6 +137,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         team="Mobile",
         work_class="mobile",
         hypothetical="We debated whether a CRDT would be worth it once the team is bigger.",
+        reversal="conflicting edits to one report run above one percent of syncs",
+        reversal_predicate="conflicting_sync_rate > 0.01",
     ),
     Topic(
         slug="auth-migration",
@@ -143,6 +158,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         team="Platform",
         work_class="migration",
         hypothetical="One option raised was to keep both session paths alive indefinitely.",
+        reversal="the migration will need more than six weeks",
+        reversal_predicate="migration_weeks > 6",
     ),
     Topic(
         slug="report-exports",
@@ -165,6 +182,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         team="Reporting",
         work_class="backend",
         hypothetical="If exports keep growing we might have to pre-compute them after all.",
+        reversal="single exports now exceed two gigabytes",
+        reversal_predicate="max_export_gb > 2",
     ),
     Topic(
         slug="feature-flags",
@@ -190,6 +209,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         team="Platform",
         work_class="backend",
         hypothetical="Marketing asked whether flags could be changed by non-engineers one day.",
+        reversal="a thirty second stale flag snapshot turned out not to be acceptable",
+        reversal_predicate="flag_staleness_seconds > 30",
     ),
     Topic(
         slug="data-retention",
@@ -209,6 +230,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         team="Data",
         work_class="data-engineering",
         hypothetical="If a regulator asks for two years of raw events this gets revisited.",
+        reversal="two analyses now need raw events older than ninety days",
+        reversal_predicate="analyses_needing_raw_events_over_90_days == 2",
     ),
     Topic(
         slug="ci-runners",
@@ -231,6 +254,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         team="Developer Experience",
         work_class="infrastructure",
         hypothetical="There was a suggestion to move CI to a different provider entirely.",
+        reversal="self-hosted runners cover well under eighty percent of jobs",
+        reversal_predicate="self_hosted_job_share < 0.8",
     ),
 )
 """Eight topics, reused across templates so one subject appears in several

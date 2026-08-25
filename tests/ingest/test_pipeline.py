@@ -50,7 +50,10 @@ def store() -> Iterator[Repository]:
 @pytest.fixture
 def corpus(tmp_path):
     root = tmp_path / "corpus"
-    generate_corpus(root, documents=6, seed=20260809, generated_at=AT)
+    # revisions=0 so the fixture means what it says. Revision notes are a
+    # second pass in the generator and this file is about ingestion, not
+    # about what the corpus contains.
+    generate_corpus(root, documents=6, revisions=0, seed=20260809, generated_at=AT)
     return root / "documents"
 
 
