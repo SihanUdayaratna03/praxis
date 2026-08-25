@@ -1,4 +1,4 @@
-"""What one extraction run produced, in the shape the run reports it.
+"""What an agent run produced, in the shape the run reports it.
 
 Separate from the pipeline that fills them because they are what everything
 *downstream* reads: `praxis.eval` grades against them, the CLI prints them, and
@@ -11,19 +11,26 @@ reports an ordinal it was never shown, the extractor reports which of two
 records it lost. This is the shape the *run* speaks in, so the eval harness
 groups one sequence rather than three, and `stage` is what keeps the merge from
 losing what the three types knew apart.
+
+Phase 5's detection types live here for the same reason and not because they
+are related to extraction: `praxis.eval` reads them, and a module that only
+wants a run's numbers should not have to import the agent that makes the
+calls -- which for `ContradictionDetector` would drag in the whole predicate
+language as well.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
+from praxis.agents.blocking import Blocking
 from praxis.agents.errors import Refusal
 from praxis.agents.extractor import ExtractedAssumption
 from praxis.agents.structurer import StructuredDecision
 from praxis.domain.enums import RecordKind
 from praxis.domain.ids import DocumentId
-from praxis.domain.records import Document
+from praxis.domain.records import Document, Link
 
 
 class Stage(StrEnum):
@@ -131,3 +138,67 @@ class ExtractionRun:
     def refused_by(self, refusal: Refusal) -> int:
         """How many records one defect cost."""
         return sum(1 for entry in self.refused if entry.refusal is refusal)
+
+
+class Settlement(StrEnum):
+    """Which stage decided a pair, so the two recalls can be reported apart."""
+
+    ARITHMETIC = "arithmetic"
+    """Two predicates whose satisfying ranges do not intersect. Free, certain,
+    and reproducible."""
+
+    MODEL = "model"
+    """A judgement about two claims in prose, carrying the model's confidence."""
+
+
+@dataclass(frozen=True, slots=True)
+class Contradiction:
+    """Two records that cannot both hold, and the edge asserting it.
+
+    Attributes:
+        link: The `contradicts` edge, ready to store. Its id is derived from the
+            ordered pair, so re-running writes the same edge rather than a
+            second one.
+        settled_by: Which stage decided.
+        rationale: Why they conflict, in one sentence. Also the edge's own
+            rationale -- carried here too so a caller reporting a run does not
+            have to reach into the record.
+    """
+
+    link: Link
+    settled_by: Settlement
+    rationale: str
+
+    @property
+    def pair(self) -> tuple[str, str]:
+        """The two records, in the order the edge stores them."""
+        return self.link.source_id, self.link.target_id
+
+
+@dataclass(frozen=True, slots=True)
+class DetectionResult:
+    """What one detection proposed, settled, asked about and found.
+
+    Attributes:
+        contradictions: The edges to write, arithmetic ones first.
+        blocking: What candidate generation proposed and what it skipped.
+        judged: Pairs sent to a model.
+        calls: Model calls made, repairs included.
+    """
+
+    contradictions: tuple[Contradiction, ...] = ()
+    blocking: Blocking = field(default_factory=Blocking)
+    judged: int = 0
+    calls: int = 0
+
+    @property
+    def by_arithmetic(self) -> tuple[Contradiction, ...]:
+        """Those a model was never asked about."""
+        return tuple(
+            found for found in self.contradictions if found.settled_by is Settlement.ARITHMETIC
+        )
+
+    @property
+    def by_model(self) -> tuple[Contradiction, ...]:
+        """Those that were a judgement."""
+        return tuple(found for found in self.contradictions if found.settled_by is Settlement.MODEL)
