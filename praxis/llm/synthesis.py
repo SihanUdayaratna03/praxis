@@ -108,7 +108,21 @@ a document full of dates and version numbers would otherwise supply most of the
 candidates, and an answer drawn from those refers to nothing.
 """
 
+_PREDICATE_SPAN: Final = re.compile(r"`([^`\n]*(?:<=|>=|==|!=|<|>)[^`\n]*)`")
+"""A backticked span asserting a comparison, which is what a predicate is.
+
+Deliberately loose. Anything matched here still has to parse in
+`praxis.predicates`, and a span that looks like a predicate and is not is a
+realistic answer rather than a broken one."""
+
+_EXPIRY_CALL: Final = re.compile(r"\b(?:when|after|on_event)\([^()\n]*\)")
+"""The three expiry forms, matched wherever they appear rather than only inside
+a code span -- the corpus writes them in running prose."""
+
 _ORDINAL_HINTS: Final = ("block", "index", "ordinal", "position")
+
+_PREDICATE_HINTS: Final = ("predicate",)
+_EXPIRY_HINTS: Final = ("expiry", "expires")
 
 _QUOTE_HINTS: Final = (
     "quote",
@@ -219,6 +233,35 @@ def ordinals_in(text: str) -> tuple[int, ...]:
     return tuple(dict.fromkeys(int(found) for found in _ORDINAL_LABEL.findall(text)))
 
 
+def predicates_in(text: str) -> tuple[str, ...]:
+    """Return the predicate-shaped code spans a prompt presents, deduplicated.
+
+    The same argument `ordinals_in` makes, for the third kind of reference this
+    pipeline hands a model. `AssumptionFormalizer` is asked for an expression in
+    a grammar, and both its prompt and the passages it is shown carry real ones
+    -- an ADR writes ``In predicate form: `index_size_gb <= 50`.`` Drawing a
+    sentence instead would make every synthesised predicate unparseable, so the
+    branch that *stores* a formalized predicate would never run offline and only
+    the refusal path would ever be covered.
+
+    Matched on shape rather than by parsing, because `praxis.llm` may not import
+    the predicate language: a backticked span containing a comparison operator.
+    A span that looks like one and is not still fails to parse downstream, which
+    is the honest outcome and one worth exercising.
+    """
+    return tuple(dict.fromkeys(found.strip() for found in _PREDICATE_SPAN.findall(text)))
+
+
+def expiries_in(text: str) -> tuple[str, ...]:
+    """Return the expiry conditions a prompt presents, deduplicated.
+
+    Not restricted to backticked spans, unlike `predicates_in`: the corpus
+    writes ``Re-check when(indexed_documents >= 10000000).`` in running prose,
+    so requiring code formatting would find none of them.
+    """
+    return tuple(dict.fromkeys(found.strip() for found in _EXPIRY_CALL.findall(text)))
+
+
 def synthesise_answer(schema: ResponseSchema | None, source_text: str, seed: str) -> str:
     """Answer one request as text, structured or free.
 
@@ -270,6 +313,8 @@ class _Answerer:
         self._sentences = sentences_of(source_text) or (_NOTHING_TO_QUOTE,)
         self._identifiers = identifiers_in(source_text)
         self._ordinals = ordinals_in(source_text)
+        self._predicates = predicates_in(source_text)
+        self._expiries = expiries_in(source_text)
         self._defs: Mapping[str, Any] = {}
 
     def value(self, schema: Mapping[str, Any], *, name: str = "", depth: int = 0) -> Any:
@@ -355,14 +400,28 @@ class _Answerer:
         declared = schema.get("format")
         if isinstance(declared, str) and (formatted := self._formatted(declared)) is not None:
             return formatted
-        lowered = name.lower()
+        hinted = self._by_hint(name.lower())
+        return self._label() if hinted is None else hinted
+
+    def _by_hint(self, lowered: str) -> str | None:
+        """What a field name asks for, or `None` when it asks for nothing special.
+
+        Ordered by how specific the hint is. The two structured shapes come
+        first because a field called `predicate` would otherwise be answered as
+        prose, and an unparseable answer there leaves the branch that stores a
+        formalized predicate uncovered offline.
+        """
+        if self._predicates and _mentions(lowered, _PREDICATE_HINTS):
+            return self._pick(self._predicates)
+        if self._expiries and _mentions(lowered, _EXPIRY_HINTS):
+            return self._pick(self._expiries)
         if _mentions(lowered, _ID_HINTS):
             return self._identifier(lowered)
         if _mentions(lowered, _QUOTE_HINTS):
             return self._quote()
         if _mentions(lowered, _PROSE_HINTS):
             return self.prose()
-        return self._label()
+        return None
 
     def _quote(self) -> str:
         """A sentence that really occurs in the prompt."""
