@@ -560,3 +560,16 @@ Remaining: the `praxis/eval/` extension, `praxis/cli_monitor.py`, ADRs
   which is English). **It stays a finding**: a test names it by file, so
   widening the grammar for one instance fails rather than quietly turning the
   question into a feature request answered by editing it.
+- `praxis/eval/metrics.py` extended, still 100% and still arithmetic over
+  counts. `PairScore` exists because `Score` pairs by **byte overlap** — right
+  for an extraction that points at a place, wrong for a `contradicts` edge that
+  is already two record ids. `Score` gained `.label` so both render through one
+  function.
+- **`aged_misreported_as_breached` is a named property, not a cell to find.**
+  It should be zero and by construction is: the monitor reaches `BREACHED` only
+  through arithmetic on facts, so non-zero means the property broke rather than
+  a model being wrong. `HOLDING` is excluded from it — that is a wrong verdict
+  about a *measured* quantity, a different failure worth not folding in.
+- `FormalizationScore` is deliberately not a precision or a recall: no key entry
+  says an assumption *should* have compiled, and reporting it as a recall would
+  invite comparison with the extraction recalls beside it.
