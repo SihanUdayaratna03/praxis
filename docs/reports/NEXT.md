@@ -523,8 +523,27 @@ waiting for.
   they say; `praxis corpus generate` gained `--revisions` and reports how many
   `contradicts` pairs were planted.
 
+- **The answer key now says what a monitoring run should conclude.**
+  `FORMAT_VERSION` is 2; a version 1 key is refused rather than read as one
+  with no expectations, or "the monitor found nothing" and "the corpus expected
+  nothing" would be the same number.
+- Measurements are **derived from each predicate**, not written beside it.
+  `measurements.py` computes a witness inside or outside the satisfying range
+  using the same interval arithmetic the detector uses — a hand-written literal
+  can disagree with its predicate, and the eval table would then report a
+  monitor bug that was really a typo in the key.
+- **The world is chosen first; every verdict is computed from it.** The first
+  draft assigned roles and added the measurement each role needed — and two
+  documents state `index_size_gb <= 50`, so it wrote one fact twice and was
+  silently wrong about one. Deriving verdicts from the assembled world makes
+  that unrepresentable, and a test asserts the key cannot contradict itself.
+- What this grades is **the pipeline, not the arithmetic**: the verdicts come
+  from the same evaluator the monitor uses, so `tests/predicates/` is what
+  catches an evaluator bug and this catches everything between a document and a
+  status. All three verdicts are represented, so neither a monitor that always
+  cries breach nor one that never does can score well.
+
 ### Resume here
 
-Remaining: expected monitoring verdicts in the answer key (`FORMAT_VERSION` to
-2), the `praxis/eval/` extension, `praxis/cli_monitor.py`, ADRs 0017–0020, and
-`docs/reports/phase-5.md`.
+Remaining: the `praxis/eval/` extension, `praxis/cli_monitor.py`, ADRs
+0017–0020, and `docs/reports/phase-5.md`.
