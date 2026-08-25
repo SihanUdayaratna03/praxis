@@ -573,3 +573,49 @@ Remaining: the `praxis/eval/` extension, `praxis/cli_monitor.py`, ADRs
 - `FormalizationScore` is deliberately not a precision or a recall: no key entry
   says an assumption *should* have compiled, and reporting it as a recall would
   invite comparison with the extraction recalls beside it.
+- `praxis/agents/formalization.py` — the store pass for the formalizer, which
+  the agent had been missing. Two different skip reasons: already parses
+  (nothing to compile) and **already attempted**, read off the audit trail —
+  without the second, a re-run pays the `reason` tier for every uncompilable
+  assumption forever. `force` is named rather than guessed at, because the
+  first check is about the text and the second about the history.
+  **Committed under a stop signal with ruff and mypy green and no tests yet.**
+
+### Resume here — Phase 5 is NOT finished
+
+Stopped mid-strand on `feat/phase-5-eval` (pushed, tree clean). Merged and
+complete: predicates, formalizer, monitor, contradictions, archaeologist,
+corpus. On the eval strand and done: `cost_by_agent`/`calls_by_agent`,
+`praxis/eval/adrs.py`, the `metrics.py` extension.
+
+In order, what is left:
+
+1. **Tests for `praxis/agents/formalization.py`** — it is the only thing in the
+   tree with production code and no tests. Close this first.
+2. **`praxis/eval/harness.py`** — run formalize → monitor → detect after
+   extraction and grade them: `FormalizationScore` from the stored predicates,
+   `monitoring_score` against `truth.monitoring.verdicts`, `pair_score` over
+   `contradicts` links against the key's expected pairs (split by `Settlement`,
+   plus blocking recall), and cost per document per agent.
+3. **`praxis/eval/report.py`** — render the new rows into Phase 4's existing
+   table via `.label`; no arithmetic in that module.
+4. **`praxis/cli_monitor.py`** — `praxis formalize | monitor | contradictions |
+   why`, registered from `cli.py`.
+5. **ADRs 0017–0020** — the predicate DSL; blocking plus arithmetic-first
+   contradiction; the monitor's write-on-change and the no-model-can-breach
+   property; the ArchaeologistAgent contract (its spec was never written down,
+   so that ADR is the review surface).
+6. **`docs/reports/phase-5.md`** with the metrics table, then the PR, CI green,
+   merge commit, tag `v0.5-phase-5`, verify on the remote, close `EST-0006`
+   with an outcome.
+
+**Two things the report must say rather than let a number speak for itself.**
+The mock now answers a `predicate` field from the passage, so the formalizer's
+offline path genuinely runs — unlike Phase 4's all-zeros — and those numbers
+measure the plumbing, not a model. And the monitor's store-derived binding will
+read **zero** in a corpus run because nothing writes an `Outcome` until Phase 6:
+mechanism waiting, not mechanism failing.
+
+**Already earned and worth leading the report with:** ADR 0001's first
+assumption is answered and holds — 63 of 64 hand-written predicates parse,
+**0.9844** against its own threshold of 0.9.
