@@ -357,3 +357,48 @@ waiting for.
   points over-estimates. No correction applied for the sixth time -- and the
   note refuses the disguised version too, since rescaling by the measured
   throughput of the same work class is a bias correction wearing a hat.
+- `praxis/predicates/` — the DSL, on `feat/phase-5-predicates`. Lexer, parser
+  and renderer first, at 100% coverage. **A truth value is three-valued**:
+  `TRUE`, `FALSE`, `UNKNOWN(reason)`. An assumption mentioning a quantity
+  nobody measured has not been violated, it has not been *checked*, and a
+  two-valued evaluator has to call that false -- which is what raises a breach.
+  The whole distinction this phase is graded on lives in that gap, so it is in
+  the type rather than in a convention.
+- The grammar is shaped by the predicates already in this repository, not by
+  taste: digit separators because two ADRs write `1_000_000`, division because
+  ADR 0001's own assumption is a ratio, and `between a and b` because ADR 0007
+  writes commits-per-phase that way. It desugars rather than surviving as a
+  node the interval arithmetic would have to learn twice.
+- **A term at the top is refused.** `index_size_gb` is a quantity, not a claim,
+  and accepting it would let a predicate truncated by a bad model answer parse
+  as though it said something.
+- **The one ADR predicate that does not parse is left not parsing.** ADR 0015
+  assumption 3 says a ratio should be `outside [0.5, 2.0]`, which is English.
+  ADR 0001 assumption 1 exists to surface exactly that; widening the grammar
+  for one instance would be answering the question by editing it.
+- `praxis/predicates/evaluator.py` and `world.py`. **Kleene, not Python**:
+  `false and unknown` is `false`, because no measurement could rescue it. The
+  arithmetic context is *owned* rather than inherited -- `decimal`'s context is
+  per-thread and anyone can change it, and the test pins a threshold sitting
+  between two-thirds at three digits and at twenty-eight.
+- **The monotonicity property is the one the monitor rests on**, and it is
+  generated rather than sampled: adding facts may decide an undecided predicate
+  and may never change a decided one. If that breaks, supplying a fact can
+  raise a breach against a decision that was holding.
+- A `WorldState` is a value, not a service. Facts, events and a clock, answered
+  from what it was built with. Events match after case-and-whitespace
+  normalisation and nothing looser -- anything looser is a judgement, and it is
+  made in `AssumptionMonitor` on a path that can only *age* an assumption.
+- `praxis/predicates/expiry.py` and `intervals.py`. Three expiry forms and no
+  more -- an observation, not a design: every condition in `docs/adr/` and
+  `corpus/topics.py` is a `when`, an `after` or an `on_event`. Firing is
+  three-valued too, so an undecided condition expires nothing.
+- **The interval arithmetic settles contradictions a model has no privileged
+  access to.** `index_size_gb <= 50` against `> 50` permits disjoint sets of
+  numbers; that costs nothing, is reproducible, and leaves the `reason` tier
+  for pairs that are genuinely a judgement.
+- `constraints_of` returns **nothing at all** for a disjunction rather than
+  reading the readable half. A weakened claim is what produces a *false*
+  contradiction, and that is the expensive direction to be wrong in.
+- `praxis/predicates/` is done: **167 tests, 99% coverage**, no model anywhere
+  in it. The whole package is the deterministic half invariant 3 names.
