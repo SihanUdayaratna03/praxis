@@ -334,3 +334,26 @@ it changed except when it is built.
 Phase 4 is complete: merged, tagged `v0.4-phase-4`, `OUT-0005` closed. Phase 5
 starts by reading `docs/reports/phase-4.md`'s last section, then logging
 `EST-0006` on a fresh branch **before** any Phase 5 file exists.
+
+---
+
+## Phase 5 progress log
+
+Appended as each component lands, so an interrupted session can resume from the
+last line rather than from the diff.
+
+**Phase 5 is Assumption Formalization and Monitoring**, and it closes Half A.
+Phase 4 extracted assumptions as natural language tied to a `Span`; this phase
+makes them checkable. `AssumptionFormalizer`, `AssumptionMonitor`,
+`ContradictionDetector` and `ArchaeologistAgent`, plus the predicate DSL that
+[`BACKLOG.md`](../../BACKLOG.md) and ADR 0001 assumption 1 have both been
+waiting for.
+
+- `EST-0006` logged on the phase branch before any Phase 5 file existed: **6.5h
+  active, 24.0h blocked**, confidence 0.40, class `agent-implementation`. The
+  ratios were **recomputed from the log rather than recalled**, and they do not
+  say what the previous four calibration notes said: five outcomes across
+  **four** classes, not five, with `agent-implementation` at `n = 2` and both
+  points over-estimates. No correction applied for the sixth time -- and the
+  note refuses the disguised version too, since rescaling by the measured
+  throughput of the same work class is a bias correction wearing a hat.
