@@ -33,6 +33,7 @@ from typing import Final
 from praxis.agents.errors import Refusal
 from praxis.agents.results import Refused, Stage
 from praxis.corpus.groundtruth import ItemKind
+from praxis.domain.enums import AssumptionStatus
 from praxis.eval.matching import Match, Pairing
 
 RATE_PLACES: Final = Decimal("0.0001")
@@ -71,6 +72,17 @@ class Score:
     distracted: int = 0
     fields_expected: int = 0
     fields_correct: int = 0
+
+    @property
+    def label(self) -> str:
+        """What this row is called in a report.
+
+        Present so that `Score` and `PairScore` render through one function.
+        Phase 4's table has one row per extracted kind; Phase 5 adds rows that
+        are not kinds at all, and a report reaching for `.kind` on some rows and
+        something else on others would be a report with two shapes.
+        """
+        return self.kind.value
 
     @property
     def precision(self) -> Decimal:
@@ -209,3 +221,231 @@ def _ratio(numerator: int, denominator: int, when_empty: Decimal) -> Decimal:
 def _quantized(value: Decimal) -> Decimal:
     """Round a rate to the places a report prints, once and in one place."""
     return value.quantize(RATE_PLACES)
+
+
+@dataclass(frozen=True, slots=True)
+class PairScore:
+    """Precision and recall over things identified by identity, not by overlap.
+
+    `Score` pairs an extraction with an answer-key item by *byte overlap*,
+    because an extraction points at a place and the two coordinate systems are
+    cut by different processes. Everything Phase 5 grades is already identified:
+    a `contradicts` edge is a pair of record ids and a monitoring verdict is
+    about one assumption. Comparing those by overlap would invent a difficulty
+    they do not have.
+
+    Attributes:
+        label: What this row is called in a report.
+        true_positives: Found, and expected.
+        false_positives: Found, and not expected.
+        false_negatives: Expected, and not found.
+    """
+
+    label: str
+    true_positives: int = 0
+    false_positives: int = 0
+    false_negatives: int = 0
+
+    @property
+    def precision(self) -> Decimal:
+        """Of what was found, how much should have been."""
+        return _ratio(self.true_positives, self.true_positives + self.false_positives, EMPTY)
+
+    @property
+    def recall(self) -> Decimal:
+        """Of what should have been found, how much was."""
+        return _ratio(self.true_positives, self.true_positives + self.false_negatives, PERFECT)
+
+    @property
+    def f1(self) -> Decimal:
+        """The harmonic mean, which is zero when either half is."""
+        total = self.precision + self.recall
+        if total == 0:
+            return _quantized(EMPTY)
+        return _quantized(2 * self.precision * self.recall / total)
+
+
+def pair_score[T](label: str, found: Iterable[T], expected: Iterable[T]) -> PairScore:
+    """Count two sets of identified things into a score.
+
+    Args:
+        label: What this row is called.
+        found: What the run produced.
+        expected: What the corpus says is there.
+
+    Returns:
+        The score. Duplicates on either side collapse, which is right for
+        everything this grades -- one contradiction found twice is one
+        contradiction.
+    """
+    produced, wanted = set(found), set(expected)
+    return PairScore(
+        label=label,
+        true_positives=len(produced & wanted),
+        false_positives=len(produced - wanted),
+        false_negatives=len(wanted - produced),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class FormalizationScore:
+    """How much of what was extracted is machine-checkable.
+
+    Not a precision or a recall, and deliberately not squeezed into one. No
+    answer-key entry says "this assumption should have compiled": the question
+    is whether the predicate that got stored *parses*, which is a property of
+    the text rather than a match against an expectation. Reporting it as a
+    recall would invite a reader to compare it with the extraction recalls
+    beside it, and the two mean different things.
+
+    Attributes:
+        label: What this row is called in a report.
+        total: Assumptions the store holds.
+        predicates_parsed: How many of their predicates parse.
+        checkable: How many have a predicate *and* an expiry that both parse --
+            the only ones `AssumptionMonitor` can reach a verdict about.
+    """
+
+    label: str = "formalization"
+    total: int = 0
+    predicates_parsed: int = 0
+    checkable: int = 0
+
+    @property
+    def parse_rate(self) -> Decimal:
+        """Of the predicates stored, how many are expressions."""
+        return _ratio(self.predicates_parsed, self.total, PERFECT)
+
+    @property
+    def checkable_rate(self) -> Decimal:
+        """Of the assumptions stored, how many the monitor could decide."""
+        return _ratio(self.checkable, self.total, PERFECT)
+
+
+_NOT_A_VIOLATION: Final[frozenset[AssumptionStatus]] = frozenset(
+    {AssumptionStatus.EXPIRED, AssumptionStatus.UNVERIFIED}
+)
+"""The states an assumption is in when nothing has shown it false.
+
+`HOLDING` is excluded. An assumption reported breached that the corpus expected
+to hold is a wrong verdict, but it is a wrong verdict about a *measured*
+quantity -- a different failure from confusing age with violation.
+"""
+
+
+@dataclass(frozen=True, slots=True)
+class MonitoringScore:
+    """What a monitoring run concluded against what the corpus expected.
+
+    The number this phase exists to report is `aged_misreported_as_breached`.
+    A monitor that cannot tell a violated predicate from an unmeasured or an
+    expired one is a monitor whose findings nobody can act on, and that count
+    measures it directly. **It should be zero, and by construction it is**:
+    `praxis.monitor` reaches `BREACHED` only through arithmetic on facts, so a
+    non-zero value means that property was broken rather than that a model was
+    wrong.
+
+    Attributes:
+        label: What this row is called in a report.
+        matrix: `(expected, reached)` to how many assumptions did that.
+    """
+
+    label: str = "monitoring"
+    matrix: Mapping[tuple[AssumptionStatus, AssumptionStatus], int] = field(default_factory=dict)
+
+    @property
+    def total(self) -> int:
+        """Assumptions the corpus had an expectation about."""
+        return sum(self.matrix.values())
+
+    @property
+    def agreed(self) -> int:
+        """How many verdicts matched what was expected."""
+        return sum(count for (wanted, got), count in self.matrix.items() if wanted is got)
+
+    @property
+    def accuracy(self) -> Decimal:
+        """Of the expectations, how many were met."""
+        return _ratio(self.agreed, self.total, PERFECT)
+
+    @property
+    def aged_misreported_as_breached(self) -> int:
+        """Assumptions that had merely aged and were reported as violated.
+
+        Expected `EXPIRED` or `UNVERIFIED` -- nothing measured them, or their
+        last verdict went stale -- and reported `BREACHED`. Counted by name so
+        a report cannot omit it by not thinking of it.
+        """
+        return sum(
+            count
+            for (wanted, got), count in self.matrix.items()
+            if got is AssumptionStatus.BREACHED and wanted in _NOT_A_VIOLATION
+        )
+
+    @property
+    def breaches(self) -> PairScore:
+        """Precision and recall over the breaches specifically."""
+        return PairScore(
+            label="breach",
+            true_positives=self.matrix.get(
+                (AssumptionStatus.BREACHED, AssumptionStatus.BREACHED), 0
+            ),
+            false_positives=sum(
+                count
+                for (wanted, got), count in self.matrix.items()
+                if got is AssumptionStatus.BREACHED and wanted is not AssumptionStatus.BREACHED
+            ),
+            false_negatives=sum(
+                count
+                for (wanted, got), count in self.matrix.items()
+                if wanted is AssumptionStatus.BREACHED and got is not AssumptionStatus.BREACHED
+            ),
+        )
+
+
+def monitoring_score(
+    reached: Mapping[str, AssumptionStatus], expected: Mapping[str, AssumptionStatus]
+) -> MonitoringScore:
+    """Count a monitoring run against a corpus's expectations.
+
+    Args:
+        reached: What the run concluded, by answer-key item id.
+        expected: What the corpus expects, by the same id.
+
+    Returns:
+        The confusion matrix over the assumptions the corpus has an expectation
+        about. An expectation the run said nothing about counts as `UNVERIFIED`,
+        because that is what an assumption nothing evaluated really is.
+    """
+    matrix: dict[tuple[AssumptionStatus, AssumptionStatus], int] = {}
+    for item_id, wanted in expected.items():
+        got = reached.get(item_id, AssumptionStatus.UNVERIFIED)
+        matrix[(wanted, got)] = matrix.get((wanted, got), 0) + 1
+    return MonitoringScore(matrix=matrix)
+
+
+COST_PLACES: Final = Decimal("0.000001")
+"""How precisely a per-document cost is reported.
+
+Six places because these are fractions of a cent: ADR 0006's fifth assumption
+is `cost_per_document_usd <= 0.05`, and rounding to cents would report most of
+this pipeline as free.
+"""
+
+
+def cost_per_document(spent: Mapping[str, Decimal], documents: int) -> dict[str, Decimal]:
+    """What each agent cost per document.
+
+    Args:
+        spent: Agent to total cost, from `praxis.store.traces.cost_by_agent`.
+        documents: How many documents the run covered.
+
+    Returns:
+        Agent to cost per document. Empty when there were no documents --
+        dividing by nothing would be a number nobody could act on.
+    """
+    if documents < 1:
+        return {}
+    return {
+        agent: (total / Decimal(documents)).quantize(COST_PLACES) for agent, total in spent.items()
+    }

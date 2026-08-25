@@ -23,16 +23,23 @@ from hypothesis import strategies as st
 from praxis.agents.errors import Refusal
 from praxis.agents.results import Refused, Stage
 from praxis.corpus.groundtruth import ItemKind
+from praxis.domain.enums import AssumptionStatus as Status
 from praxis.domain.enums import RecordKind
 from praxis.domain.ids import DocumentId
+from praxis.eval.matching import Pairing
 from praxis.eval.metrics import (
     EMPTY,
     PERFECT,
     RATE_PLACES,
     CitationIntegrity,
+    FormalizationScore,
     Score,
     citation_integrity,
+    cost_per_document,
     fusion_recall,
+    monitoring_score,
+    pair_score,
+    score,
 )
 
 EXAMPLES = 60
@@ -40,6 +47,9 @@ EXAMPLES = 60
 the pre-commit loop."""
 
 counts = st.integers(min_value=0, max_value=10_000)
+
+ONE = PERFECT.quantize(RATE_PLACES)
+ZERO = EMPTY.quantize(RATE_PLACES)
 
 
 def a_score(**kwargs: int) -> Score:
@@ -191,3 +201,169 @@ class TestCitationIntegrity:
 def test_a_score_carries_the_kind_it_is_about(kind):
     """Nothing branches on it, and a table with no kind column is unreadable."""
     assert Score(kind=kind).kind is kind
+
+
+class TestPairScore:
+    """Precision and recall over things that are already identified.
+
+    `Score` pairs by byte overlap because an extraction points at a place.
+    A `contradicts` edge is a pair of record ids and a monitoring verdict is
+    about one assumption, so comparing those by overlap would invent a
+    difficulty they do not have.
+    """
+
+    def test_everything_expected_and_nothing_else_is_perfect(self):
+        score = pair_score("contradiction", [("a", "b")], [("a", "b")])
+        assert (score.precision, score.recall, score.f1) == (ONE, ONE, ONE)
+
+    def test_something_found_that_was_not_expected_costs_precision(self):
+        score = pair_score("contradiction", [("a", "b"), ("c", "d")], [("a", "b")])
+        assert score.false_positives == 1
+        assert score.precision == Decimal("0.5000")
+        assert score.recall == ONE
+
+    def test_something_expected_that_was_not_found_costs_recall(self):
+        score = pair_score("contradiction", [("a", "b")], [("a", "b"), ("c", "d")])
+        assert score.false_negatives == 1
+        assert score.recall == Decimal("0.5000")
+
+    def test_one_thing_found_twice_is_one_thing(self):
+        # Correct for everything this grades: a contradiction found twice is a
+        # contradiction, and the store's content-addressed link ids mean it is
+        # also one row.
+        score = pair_score("contradiction", [("a", "b"), ("a", "b")], [("a", "b")])
+        assert score.true_positives == 1
+        assert score.false_positives == 0
+
+    def test_finding_nothing_when_nothing_was_expected_recalls_everything(self):
+        # The convention `Score` already states: there was nothing to find and
+        # nothing was missed, and the corpus decides the denominator.
+        assert pair_score("contradiction", [], []).recall == ONE
+
+    def test_finding_nothing_when_something_was_expected_recalls_nothing(self):
+        assert pair_score("contradiction", [], [("a", "b")]).recall == ZERO
+
+    def test_precision_over_nothing_extracted_is_zero_not_one(self):
+        # The same conservative reading Score takes: a pipeline that produces
+        # nothing must not tie with a perfect one.
+        assert pair_score("contradiction", [], [("a", "b")]).precision == ZERO
+
+    def test_a_row_knows_what_it_is_called(self):
+        assert pair_score("contradiction", [], []).label == "contradiction"
+
+    def test_a_kind_score_knows_too_so_one_function_renders_both(self):
+        assert score(Pairing(), ItemKind.DECISION).label == "decision"
+
+
+class TestFormalization:
+    def test_every_predicate_parsing_is_a_full_rate(self):
+        assert FormalizationScore(total=4, predicates_parsed=4, checkable=4).parse_rate == ONE
+
+    def test_a_predicate_that_parses_is_not_yet_checkable(self):
+        # Both halves have to parse: the monitor needs the predicate to reach a
+        # verdict and the condition to know whether the verdict is stale.
+        found = FormalizationScore(total=4, predicates_parsed=4, checkable=2)
+        assert found.parse_rate == ONE
+        assert found.checkable_rate == Decimal("0.5000")
+
+    def test_nothing_stored_reads_as_nothing_unread(self):
+        assert FormalizationScore().parse_rate == ONE
+
+
+class TestMonitoringScore:
+    """The class the phase is graded on."""
+
+    def test_an_aged_assumption_reported_as_breached_is_counted_by_name(self):
+        # The failure the whole phase is arranged to prevent, and the reason
+        # this is a named property rather than a cell a reader has to find.
+        found = monitoring_score({"a": Status.BREACHED}, {"a": Status.UNVERIFIED})
+        assert found.aged_misreported_as_breached == 1
+
+    def test_an_expired_assumption_reported_as_breached_counts_too(self):
+        found = monitoring_score({"a": Status.BREACHED}, {"a": Status.EXPIRED})
+        assert found.aged_misreported_as_breached == 1
+
+    def test_a_holding_assumption_reported_as_breached_does_not(self):
+        # A wrong verdict, and a wrong verdict about a *measured* quantity --
+        # a different failure from confusing age with violation, so it is not
+        # counted as one.
+        found = monitoring_score({"a": Status.BREACHED}, {"a": Status.HOLDING})
+        assert found.aged_misreported_as_breached == 0
+        assert found.accuracy == ZERO
+
+    def test_a_correct_breach_is_not_a_misreport(self):
+        found = monitoring_score({"a": Status.BREACHED}, {"a": Status.BREACHED})
+        assert found.aged_misreported_as_breached == 0
+
+    def test_agreement_is_counted_across_the_diagonal(self):
+        found = monitoring_score(
+            {"a": Status.BREACHED, "b": Status.HOLDING, "c": Status.UNVERIFIED},
+            {"a": Status.BREACHED, "b": Status.HOLDING, "c": Status.UNVERIFIED},
+        )
+        assert found.total == 3
+        assert found.accuracy == ONE
+
+    def test_an_assumption_the_run_never_reached_counts_as_unverified(self):
+        # Which is what an assumption nothing evaluated really is, rather than
+        # a gap in the table.
+        found = monitoring_score({}, {"a": Status.UNVERIFIED})
+        assert found.accuracy == ONE
+        assert found.total == 1
+
+    def test_an_expectation_the_run_missed_is_not_silently_dropped(self):
+        found = monitoring_score({}, {"a": Status.BREACHED})
+        assert found.total == 1
+        assert found.accuracy == ZERO
+
+    def test_a_verdict_the_corpus_says_nothing_about_is_not_counted(self):
+        # The corpus decides the denominator, as everywhere else here.
+        assert monitoring_score({"z": Status.BREACHED}, {}).total == 0
+
+    def test_breach_precision_and_recall_are_reported_apart(self):
+        found = monitoring_score(
+            {"a": Status.BREACHED, "b": Status.BREACHED, "c": Status.HOLDING},
+            {"a": Status.BREACHED, "b": Status.UNVERIFIED, "c": Status.BREACHED},
+        )
+        assert found.breaches.true_positives == 1
+        assert found.breaches.false_positives == 1
+        assert found.breaches.false_negatives == 1
+
+    def test_a_run_with_no_expectations_is_perfect_and_says_so(self):
+        assert monitoring_score({}, {}).accuracy == ONE
+
+
+class TestCostPerDocument:
+    def test_a_total_is_divided_by_the_documents_it_covered(self):
+        assert cost_per_document({"DecisionScout": Decimal("0.12")}, 12) == {
+            "DecisionScout": Decimal("0.010000")
+        }
+
+    def test_the_places_reported_survive_a_fraction_of_a_cent(self):
+        # ADR 0006's fifth assumption is cost_per_document_usd <= 0.05, and
+        # rounding to cents would report most of this pipeline as free.
+        found = cost_per_document({"DecisionScout": Decimal("0.000036")}, 12)
+        assert found["DecisionScout"] == Decimal("0.000003")
+
+    def test_dividing_by_no_documents_reports_nothing(self):
+        assert cost_per_document({"DecisionScout": Decimal("0.12")}, 0) == {}
+
+    def test_an_agent_that_spent_nothing_is_still_reported(self):
+        # Offline every cost is zero, and an agent missing from the table would
+        # read as an agent that did not run.
+        assert cost_per_document({"DecisionScout": Decimal("0")}, 4) == {
+            "DecisionScout": Decimal("0.000000")
+        }
+
+    def test_the_result_is_decimal_throughout(self):
+        found = cost_per_document({"DecisionScout": Decimal("0.1")}, 3)
+        assert all(isinstance(value, Decimal) for value in found.values())
+
+
+class TestAPairScoreThatFoundNothingRight:
+    def test_f1_is_zero_when_both_halves_are(self):
+        # Not an error and not undefined: a run that found one wrong thing and
+        # missed the right one scores zero on both, and the harmonic mean of
+        # two zeros is the number a table should print.
+        score = pair_score("contradiction", [("a", "b")], [("c", "d")])
+        assert (score.precision, score.recall) == (ZERO, ZERO)
+        assert score.f1 == ZERO
