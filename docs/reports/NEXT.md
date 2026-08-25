@@ -402,3 +402,24 @@ waiting for.
   contradiction, and that is the expensive direction to be wrong in.
 - `praxis/predicates/` is done: **167 tests, 99% coverage**, no model anywhere
   in it. The whole package is the deterministic half invariant 3 names.
+- `AssumptionFormalizer` on `feat/phase-5-formalizer`, 100% covered. It stores
+  the **rendered** predicate rather than the model's spelling, so `x<=50` and
+  `x <= 50` become one string and land in one blocking bucket later. One retry,
+  shown the parse error; two would be a repair loop, which
+  `praxis.llm.structured` already owns for the *schema*.
+- **Nothing is dropped.** An assumption that will not compile is written with
+  its confidence capped at 0.3 and the audit reason saying why. Safe because
+  the monitor cannot breach on a predicate that does not parse, and better than
+  silence because a person can fix what they can see.
+- `is_checkable` is a **parse, not a stored flag** -- a flag can disagree with
+  the text beside it. That is also the re-runnability: an assumption that
+  already parses is skipped with no model call.
+- **The offline provider now answers a `predicate` field from the passage.**
+  `praxis/llm/synthesis.py` gained `predicates_in` and `expiries_in`, matched on
+  shape because `praxis.llm` may not import `praxis.predicates`. Exactly the
+  `ordinals_in` argument from Phase 4: without it the branch that *stores* a
+  formalized predicate never runs offline and only the refusal path is covered.
+  The numbers are still about the plumbing, and the report has to say so.
+- `tests/test_boundaries.py` gained a row: `praxis/predicates/` never imports
+  `praxis.llm`. The package is not an agent, so `NON_LLM_AGENTS` cannot describe
+  it, and one convenient import is how invariant 3 would actually be lost here.
