@@ -496,9 +496,18 @@ waiting for.
   `Repository.search` passes its argument through unchanged, so a bare question
   mark is a malformed match expression rather than a search.
 
+- `ArchaeologistAgent` tested at **99%**. One test asserts every line of the
+  answer contains a stored field; another feeds the model an invented sentence
+  and asserts it reaches the `note` and never the `answer`.
+- **The tests found a real defect.** `MIN_TERM_LENGTH` was 3 and the terms are
+  `OR`-joined, so `why`, `not` and `for` matched almost every document and a
+  question about zeppelins retrieved the search index — a model call per
+  question, with the refusal left to a prompt. Raised to 4, the floor
+  `blocking.py` already uses for the same reason.
+
 ### Resume here
 
-`ArchaeologistAgent`'s production code is committed and pushed; **its tests are
-not written yet**. After them: the corpus extension (revision documents +
-expected monitoring verdicts, `FORMAT_VERSION` to 2), the `praxis/eval/`
-extension, `praxis/cli_monitor.py`, ADRs 0017–0020, and `docs/reports/phase-5.md`.
+Remaining: the corpus extension (a `revision_note` template + expected
+monitoring verdicts in the answer key, `FORMAT_VERSION` to 2), the
+`praxis/eval/` extension, `praxis/cli_monitor.py`, ADRs 0017–0020, and
+`docs/reports/phase-5.md`.
