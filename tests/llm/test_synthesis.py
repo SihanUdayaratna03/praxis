@@ -24,8 +24,10 @@ from praxis.llm.errors import SchemaNotSupportedError
 from praxis.llm.synthesis import (
     MAX_DEPTH,
     MIN_SENTENCE_CHARS,
+    expiries_in,
     identifiers_in,
     ordinals_in,
+    predicates_in,
     sentences_of,
     synthesise_answer,
     synthesise_prose,
@@ -445,3 +447,59 @@ class TestProperties:
     @given(prompt=st.text(max_size=200))
     def test_every_sentence_offered_is_really_in_the_text(self, prompt):
         assert all(sentence in prompt for sentence in sentences_of(prompt))
+
+
+class TestPredicateAndExpiryShapes:
+    """The third and fourth kinds of reference this pipeline hands a model.
+
+    The argument is `ordinals_in`'s, made again. A field called `predicate`
+    answered with a sentence is unparseable every time, so the branch that
+    *stores* a formalized predicate would never run offline and only the
+    refusal path would be covered -- which is a systematic failure rather than
+    a realistic one.
+    """
+
+    def test_a_backticked_comparison_is_offered_as_a_predicate(self):
+        source = "In predicate form: `index_size_gb <= 50`. Re-check later."
+        assert predicates_in(source) == ("index_size_gb <= 50",)
+
+    def test_prose_with_no_code_span_offers_no_predicate(self):
+        assert predicates_in("The index stays under 50 GB for the next year.") == ()
+
+    def test_a_code_span_with_no_comparison_is_not_a_predicate(self):
+        assert predicates_in("The module is `praxis.predicates` and nothing else.") == ()
+
+    def test_a_repeated_predicate_is_offered_once(self):
+        source = "`a <= 1` and again `a <= 1`."
+        assert predicates_in(source) == ("a <= 1",)
+
+    def test_all_three_expiry_forms_are_found_in_running_prose(self):
+        # Not restricted to code spans: the corpus writes these unformatted,
+        # so requiring backticks would find none of them.
+        source = (
+            'Re-check when(indexed_documents >= 10000000). Or after("2026-08-31"). '
+            'Or on_event("the work ships").'
+        )
+        assert expiries_in(source) == (
+            "when(indexed_documents >= 10000000)",
+            'after("2026-08-31")',
+            'on_event("the work ships")',
+        )
+
+    def test_a_predicate_field_is_answered_from_the_prompt(self):
+        schema = {"type": "object", "properties": {"predicate": {"type": "string"}}}
+        source = "Compile it. In predicate form: `index_size_gb <= 50`."
+        assert synthesise_value(schema, source, "seed")["predicate"] == "index_size_gb <= 50"
+
+    def test_an_expiry_field_is_answered_from_the_prompt(self):
+        schema = {"type": "object", "properties": {"expiry_condition": {"type": "string"}}}
+        source = 'Re-check on_event("the work ships").'
+        answer = synthesise_value(schema, source, "seed")
+        assert answer["expiry_condition"] == 'on_event("the work ships")'
+
+    def test_a_predicate_field_falls_back_when_the_prompt_offers_none(self):
+        # An honest failure rather than an invented expression: the answer is a
+        # string that will not parse, and the formalizer marks it as such.
+        schema = {"type": "object", "properties": {"predicate": {"type": "string"}}}
+        answer = synthesise_value(schema, "Nothing here looks like an expression at all.", "seed")
+        assert isinstance(answer["predicate"], str)
