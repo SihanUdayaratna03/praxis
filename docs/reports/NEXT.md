@@ -389,3 +389,16 @@ waiting for.
   from what it was built with. Events match after case-and-whitespace
   normalisation and nothing looser -- anything looser is a judgement, and it is
   made in `AssumptionMonitor` on a path that can only *age* an assumption.
+- `praxis/predicates/expiry.py` and `intervals.py`. Three expiry forms and no
+  more -- an observation, not a design: every condition in `docs/adr/` and
+  `corpus/topics.py` is a `when`, an `after` or an `on_event`. Firing is
+  three-valued too, so an undecided condition expires nothing.
+- **The interval arithmetic settles contradictions a model has no privileged
+  access to.** `index_size_gb <= 50` against `> 50` permits disjoint sets of
+  numbers; that costs nothing, is reproducible, and leaves the `reason` tier
+  for pairs that are genuinely a judgement.
+- `constraints_of` returns **nothing at all** for a disjunction rather than
+  reading the readable half. A weakened claim is what produces a *false*
+  contradiction, and that is the expensive direction to be wrong in.
+- `praxis/predicates/` is done: **283 tests, 99% coverage**, no model anywhere
+  in it. The whole package is the deterministic half invariant 3 names.
