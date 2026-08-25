@@ -400,5 +400,5 @@ waiting for.
 - `constraints_of` returns **nothing at all** for a disjunction rather than
   reading the readable half. A weakened claim is what produces a *false*
   contradiction, and that is the expensive direction to be wrong in.
-- `praxis/predicates/` is done: **283 tests, 99% coverage**, no model anywhere
+- `praxis/predicates/` is done: **167 tests, 99% coverage**, no model anywhere
   in it. The whole package is the deterministic half invariant 3 names.
