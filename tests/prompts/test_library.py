@@ -29,6 +29,7 @@ from praxis.prompts.library import (
 # can reproduce, so the fix is a new file at the next version and a new row.
 # The one legitimate edit is a typo fixed before the prompt has ever run.
 SHIPPED: dict[str, str] = {
+    "answer_why_not@v1": ("84545460c97653038f0381a1122421ac52a7623a2142a1f29c8a33b2603d2dbe"),
     "extract_assumptions@v1": ("901030479201b71dd8afb9afe4a8bcc6aba108072befd4f876f3daf850983486"),
     "formalize_assumption@v1": ("943d6f1f4898b3f8caaa90aee15ff2707e4fde4939ace152eeb31330babf678a"),
     "group_blocks@v1": "00f9f9da6d7485ef4157fbeb1d95620b92ff083cf96798eeb93d0999a9cef72c",

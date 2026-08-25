@@ -477,3 +477,37 @@ waiting for.
   are read through `links_touching`, so one written the other way round counts.
 - Detection result types went into `praxis/agents/results.py` — `praxis.eval`
   reads them, and it should not have to import the agent that makes the calls.
+- `ArchaeologistAgent` on `feat/phase-5-archaeologist`. **Its spec was never
+  written down** — three fragments exist (`RejectedOption`'s docstring, the
+  corpus generator's note, ADR 0006's routing) and nothing else. The contract
+  taken is **retrieval and grounding, not generation**; the module docstring
+  records the judgement so it can be reviewed, and ADR 0020 is still to write.
+- **The model selects, the store speaks.** It is asked which recorded decision
+  and which rejected option, both by reference into a listing; the answer is
+  assembled from the stored `reason`, the decision's fields and the current
+  status of the assumptions it rested on. Nothing the model writes reaches the
+  answer — its `note` sits beside it and is never spliced in.
+- An invented option cannot be expressed: the named option is checked against
+  the decision's own `rejected` tuple, matched no looser than case and
+  whitespace. A fuzzy match would let "Postgres" answer for a decision that
+  rejected "Postgres full-text search" — usually right, and the reason attached
+  would be presented as a quotation.
+- Retrieval is FTS5, and the question is reduced to **quoted** terms first:
+  `Repository.search` passes its argument through unchanged, so a bare question
+  mark is a malformed match expression rather than a search.
+
+- `ArchaeologistAgent` tested at **99%**. One test asserts every line of the
+  answer contains a stored field; another feeds the model an invented sentence
+  and asserts it reaches the `note` and never the `answer`.
+- **The tests found a real defect.** `MIN_TERM_LENGTH` was 3 and the terms are
+  `OR`-joined, so `why`, `not` and `for` matched almost every document and a
+  question about zeppelins retrieved the search index — a model call per
+  question, with the refusal left to a prompt. Raised to 4, the floor
+  `blocking.py` already uses for the same reason.
+
+### Resume here
+
+Remaining: the corpus extension (a `revision_note` template + expected
+monitoring verdicts in the answer key, `FORMAT_VERSION` to 2), the
+`praxis/eval/` extension, `praxis/cli_monitor.py`, ADRs 0017–0020, and
+`docs/reports/phase-5.md`.
