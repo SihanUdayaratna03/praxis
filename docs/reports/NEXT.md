@@ -505,9 +505,26 @@ waiting for.
   question, with the refusal left to a prompt. Raised to 4, the floor
   `blocking.py` already uses for the same reason.
 
+- **The corpus now contains contradictions.** Before this it had none, so a
+  detector finding nothing and one finding everything scored identically —
+  which is not a metric. Every topic gained a `reversal_predicate` written to
+  be **provably** disjoint from its original, so the planted pair lands inside
+  what `intervals.py` can settle and the two recalls read apart. A test asserts
+  all four are provable rather than trusting they read as opposites.
+- A revision note is a **second pass, not a fifth template**: it is a reply to
+  a document that already exists, and scheduling it in the rotation would let
+  one be written before the assumption it revises. Only two templates state an
+  assumption, so the pass takes topics that actually have one.
+- Four revisions, not eight — the corpus keeps assumptions that were overturned
+  *and* assumptions that were not, or a detector flagging every pair would
+  score perfectly. **First cross-document edges in the key**, which
+  `BACKLOG.md` deferred until the metric they feed existed.
+- Fixtures pinning a document count now pass `revisions=0` so they mean what
+  they say; `praxis corpus generate` gained `--revisions` and reports how many
+  `contradicts` pairs were planted.
+
 ### Resume here
 
-Remaining: the corpus extension (a `revision_note` template + expected
-monitoring verdicts in the answer key, `FORMAT_VERSION` to 2), the
-`praxis/eval/` extension, `praxis/cli_monitor.py`, ADRs 0017–0020, and
+Remaining: expected monitoring verdicts in the answer key (`FORMAT_VERSION` to
+2), the `praxis/eval/` extension, `praxis/cli_monitor.py`, ADRs 0017–0020, and
 `docs/reports/phase-5.md`.
