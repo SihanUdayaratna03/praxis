@@ -16,6 +16,7 @@ content are different text -- these fail.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 from praxis.corpus.generator import (
@@ -25,20 +26,26 @@ from praxis.corpus.generator import (
     generate_corpus,
 )
 from praxis.corpus.groundtruth import (
+    FORMAT_VERSION,
     GROUND_TRUTH_FILENAME,
+    ExpectedVerdict,
     ItemKind,
     load_ground_truth,
     verify_corpus,
+    write_ground_truth,
 )
-from praxis.domain.enums import SourceKind
+from praxis.domain.enums import AssumptionStatus, SourceKind
 from praxis.domain.ids import DocumentId
 from praxis.domain.links import LinkType
 from praxis.domain.records import Span
 from praxis.domain.spans import verify_span
 from praxis.ingest.adapters import document_from, read_source
 from praxis.ingest.blocks import blocks_of
+from praxis.predicates.ast import Truth
+from praxis.predicates.evaluator import evaluate
 from praxis.predicates.intervals import conflict, constraints_of
 from praxis.predicates.parser import parse
+from praxis.predicates.world import WorldState
 
 AT = datetime(2026, 8, 17, 9, 0, tzinfo=UTC)
 
@@ -351,3 +358,97 @@ def _contradiction_pairs(truth) -> list[tuple[str, str]]:
 def _field(item, name: str) -> str:
     """One expected field's value."""
     return next(field.value for field in item.fields if field.name == name)
+
+
+class TestTheMonitoringExpectation:
+    """The ground truth AssumptionMonitor is graded against.
+
+    The property under all of it is that the key cannot contradict itself. An
+    earlier draft gave each assumption a role and added whichever measurement
+    the role needed, and two documents in this corpus state `index_size_gb <=
+    50` -- so it wrote one fact twice and was silently wrong about one of them.
+    Deriving every verdict from the assembled world makes that unrepresentable.
+    """
+
+    def test_every_verdict_follows_from_the_facts_the_corpus_supplies(self, corpus):
+        truth = load_ground_truth(corpus)
+        monitoring = truth.monitoring
+        by_id = {item.item_id: item for item in truth.items}
+        world = WorldState(
+            now=monitoring.as_of,
+            facts={name: Decimal(value) for name, value in monitoring.facts.items()},
+        )
+        for verdict in monitoring.verdicts:
+            predicate = _field(by_id[verdict.item_id], "predicate")
+            assert _expected_truth(verdict.status) == evaluate(parse(predicate), world).truth
+
+    def test_all_three_verdicts_are_represented(self, corpus):
+        # A corpus where everything was breached would let a monitor that always
+        # cries breach score perfectly, and one where nothing was would let a
+        # monitor that never does.
+        statuses = {verdict.status for verdict in load_ground_truth(corpus).monitoring.verdicts}
+        assert statuses == {
+            AssumptionStatus.BREACHED,
+            AssumptionStatus.HOLDING,
+            AssumptionStatus.UNVERIFIED,
+        }
+
+    def test_the_overturned_assumptions_are_the_breached_ones(self, corpus):
+        truth = load_ground_truth(corpus)
+        overturned = {target for _, target in _contradiction_pairs(truth)}
+        breached = {
+            verdict.item_id
+            for verdict in truth.monitoring.verdicts
+            if verdict.status is AssumptionStatus.BREACHED
+        }
+        assert overturned <= breached
+
+    def test_a_measurement_is_never_written_twice_with_two_values(self, corpus):
+        # The bug this design exists to make unrepresentable.
+        monitoring = load_ground_truth(corpus).monitoring
+        assert len(monitoring.facts) == len(set(monitoring.facts))
+
+    def test_every_expected_verdict_names_an_assumption_in_the_corpus(self, corpus):
+        truth = load_ground_truth(corpus)
+        assumptions = {item.item_id for item in truth.items if item.kind is ItemKind.ASSUMPTION}
+        assert all(verdict.item_id in assumptions for verdict in truth.monitoring.verdicts)
+
+    def test_a_verdict_naming_something_absent_is_a_problem(self, corpus):
+        # The same check _edge_problems makes about edges: an expectation about
+        # an item that is not here would be graded as a miss forever, and the
+        # miss would look like a monitor that never found it.
+        truth = load_ground_truth(corpus)
+        broken = truth.model_copy(
+            update={
+                "monitoring": truth.monitoring.model_copy(
+                    update={
+                        "verdicts": (
+                            ExpectedVerdict(item_id="GT-9999", status=AssumptionStatus.BREACHED),
+                        )
+                    }
+                )
+            }
+        )
+        write_ground_truth(corpus, broken)
+        assert any("GT-9999" in problem for problem in verify_corpus(corpus))
+
+    def test_the_facts_are_text_so_a_rate_survives_being_written_down(self, corpus):
+        # JSON has one numeric type and Python reads it as a float, which is the
+        # representation invariant 4 keeps out of the arithmetic.
+        monitoring = load_ground_truth(corpus).monitoring
+        assert all(isinstance(value, str) for value in monitoring.facts.values())
+
+    def test_the_key_says_which_format_it_is(self, corpus):
+        # A version 1 key has no monitoring section, and reading one as a key
+        # with no expectations would make "the monitor found nothing" and "the
+        # corpus expected nothing" the same number.
+        assert load_ground_truth(corpus).format_version == FORMAT_VERSION
+
+
+def _expected_truth(status: AssumptionStatus) -> Truth:
+    """The truth value a status is the monitor's name for."""
+    return {
+        AssumptionStatus.BREACHED: Truth.FALSE,
+        AssumptionStatus.HOLDING: Truth.TRUE,
+        AssumptionStatus.UNVERIFIED: Truth.UNKNOWN,
+    }[status]

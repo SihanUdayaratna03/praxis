@@ -26,8 +26,10 @@ archaeology gradeable in the phases that build them.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from random import Random
 from typing import Final
@@ -37,13 +39,24 @@ from praxis.corpus.groundtruth import (
     DOCUMENTS_DIRNAME,
     CorpusGroundTruth,
     DocumentGroundTruth,
+    ExpectedVerdict,
+    GroundTruthItem,
+    ItemKind,
+    MonitoringExpectation,
     content_hash,
     verify_corpus,
     write_ground_truth,
 )
+from praxis.corpus.measurements import satisfying, violating
 from praxis.corpus.templates import TEMPLATES, Written, revision_note, world_assumption_key
 from praxis.corpus.topics import TOPICS, Topic
+from praxis.domain.enums import AssumptionStatus
+from praxis.domain.links import LinkType
 from praxis.obs.logging import get_logger
+from praxis.predicates.errors import PredicateSyntaxError
+from praxis.predicates.evaluator import evaluate
+from praxis.predicates.parser import parse
+from praxis.predicates.world import WorldState
 
 _log = get_logger(__name__)
 
@@ -133,11 +146,13 @@ def generate_corpus(
         for index, topic in enumerate(_revisable(recorded)[:revisions], start=documents)
     ]
 
+    documented = tuple(written)
     truth = CorpusGroundTruth(
         generator_version=GENERATOR_VERSION,
         seed=seed,
         generated_at=generated_at,
-        documents=tuple(written),
+        documents=documented,
+        monitoring=_monitoring(documented, generated_at),
     )
     write_ground_truth(root, truth)
 
@@ -225,3 +240,151 @@ def _write(root: Path, written: Written) -> DocumentGroundTruth:
         byte_length=len(raw),
         items=tuple(sorted(written.items, key=lambda item: item.start_byte)),
     )
+
+
+def _monitoring(
+    documents: tuple[DocumentGroundTruth, ...], generated_at: datetime
+) -> MonitoringExpectation:
+    """The world a monitoring run is graded in, and what should follow from it.
+
+    Two steps, and the order is the correctness argument.
+
+    **First the world is chosen, then every verdict is computed from it.** The
+    obvious construction is to give each assumption a role and add whichever
+    measurement that role needs, and it is wrong: two documents in this corpus
+    state `index_size_gb <= 50`, so a key asserting one of them holding and the
+    other breached would write one fact twice and be wrong about one of them --
+    silently, and in a way that would surface as a monitor bug. Deriving the
+    verdicts from the assembled world instead makes that unrepresentable.
+
+    The world is chosen to make the distinction this phase is graded on
+    measurable. An assumption a revision note overturned is measured at a value
+    its own predicate forbids; every second one of the rest is measured at a
+    value its predicate permits; the others are not measured at all. A corpus
+    where everything was breached would let a monitor that always cries breach
+    score perfectly, and one where nothing was would let a monitor that never
+    does.
+
+    **What this grades is the pipeline, not the arithmetic.** The verdicts come
+    from the same evaluator the monitor uses, so the corpus cannot catch an
+    evaluator bug -- `tests/predicates/` is what does that. What it does catch
+    is everything between a document and a status: extraction, formalization,
+    whether the predicate that got stored still means what the document said,
+    and whether the monitor wrote the verdict it reached.
+    """
+    items = [item for document in documents for item in document.items]
+    facts = _world_facts(items)
+    world = WorldState(now=generated_at, facts=_as_decimals(facts))
+    return MonitoringExpectation(
+        facts=facts,
+        events=(),
+        as_of=generated_at,
+        verdicts=tuple(_verdict_for(item, world) for item in _graded(items)),
+    )
+
+
+def _graded(items: list[GroundTruthItem]) -> list[GroundTruthItem]:
+    """The assumptions a monitoring expectation is written for.
+
+    The reversal a revision note states is left out. Its subject is the one
+    quantity that was measured -- to breach the original -- so it would come out
+    holding, and asserting that would be the corpus grading its own arithmetic
+    rather than the monitor.
+    """
+    reversals = {
+        item.item_id
+        for item in items
+        for link in item.links
+        if link.link_type is LinkType.CONTRADICTS
+    }
+    return [
+        item
+        for item in items
+        if item.kind is ItemKind.ASSUMPTION
+        and not item.is_distractor
+        and item.item_id not in reversals
+    ]
+
+
+def _world_facts(items: list[GroundTruthItem]) -> dict[str, str]:
+    """The measurements a monitoring run is given.
+
+    Breaching measurements are placed first, so an assumption an earlier
+    document also stated is breached too rather than fighting over one fact.
+    """
+    overturned = {
+        link.target_item_id
+        for item in items
+        for link in item.links
+        if link.link_type is LinkType.CONTRADICTS
+    }
+    graded = _graded(items)
+    facts: dict[str, str] = {}
+    for item in graded:
+        if item.item_id in overturned:
+            _measure(facts, item, violating)
+    # Every second remaining assumption, by position rather than by anything
+    # derived from the id: `hash` on a string varies with PYTHONHASHSEED, and a
+    # corpus whose answer key changed between processes would have lost the one
+    # property it may never lose.
+    for position, item in enumerate(graded):
+        if item.item_id not in overturned and position % 2 == 0:
+            _measure(facts, item, satisfying)
+    return facts
+
+
+def _measure(
+    facts: dict[str, str],
+    item: GroundTruthItem,
+    witness: Callable[[str], tuple[str, Decimal] | None],
+) -> None:
+    """Add one measurement, leaving a quantity already measured alone."""
+    found = witness(_expected_field(item, "predicate"))
+    if found is not None and found[0] not in facts:
+        facts[found[0]] = str(found[1])
+
+
+def _verdict_for(item: GroundTruthItem, world: WorldState) -> ExpectedVerdict:
+    """What follows from the world for one assumption.
+
+    `UNVERIFIED` is a real expectation and the most common one: most assumptions
+    in any corpus have never been measured, and a monitor that reached a verdict
+    about those would be guessing -- which is the failure this phase is arranged
+    to prevent.
+    """
+    predicate = _expected_field(item, "predicate")
+    try:
+        evaluation = evaluate(parse(predicate), world)
+    except PredicateSyntaxError:  # pragma: no cover -- every generated predicate parses
+        return ExpectedVerdict(
+            item_id=item.item_id,
+            status=AssumptionStatus.UNVERIFIED,
+            note="its predicate does not parse, so nothing can evaluate it",
+        )
+    if evaluation.violated:
+        return ExpectedVerdict(
+            item_id=item.item_id,
+            status=AssumptionStatus.BREACHED,
+            note=f"`{predicate}` is false against the measurements this corpus supplies",
+        )
+    if evaluation.holds:
+        return ExpectedVerdict(
+            item_id=item.item_id,
+            status=AssumptionStatus.HOLDING,
+            note=f"`{predicate}` is true against the measurements this corpus supplies",
+        )
+    return ExpectedVerdict(
+        item_id=item.item_id,
+        status=AssumptionStatus.UNVERIFIED,
+        note=f"nothing measures `{predicate}`, so no verdict is available",
+    )
+
+
+def _as_decimals(facts: dict[str, str]) -> dict[str, Decimal]:
+    """The facts as the evaluator reads them. Never float -- invariant 4."""
+    return {name: Decimal(value) for name, value in facts.items()}
+
+
+def _expected_field(item: GroundTruthItem, name: str) -> str:
+    """One expected field's value, or empty when the item does not carry it."""
+    return next((field.value for field in item.fields if field.name == name), "")
