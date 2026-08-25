@@ -82,8 +82,14 @@ and the decision that answers the question is often reached through one of
 those rather than matched directly.
 """
 
-MIN_TERM_LENGTH: Final = 3
-"""Below this a term matches most of the corpus and narrows nothing."""
+MIN_TERM_LENGTH: Final = 4
+"""Below this a term matches most of the corpus and narrows nothing.
+
+The same floor `praxis.agents.blocking` uses, for the same reason and after
+the same mistake: the terms are `OR`-joined, so `why`, `not` and `for` match
+almost every document and a question about zeppelins retrieves the search
+index. That costs a model call on every question and leaves the refusal to a
+prompt, when the retrieval could simply not have proposed anything."""
 
 _TERM: Final = re.compile(r"[a-z][a-z0-9]*")
 """Terms, after case folding.
