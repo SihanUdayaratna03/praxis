@@ -460,3 +460,20 @@ waiting for.
 - A pair is ordered by id, so one pair has one identity. `contradicts` is
   symmetric and stored once and a `Link` id is derived from its endpoints, so an
   unordered pair would let two runs write two edges asserting one fact.
+- `ContradictionDetector` and `praxis/agents/detection.py`, both 100% covered.
+  **Three stages, and only the last is a model**: blocking proposes, the
+  interval arithmetic settles every pair whose conflict is a fact rather than a
+  judgement (confidence 1.0, zero calls), and only the residue reaches the
+  `reason` tier, batched twelve pairs to a call.
+- `Settlement` records which stage decided, so the eval table reports the
+  recalls apart. A low contradiction recall means three different things if
+  blocking never proposed the pair, if the arithmetic could not read the
+  predicates, or if the model was asked and said no.
+- **A false contradiction is the expensive direction to be wrong in** — it sends
+  a person to re-read a decision that was fine, and every later finding pays.
+  Each stage refuses rather than guesses.
+- Re-running is duplicate-free *by construction*: a `Link` id is derived from
+  its endpoints and the pair is ordered before the edge is built. Known edges
+  are read through `links_touching`, so one written the other way round counts.
+- Detection result types went into `praxis/agents/results.py` — `praxis.eval`
+  reads them, and it should not have to import the agent that makes the calls.
