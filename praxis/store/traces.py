@@ -219,6 +219,59 @@ def run_cost_usd(connection: sqlite3.Connection, run_id: str) -> Decimal:
     return sum((Decimal(row[0]) for row in rows), Decimal("0"))
 
 
+def cost_by_agent(connection: sqlite3.Connection, run_id: str) -> dict[str, Decimal]:
+    """What each agent spent in one run, and how many calls it made.
+
+    The cost column an eval table reports per agent. Summed in Python over the
+    exact decimal strings for the reason `run_cost_usd` gives: SQL's `SUM` would
+    have to cast a TEXT column to REAL, and the total would then depend on the
+    order the rows came back in.
+
+    Args:
+        connection: An open store.
+        run_id: The run to total.
+
+    Returns:
+        Agent name to cost, in agent order. Empty for a run that made no calls,
+        which is a real answer -- a monitoring pass over a world nothing has
+        changed in makes none.
+    """
+    with translating_sqlite_errors():
+        rows = connection.execute(
+            "SELECT agent, cost_usd FROM llm_trace WHERE run_id = ? ORDER BY agent",
+            (run_id,),
+        ).fetchall()
+    totals: dict[str, Decimal] = {}
+    for row in rows:
+        agent = str(row["agent"])
+        totals[agent] = totals.get(agent, Decimal("0")) + Decimal(row["cost_usd"])
+    return totals
+
+
+def calls_by_agent(connection: sqlite3.Connection, run_id: str) -> dict[str, int]:
+    """How many calls each agent made in one run, repairs included.
+
+    Reported beside the cost because they answer different questions. A cost of
+    zero can mean a free provider or no calls at all, and offline every run has
+    the first -- so a cost column alone would say nothing about whether an agent
+    ran.
+
+    Args:
+        connection: An open store.
+        run_id: The run to count.
+
+    Returns:
+        Agent name to call count, in agent order.
+    """
+    with translating_sqlite_errors():
+        rows = connection.execute(
+            "SELECT agent, count(*) AS calls FROM llm_trace "
+            "WHERE run_id = ? GROUP BY agent ORDER BY agent",
+            (run_id,),
+        ).fetchall()
+    return {str(row["agent"]): int(row["calls"]) for row in rows}
+
+
 def trace_count(connection: sqlite3.Connection) -> int:
     """How many model calls this store has recorded."""
     with translating_sqlite_errors():

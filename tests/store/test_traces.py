@@ -26,6 +26,8 @@ from praxis.store.errors import AppendOnlyViolationError, StoreError
 from praxis.store.migrations import migrate
 from praxis.store.traces import (
     SqliteTraceSink,
+    calls_by_agent,
+    cost_by_agent,
     from_row,
     prompt_versions_in_run,
     run_cost_usd,
@@ -184,6 +186,41 @@ class TestQueries:
 
     def test_an_empty_store_has_recorded_nothing(self, store):
         assert trace_count(store) == 0
+
+    def test_cost_is_totalled_per_agent(self, store):
+        # The column an eval table reports, so a phase can say which agent the
+        # money went to rather than only what the run cost.
+        write_trace(store, trace(agent="DecisionScout", cost_usd=Decimal("0.01")))
+        write_trace(store, trace(agent="DecisionScout", cost_usd=Decimal("0.02")))
+        write_trace(store, trace(agent="AssumptionFormalizer", cost_usd=Decimal("0.05")))
+        assert cost_by_agent(store, RUN) == {
+            "AssumptionFormalizer": Decimal("0.05"),
+            "DecisionScout": Decimal("0.03"),
+        }
+
+    def test_a_per_agent_total_is_exact_where_a_float_would_not_be(self, store):
+        for _ in range(10):
+            write_trace(store, trace(agent="DecisionScout", cost_usd=Decimal("0.003")))
+        assert cost_by_agent(store, RUN)["DecisionScout"] == Decimal("0.030")
+
+    def test_a_run_that_made_no_calls_has_no_agents(self, store):
+        # A real answer: a monitoring pass over a world nothing changed in makes
+        # no calls at all.
+        assert cost_by_agent(store, "RUN-nothing") == {}
+
+    def test_calls_are_counted_per_agent_beside_the_cost(self, store):
+        # Different questions. A cost of zero can mean a free provider or no
+        # calls, and offline it is always the first -- so a cost column alone
+        # would say nothing about whether an agent ran.
+        write_trace(store, trace(agent="DecisionScout", cost_usd=Decimal("0")))
+        write_trace(store, trace(agent="DecisionScout", cost_usd=Decimal("0")))
+        assert calls_by_agent(store, RUN) == {"DecisionScout": 2}
+        assert cost_by_agent(store, RUN) == {"DecisionScout": Decimal("0")}
+
+    def test_another_runs_calls_are_not_counted(self, store):
+        write_trace(store, trace(agent="DecisionScout"))
+        write_trace(store, trace(agent="DecisionScout", run_id="RUN-other"))
+        assert calls_by_agent(store, RUN) == {"DecisionScout": 1}
 
 
 class TestAppendOnly:
