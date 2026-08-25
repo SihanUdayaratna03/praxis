@@ -376,3 +376,16 @@ waiting for.
   assumption 3 says a ratio should be `outside [0.5, 2.0]`, which is English.
   ADR 0001 assumption 1 exists to surface exactly that; widening the grammar
   for one instance would be answering the question by editing it.
+- `praxis/predicates/evaluator.py` and `world.py`. **Kleene, not Python**:
+  `false and unknown` is `false`, because no measurement could rescue it. The
+  arithmetic context is *owned* rather than inherited -- `decimal`'s context is
+  per-thread and anyone can change it, and the test pins a threshold sitting
+  between two-thirds at three digits and at twenty-eight.
+- **The monotonicity property is the one the monitor rests on**, and it is
+  generated rather than sampled: adding facts may decide an undecided predicate
+  and may never change a decided one. If that breaks, supplying a fact can
+  raise a breach against a decision that was holding.
+- A `WorldState` is a value, not a service. Facts, events and a clock, answered
+  from what it was built with. Events match after case-and-whitespace
+  normalisation and nothing looser -- anything looser is a judgement, and it is
+  made in `AssumptionMonitor` on a path that can only *age* an assumption.
