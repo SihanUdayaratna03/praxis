@@ -1,6 +1,10 @@
-"""The shape a predicate has once it is read, and the verdict it can reach.
+"""The shape a predicate has once it is read, and the truth value it can reach.
 
-**A verdict is three-valued, and that is the decision this module exists to hold.**
+The truth value is named `Truth` rather than `Verdict` because
+`praxis.domain.enums.Verdict` is a different thing -- what survived
+`ChallengerAgent` -- and `praxis.monitor` imports both.
+
+**A truth value is three-valued, and that is the decision this module exists to hold.**
 `TRUE`, `FALSE` and `UNKNOWN` -- never two. An assumption whose predicate mentions
 a quantity nobody has measured has not been violated; it has not been checked. A
 two-valued evaluator has to call that `FALSE`, and `FALSE` is what raises an
@@ -26,7 +30,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 
-class Verdict(StrEnum):
+class Truth(StrEnum):
     """What evaluating a predicate concluded."""
 
     TRUE = "true"
@@ -78,16 +82,16 @@ class ArithOp(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Evaluation:
-    """A verdict and, when it is `UNKNOWN`, why.
+    """A truth value and, when it is `UNKNOWN`, why.
 
     Attributes:
-        verdict: What the evaluator concluded.
+        truth: What the evaluator concluded.
         reason: Why it could not decide. Required for `UNKNOWN` and forbidden
             otherwise, so a verdict is never accompanied by an explanation that
             contradicts it.
     """
 
-    verdict: Verdict
+    truth: Truth
     reason: str = ""
 
     def __post_init__(self) -> None:
@@ -96,17 +100,17 @@ class Evaluation:
         Raises:
             ValueError: if `UNKNOWN` carries no reason, or a decided verdict does.
         """
-        if self.verdict is Verdict.UNKNOWN and not self.reason:
+        if self.truth is Truth.UNKNOWN and not self.reason:
             message = "an unknown verdict without a reason is not something anyone can act on"
             raise ValueError(message)
-        if self.verdict is not Verdict.UNKNOWN and self.reason:
-            message = f"a {self.verdict.value} verdict carries no reason, got {self.reason!r}"
+        if self.truth is not Truth.UNKNOWN and self.reason:
+            message = f"a {self.truth.value} verdict carries no reason, got {self.reason!r}"
             raise ValueError(message)
 
     @property
     def holds(self) -> bool:
         """Whether the predicate was found true. `UNKNOWN` is not true."""
-        return self.verdict is Verdict.TRUE
+        return self.truth is Truth.TRUE
 
     @property
     def violated(self) -> bool:
@@ -115,16 +119,16 @@ class Evaluation:
         The property `AssumptionMonitor` branches on to raise a breach, named so
         that reading the call site makes the three-valued rule obvious.
         """
-        return self.verdict is Verdict.FALSE
+        return self.truth is Truth.FALSE
 
     @property
     def decided(self) -> bool:
         """Whether the facts settled it either way."""
-        return self.verdict is not Verdict.UNKNOWN
+        return self.truth is not Truth.UNKNOWN
 
 
-TRUE: Evaluation = Evaluation(Verdict.TRUE)
-FALSE: Evaluation = Evaluation(Verdict.FALSE)
+TRUE: Evaluation = Evaluation(Truth.TRUE)
+FALSE: Evaluation = Evaluation(Truth.FALSE)
 
 
 def unknown(reason: str) -> Evaluation:
@@ -136,7 +140,7 @@ def unknown(reason: str) -> Evaluation:
     Returns:
         The evaluation.
     """
-    return Evaluation(Verdict.UNKNOWN, reason)
+    return Evaluation(Truth.UNKNOWN, reason)
 
 
 @dataclass(frozen=True, slots=True)
