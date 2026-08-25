@@ -547,3 +547,16 @@ waiting for.
 
 Remaining: the `praxis/eval/` extension, `praxis/cli_monitor.py`, ADRs
 0017–0020, and `docs/reports/phase-5.md`.
+- `praxis/store/traces.py` gained `cost_by_agent` and `calls_by_agent` — the
+  cost column an eval table reports. Summed in Python over exact decimal
+  strings, because SQL's `SUM` would cast a TEXT column to REAL and the total
+  would depend on row order. Calls are counted beside cost: offline every cost
+  is zero, so a cost column alone says nothing about whether an agent ran.
+- **`praxis/eval/adrs.py` answers ADR 0001's first assumption, and it holds.**
+  63 of 64 hand-written predicates parse — **0.9844** against a threshold of
+  0.9 — and every expiry condition parses. This is the first assumption in this
+  project recorded in Praxis's own schema and then actually *answered*.
+- The one unreadable row is ADR 0015's third assumption (`outside [0.5, 2.0]`,
+  which is English). **It stays a finding**: a test names it by file, so
+  widening the grammar for one instance fails rather than quietly turning the
+  question into a feature request answered by editing it.
