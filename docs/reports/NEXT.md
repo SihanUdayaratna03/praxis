@@ -477,3 +477,28 @@ waiting for.
   are read through `links_touching`, so one written the other way round counts.
 - Detection result types went into `praxis/agents/results.py` — `praxis.eval`
   reads them, and it should not have to import the agent that makes the calls.
+- `ArchaeologistAgent` on `feat/phase-5-archaeologist`. **Its spec was never
+  written down** — three fragments exist (`RejectedOption`'s docstring, the
+  corpus generator's note, ADR 0006's routing) and nothing else. The contract
+  taken is **retrieval and grounding, not generation**; the module docstring
+  records the judgement so it can be reviewed, and ADR 0020 is still to write.
+- **The model selects, the store speaks.** It is asked which recorded decision
+  and which rejected option, both by reference into a listing; the answer is
+  assembled from the stored `reason`, the decision's fields and the current
+  status of the assumptions it rested on. Nothing the model writes reaches the
+  answer — its `note` sits beside it and is never spliced in.
+- An invented option cannot be expressed: the named option is checked against
+  the decision's own `rejected` tuple, matched no looser than case and
+  whitespace. A fuzzy match would let "Postgres" answer for a decision that
+  rejected "Postgres full-text search" — usually right, and the reason attached
+  would be presented as a quotation.
+- Retrieval is FTS5, and the question is reduced to **quoted** terms first:
+  `Repository.search` passes its argument through unchanged, so a bare question
+  mark is a malformed match expression rather than a search.
+
+### Resume here
+
+`ArchaeologistAgent`'s production code is committed and pushed; **its tests are
+not written yet**. After them: the corpus extension (revision documents +
+expected monitoring verdicts, `FORMAT_VERSION` to 2), the `praxis/eval/`
+extension, `praxis/cli_monitor.py`, ADRs 0017–0020, and `docs/reports/phase-5.md`.
