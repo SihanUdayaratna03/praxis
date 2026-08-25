@@ -130,10 +130,13 @@ def architecture_record(topic: Topic, draft: Draft, rng: Random, index: int) -> 
         links=(ExpectedLink(link_type=LinkType.ESTIMATED_AS, target_item_id=estimate_id),),
         note="A quantified forward-looking claim: an estimate wearing an assumption's clothes.",
     )
-    world_id = draft.record(
-        ItemKind.ASSUMPTION,
-        world,
-        fields=_assumption_fields(topic.assumption, topic.predicate, topic.expiry),
+    world_id = draft.remember(
+        world_assumption_key(topic),
+        draft.record(
+            ItemKind.ASSUMPTION,
+            world,
+            fields=_assumption_fields(topic.assumption, topic.predicate, topic.expiry),
+        ),
     )
     draft.record(
         ItemKind.DECISION,
@@ -171,10 +174,13 @@ def meeting_notes(topic: Topic, draft: Draft, rng: Random, index: int) -> Writte
     draft.block("## Anything else")
     draft.block(rng.choice(_CLOSERS))
 
-    assumption_id = draft.record(
-        ItemKind.ASSUMPTION,
-        assumption,
-        fields=_assumption_fields(topic.assumption, topic.predicate, topic.expiry),
+    assumption_id = draft.remember(
+        world_assumption_key(topic),
+        draft.record(
+            ItemKind.ASSUMPTION,
+            assumption,
+            fields=_assumption_fields(topic.assumption, topic.predicate, topic.expiry),
+        ),
     )
     draft.record(
         ItemKind.DECISION,
@@ -263,6 +269,74 @@ def issue_export(topic: Topic, draft: Draft, rng: Random, index: int) -> Written
         content=draft.text(),
         items=tuple(draft.items),
     )
+
+
+def world_assumption_key(topic: Topic) -> str:
+    """Where a topic's world assumption is remembered, for a later document.
+
+    One key per topic rather than per document: an ADR and the meeting it came
+    out of state the same assumption, and a revision note overturning it should
+    join to whichever was written first rather than to both. Writing to two
+    would put two `contradicts` edges in the key for one disagreement, and a
+    detector finding one of them would score as half right.
+    """
+    return f"{topic.slug}:world-assumption"
+
+
+def revision_note(topic: Topic, draft: Draft, rng: Random, index: int) -> Written:
+    """A note, months later, saying the assumption turned out to be wrong.
+
+    Deliberately **not** in `TEMPLATES`. The four templates are shapes a corpus
+    is written in and the scheduler picks between them; this one is a *reply* to
+    a document that already exists, so it is written in a second pass over the
+    topics that have already been stated. Putting it in the rotation would let a
+    revision be generated before the assumption it revises, and the edge would
+    have nothing to point at.
+
+    The assumption it asserts is the original's reversal, written so the two
+    predicates permit no common value -- which is what makes the planted
+    contradiction settleable by arithmetic and gradeable without a model.
+    """
+    overturned = draft.recall(world_assumption_key(topic))
+    draft.block(f"# Revision: {topic.subject}")
+    draft.block(f"Circulated {_day(index)} to the {topic.team} team.")
+    draft.block("## What changed")
+    draft.block(
+        f"We wrote down that {topic.assumption}. That is no longer true, and it "
+        f"has not been true for a while."
+    )
+    draft.block("## The corrected assumption")
+    reversal = draft.block(
+        f"- We now have to assume {topic.reversal}. "
+        f"In predicate form: `{topic.reversal_predicate}`. Re-check {topic.expiry}."
+    )
+    draft.block("## What we are not changing")
+    hypothetical = draft.block(
+        f"This does not by itself reverse the decision to use {topic.chosen}. {topic.hypothetical}"
+    )
+    draft.block(rng.choice(_SIGN_OFFS))
+
+    draft.record(
+        ItemKind.ASSUMPTION,
+        reversal,
+        fields=_assumption_fields(topic.reversal, topic.reversal_predicate, topic.expiry),
+        links=(
+            (ExpectedLink(link_type=LinkType.CONTRADICTS, target_item_id=overturned),)
+            if overturned is not None
+            else ()
+        ),
+        note=(
+            "Overturns an assumption stated in an earlier document. The two "
+            "predicates permit no common value, so this pair is provable rather "
+            "than a judgement."
+        ),
+    )
+    draft.distractor(
+        ItemKind.DECISION,
+        hypothetical,
+        note="A sentence saying what is NOT being decided, under a heading that says so.",
+    )
+    return _as_text(draft, f"{index:02d}-{topic.slug}-revision.md", SourceKind.MARKDOWN)
 
 
 TEMPLATES: Final = (architecture_record, meeting_notes, status_update, issue_export)

@@ -78,7 +78,9 @@ def corpus(tmp_path_factory: pytest.TempPathFactory) -> Path:
     below writes to it -- every store is per-test and in memory.
     """
     root = tmp_path_factory.mktemp("corpus")
-    generate_corpus(root, documents=DOCUMENTS, seed=SEED, generated_at=AT)
+    # revisions=0: this file grades Half A's extraction, and the revision
+    # notes are ground truth for ContradictionDetector rather than for it.
+    generate_corpus(root, documents=DOCUMENTS, revisions=0, seed=SEED, generated_at=AT)
     return root
 
 

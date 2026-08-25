@@ -18,7 +18,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from praxis.corpus.generator import DEFAULT_DOCUMENTS, GENERATOR_VERSION, generate_corpus
+from praxis.corpus.generator import (
+    DEFAULT_DOCUMENTS,
+    DEFAULT_REVISIONS,
+    GENERATOR_VERSION,
+    generate_corpus,
+)
 from praxis.corpus.groundtruth import (
     GROUND_TRUTH_FILENAME,
     ItemKind,
@@ -32,6 +37,8 @@ from praxis.domain.records import Span
 from praxis.domain.spans import verify_span
 from praxis.ingest.adapters import document_from, read_source
 from praxis.ingest.blocks import blocks_of
+from praxis.predicates.intervals import conflict, constraints_of
+from praxis.predicates.parser import parse
 
 AT = datetime(2026, 8, 17, 9, 0, tzinfo=UTC)
 
@@ -139,7 +146,10 @@ def test_every_ground_truth_range_is_a_whole_block_of_the_grid(corpus):
 def test_the_documents_are_named_in_the_key_and_present_on_disk(corpus):
     truth = load_ground_truth(corpus)
 
-    assert len(truth.documents) == DEFAULT_DOCUMENTS
+    # The main pass plus the revision notes, which are a second pass rather
+    # than a fifth template -- a revision is a reply to a document that already
+    # exists, so it cannot be scheduled alongside the thing it replies to.
+    assert len(truth.documents) == DEFAULT_DOCUMENTS + DEFAULT_REVISIONS
     for entry in truth.documents:
         assert (corpus / entry.path).is_file()
 
@@ -266,3 +276,78 @@ def test_nothing_is_left_behind_when_the_key_cannot_be_written(tmp_path):
 def _numeric(item) -> float:
     field = next(found for found in item.fields if found.name == "active_quantity")
     return float(field.value)
+
+
+class TestTheRevisionNotes:
+    """The ground truth ContradictionDetector is graded against.
+
+    Before these existed the corpus contained no contradicting pair at all, so
+    a detector that found nothing and a detector that found everything scored
+    identically. That is the gap these close.
+    """
+
+    def test_every_revision_note_overturns_something_that_was_written_down(self, corpus):
+        # Only two of the four templates state an assumption, so revising in
+        # topic order would write notes overturning assumptions nobody wrote,
+        # and their edges would point at nothing.
+        truth = load_ground_truth(corpus)
+        assert len(_contradiction_pairs(truth)) == DEFAULT_REVISIONS
+
+    def test_each_planted_pair_is_provable_rather_than_a_judgement(self, corpus):
+        # The point of writing the reversals as expressions: the pair lands
+        # inside what praxis.predicates.intervals can settle, so the corpus
+        # grades the cheap deterministic path and not only the model.
+        truth = load_ground_truth(corpus)
+        by_id = {item.item_id: item for item in truth.items}
+        for source, target in _contradiction_pairs(truth):
+            first = constraints_of(parse(_field(by_id[source], "predicate")))
+            second = constraints_of(parse(_field(by_id[target], "predicate")))
+            assert any(conflict(one, other) is not None for one in first for other in second), (
+                f"{source} and {target} are not provably incompatible"
+            )
+
+    def test_a_revision_and_the_assumption_it_overturns_are_different_documents(self, corpus):
+        # A cross-document edge, which is what BACKLOG.md deferred until the
+        # metric it feeds existed. It does now.
+        truth = load_ground_truth(corpus)
+        homes = {
+            item.item_id: document.path for document in truth.documents for item in document.items
+        }
+        for source, target in _contradiction_pairs(truth):
+            assert homes[source] != homes[target]
+
+    def test_some_assumptions_are_never_overturned(self, corpus):
+        # A detector that flagged every pair would otherwise score perfectly.
+        truth = load_ground_truth(corpus)
+        overturned = {target for _, target in _contradiction_pairs(truth)}
+        assumptions = {
+            item.item_id
+            for item in truth.items
+            if item.kind is ItemKind.ASSUMPTION and not item.is_distractor
+        }
+        assert assumptions - overturned
+
+    def test_a_corpus_can_be_asked_for_no_revisions(self, tmp_path):
+        truth = generate_corpus(
+            tmp_path / "plain", documents=4, revisions=0, seed=1, generated_at=AT
+        )
+        assert _contradiction_pairs(truth) == []
+
+    def test_a_negative_revision_count_is_refused(self, tmp_path):
+        with pytest.raises(ValueError, match="revision notes"):
+            generate_corpus(tmp_path / "bad", documents=4, revisions=-1, seed=1, generated_at=AT)
+
+
+def _contradiction_pairs(truth) -> list[tuple[str, str]]:
+    """Every `contradicts` edge the answer key asserts."""
+    return [
+        (item.item_id, link.target_item_id)
+        for item in truth.items
+        for link in item.links
+        if link.link_type is LinkType.CONTRADICTS
+    ]
+
+
+def _field(item, name: str) -> str:
+    """One expected field's value."""
+    return next(field.value for field in item.fields if field.name == name)

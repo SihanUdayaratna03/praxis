@@ -59,12 +59,34 @@ class Placed:
 
 @dataclass
 class Draft:
-    """A document under construction, and the answers it is known to contain."""
+    """A document under construction, and the answers it is known to contain.
+
+    Attributes:
+        ids: The corpus-wide allocator.
+        recorded: What earlier documents recorded, by a caller-chosen key.
+            Corpus-wide like `ids` and for the same reason: a `contradicts`
+            edge joins a revision note to the assumption it overturns, and
+            those are in two different files by construction. A template that
+            finds nothing under its key writes no edge rather than an edge
+            pointing at nothing.
+        blocks: The text so far.
+        items: The answer-key entries for it.
+    """
 
     ids: Ids
+    recorded: dict[str, str] = field(default_factory=dict)
     blocks: list[str] = field(default_factory=list)
     items: list[GroundTruthItem] = field(default_factory=list)
     _cursor: int = 0
+
+    def remember(self, key: str, item_id: str) -> str:
+        """Record an item id under a key later documents can look it up by."""
+        self.recorded[key] = item_id
+        return item_id
+
+    def recall(self, key: str) -> str | None:
+        """The item id an earlier document recorded under this key, if any."""
+        return self.recorded.get(key)
 
     def block(self, text: str) -> Placed:
         """Append a block, returning where it landed.
