@@ -446,3 +446,34 @@ waiting for.
   reaches back through `estimated_as` and breaches the assumption a decision
   rests on. Tested against a hand-built store — it binds nothing in a corpus run
   until Phase 6 writes an `Outcome`, and the report says so beside that zero.
+- `praxis/agents/blocking.py` on `feat/phase-5-contradictions`, 100% covered.
+  **This is the O(n²) answer.** Records are indexed under keys and only records
+  sharing a key are ever paired; pairs form inside buckets and nowhere else, so
+  cost is bounded by `max_bucket²` per surviving key and by the cap overall. The
+  bound is a generated test rather than an argument.
+- **`max_bucket` does two jobs**: it bounds the work *and* it is the entire
+  stop-word rule — a token in more records than that is by definition not
+  discriminating. No hand-written list of common words exists in this package.
+- Keys are namespaced because the evidence is not equal: one shared `subject:`
+  key is enough alone, several `word:` keys are needed. **That asymmetry is why
+  the formalizer runs first** — it is what turns prose into a subject key.
+- A pair is ordered by id, so one pair has one identity. `contradicts` is
+  symmetric and stored once and a `Link` id is derived from its endpoints, so an
+  unordered pair would let two runs write two edges asserting one fact.
+- `ContradictionDetector` and `praxis/agents/detection.py`, both 100% covered.
+  **Three stages, and only the last is a model**: blocking proposes, the
+  interval arithmetic settles every pair whose conflict is a fact rather than a
+  judgement (confidence 1.0, zero calls), and only the residue reaches the
+  `reason` tier, batched twelve pairs to a call.
+- `Settlement` records which stage decided, so the eval table reports the
+  recalls apart. A low contradiction recall means three different things if
+  blocking never proposed the pair, if the arithmetic could not read the
+  predicates, or if the model was asked and said no.
+- **A false contradiction is the expensive direction to be wrong in** — it sends
+  a person to re-read a decision that was fine, and every later finding pays.
+  Each stage refuses rather than guesses.
+- Re-running is duplicate-free *by construction*: a `Link` id is derived from
+  its endpoints and the pair is ordered before the edge is built. Known edges
+  are read through `links_touching`, so one written the other way round counts.
+- Detection result types went into `praxis/agents/results.py` — `praxis.eval`
+  reads them, and it should not have to import the agent that makes the calls.
