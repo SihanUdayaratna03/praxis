@@ -423,3 +423,26 @@ waiting for.
 - `tests/test_boundaries.py` gained a row: `praxis/predicates/` never imports
   `praxis.llm`. The package is not an agent, so `NON_LLM_AGENTS` cannot describe
   it, and one convenient import is how invariant 3 would actually be lost here.
+- `praxis/monitor/` on `feat/phase-5-monitor`, at **99%**. **No model output can
+  breach an assumption**, and that is structural rather than a convention: the
+  model is asked one question -- does a recorded observation report the event an
+  `on_event(...)` names -- and its answer can only add an observation, which can
+  only fire an expiry, which can only produce `EXPIRED`. A wrong answer ages an
+  assumption early; it cannot accuse a decision of resting on something false.
+- The four statuses fall out of three-valued evaluation and nothing else: false
+  is a breach, true is holding, unknown-with-a-fired-expiry is expired, and
+  unknown-without-one is **unchanged and reported rather than written**.
+- That last row is the whole of re-runnability. Evaluation is free, so the
+  monitor always evaluates and **writes only when the verdict changes** — the
+  store already holds the last one, so this needs no column and no marker. The
+  test asserts it against version counts and audit rows, not against a flag.
+- An `AssumptionBreach` is a `Finding` with the kind Phase 1 already defined.
+  **One per breached assumption**, never one per decision resting on it: the
+  decisions are reverse-reachable over `assumes`, and N findings for one fact
+  would make a count of breaches a count of citations. Severity is arithmetic.
+- `AssumptionMonitor` takes an **optional** provider. Without one every
+  predicate is still evaluated and every breach still raised.
+- **The thesis runs in eight lines**: an outcome that missed its estimate
+  reaches back through `estimated_as` and breaches the assumption a decision
+  rests on. Tested against a hand-built store — it binds nothing in a corpus run
+  until Phase 6 writes an `Outcome`, and the report says so beside that zero.
