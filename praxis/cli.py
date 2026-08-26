@@ -28,6 +28,7 @@ from rich.console import Console
 
 from praxis import __version__
 from praxis.cli_eval import eval_corpus, extract
+from praxis.cli_monitor import contradictions, formalize, monitor, why
 from praxis.cli_tables import configuration_table, links_table, records_table, routing_table
 from praxis.config.models import (
     NON_LLM_AGENTS,
@@ -246,6 +247,14 @@ def _report_ingestion(run: IngestionRun, settings: Settings) -> None:
 # because the function cannot be -- it is a builtin.
 app.command(name="extract")(extract)
 app.command(name="eval")(eval_corpus)
+
+# The memory half, from `praxis.cli_monitor`, for the same reason. These four
+# run over what the store already holds rather than over its documents, and the
+# order they are registered in is the order they are meant to be run in.
+app.command(name="formalize")(formalize)
+app.command(name="monitor")(monitor)
+app.command(name="contradictions")(contradictions)
+app.command(name="why")(why)
 
 
 @corpus_app.command(name="generate")

@@ -104,7 +104,7 @@ def extract() -> None:
     run_id = new_run_id()
 
     try:
-        with _configured(settings) as repository:
+        with configured_store(settings) as repository:
             provider = provider_for(
                 settings, sink=SqliteTraceSink(repository.connection), run_id=run_id
             )
@@ -198,8 +198,13 @@ def provenance_of(settings: Settings, corpus: Path) -> dict[str, str]:
 
 
 @contextmanager
-def _configured(settings: Settings) -> Iterator[Repository]:
-    """The owner's store, reported as a sentence when it cannot be opened."""
+def configured_store(settings: Settings) -> Iterator[Repository]:
+    """The owner's store, reported as a sentence when it cannot be opened.
+
+    Public because `praxis.cli_monitor`'s four commands all open the same store
+    the same way. A second copy would be a second place for "what does a
+    missing store print" to be answered, and the two would drift.
+    """
     try:
         repository = open_repository(settings, create=False)
     except StoreError as exc:
