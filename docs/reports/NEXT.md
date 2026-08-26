@@ -1,682 +1,201 @@
-# Handover — start of Phase 4
+# Handover — start of Phase 6
 
-Read this first, then `CLAUDE.md`. Written at the close of Phase 3 so the next
+Read this first, then `CLAUDE.md`. Written at the close of Phase 5 so the next
 session can start working instead of re-deriving state.
 
 ---
 
 ## Where we stopped
 
-Phase 3 is merged, tagged and green. Nothing is in flight.
+Phase 5 is merged, tagged and green. Nothing is in flight. **Half A is closed.**
 
 | | |
 | --- | --- |
-| `main` | `64888bd`, local and remote identical |
-| Tag | `v0.3-phase-3` → `64888bd` (dereferenced through the API, not assumed) |
-| CI | 5/5 green on [#9](https://github.com/SihanUdayaratna03/praxis/pull/9) |
+| `main` | `ccb01d0`, local and remote identical |
+| Tag | `v0.5-phase-5` → `ccb01d0` (dereferenced through the API, not assumed) |
+| CI | 5/5 green on [#12](https://github.com/SihanUdayaratna03/praxis/pull/12) |
 | Open PRs | none |
 | Remote branches | `main` only |
 | Working tree | clean |
-| Suite | **1149 passed**, coverage **98.09%** (gate 85%) |
-| Schema | version 3 — Phase 3 needed no migration |
+| Suite | **2179 passed**, coverage **98.68%** (gate 85%) |
+| Schema | version 4 — Phase 5 needed no migration |
 
 ```bash
 cd "C:\Users\sihan\OneDrive\Desktop\Praxis Agents"
 git checkout main && git pull
 uv sync --all-groups
 uv run praxis doctor            # expect OK, including one offline model call
-uv run pytest                   # expect 1149 passed
+uv run pytest                   # expect 2179 passed
 
-# the phase 3 pipeline, end to end and offline
+# the phase 5 pipeline, end to end and offline
 uv run praxis init
 uv run praxis corpus generate .praxis-tmp/corpus
 uv run praxis ingest .praxis-tmp/corpus/documents
-uv run praxis store stats       # 12 documents, 112 spans
+uv run praxis extract
+uv run praxis formalize         # compile assumptions into predicates
+uv run praxis monitor           # evaluate them; writes only what changed
+uv run praxis contradictions    # blocking -> arithmetic -> a model
+uv run praxis why "why not Postgres full-text search"
 ```
 
-**Shipped in Phase 3:** `SourceAdapter` for markdown, text and JSON; the
-deterministic block grid; `SegmenterAgent`; `VerifierAgent`; the
-structured-output layer and its repair loop (deferred from Phase 2); the
-synthetic corpus generator and its machine-gradeable ground truth; the
-end-to-end ingestion pipeline with tracing; `praxis ingest` and `praxis corpus
-generate`. 269 new tests. ADRs 0011 and 0012.
+**Every one of those four will report zeros offline, and that is correct.** The
+citation gate refuses almost every extraction against the mock (ADR 0016), so
+one record reaches the store and the memory agents have nothing to work on.
+`praxis why` exits 1 with `empty_answer` for the same reason — a refusal is the
+cheap outcome and a wrong match is the expensive one. What the run verifies is
+that the pipeline holds together end to end without credentials, not that the
+numbers are good.
 
-**Deliberately not shipped:** a `Finding` for a rejected citation,
-cross-document ground-truth edges, streaming, prompt caching — all in
-[`BACKLOG.md`](../../BACKLOG.md) with reasons.
+**Shipped in Phase 5:** the predicate language (`praxis/predicates/` — lexer,
+parser, three-valued evaluator, interval arithmetic, expiry grammar, world
+state); `AssumptionFormalizer` and its store pass; `AssumptionMonitor`,
+`praxis/monitor/` and the breach finding; deterministic blocking plus
+`ContradictionDetector` and its store pass; `ArchaeologistAgent`; the corpus
+revision notes and the monitoring section at `FORMAT_VERSION` 2;
+`praxis/eval/memory.py` and `praxis/eval/adrs.py`; four CLI commands. 638 new
+tests. ADRs 0017–0020.
 
-The full account is in [`phase-3.md`](phase-3.md). Read its last section before
-writing `EST-0005`.
+**Deliberately not shipped:** anything that writes an `Outcome` — that is Phase
+6 and two zeros in the Phase 5 report are waiting on it.
+
+The full account is in [`phase-5.md`](phase-5.md). **Read its metrics section
+before writing `EST-0007`**, and its closing section before pricing anything.
 
 ---
 
-## Phase 3's own numbers
+## The result Phase 5 earned
+
+**ADR 0001's first assumption is answered and it holds.** 80 hand-written
+predicates across `docs/adr/`, **79 parse — 0.9875** against its own threshold
+of 0.9, and all 80 expiry conditions parse. `praxis/eval/adrs.py` recomputes it
+from the files each time rather than asserting it.
+
+The one unreadable row is ADR 0015's third assumption (`outside [0.5, 2.0]`,
+which is English). **It stays a finding** — a test names it by file, so widening
+the grammar for one instance fails rather than quietly turning the measurement
+into a feature request. Do not "fix" it.
+
+---
+
+## Two zeros in the Phase 5 table, and they mean different things
+
+Anyone reading `phase-5.md`'s metrics needs both of these, because the table
+alone cannot distinguish them.
+
+1. **Formalization reads `0 of 0` because extraction stored nothing.** The
+   citation gate refused 38 of 39 claims offline — Phase 4's known behaviour,
+   ADR 0016 — so one record reached the store for the whole corpus and the
+   memory agents made zero model calls. The formalizer's offline path *does*
+   work: given an assumption it compiles `index_size_gb <= 50` correctly, and
+   `tests/agents/test_formalization.py` covers it at 100%. **Upstream
+   starvation, not a broken formalizer.**
+2. **The monitor's store-derived binding reads zero because nothing writes an
+   `Outcome` yet.** `measured_in` binds an identifier only where an assumption
+   carries an `estimated_as` edge to an estimate an `Outcome` resolves.
+   **Mechanism waiting, not mechanism failing** — and Phase 6 is what makes it
+   move.
+
+`aged_misreported_as_breached` is 0 and that one means what it says: zero by
+construction, because only arithmetic can breach (ADR 0019).
+
+---
+
+## Phase 5's own numbers
 
 | | |
 | --- | --- |
-| `EST-0004` | 5.5h active, 20h blocked, confidence 0.45, class `agent-implementation` |
-| `OUT-0004` | ~4.2h active, ~12.8h blocked, scored **`close`** |
-| Miss direction | **over-estimated, ~1.3×** |
+| `EST-0006` | 6.5h active, 24.0h blocked |
+| `OUT-0006` | **≈4.6h active**, ≈17.3h blocked, scored `close` |
+| Error | **1.40× over**, on the measure the estimate was stated in |
 
-Four outcomes now exist in four work classes and they still disagree in
-direction — over 2.3×, under 2.1×, under 1.24×, over 1.3×, `n = 1` each.
-**Do not correct `EST-0005` for any of them.** `BiasDetective` refuses below
-`n = 5` and so should its author.
+Active is four session windows bounded from both ends by commit timestamps.
+Blocked is elapsed wall clock between them and measures when the author slept.
+**Compare active against active.**
 
-Two things to carry into the estimate itself:
+`agent-implementation` is now at **n = 3, and all three are over-estimates** —
+1.31×, 2.18×, 1.40×. It is the only work class in this corpus with a direction
+rather than a scatter.
 
-- **Price components, not phases, and count the components honestly.** The one
-  line item that went badly wrong in `EST-0004` was the one described in four
-  words. Tests came in at 2,826 against ~2,600 predicted; production came in at
-  3,740 against ~1,900, and the whole gap is the corpus generator, priced as a
-  single item and delivered as five modules.
-- **Commit before a session is likely to end.** Phase 3's active figure is the
-  softest number in the corpus because a session limit landed between two
-  commits, leaving the first window bounded on one side only. A `wip:` commit
-  on a strand branch never reaches `main`'s history and is the difference
-  between a bounded window and a guess.
+**No bias correction has been applied, six times running.** `BiasDetective`
+refuses below n = 5 and so does its author. That judgement now looks better
+rather than worse: the three ratios span 1.31× to 2.18×, so a factor fitted to
+the first two points would have over-corrected this one. Two more outcomes in
+this class and the Phase 12 demo has something real to say.
 
 ---
 
-## What Phase 4 is
+## Before writing `EST-0007`
 
-Orchestration, from [`ARCHITECTURE.md`](../../ARCHITECTURE.md) and
-[ADR 0004](../adr/0004-custom-async-orchestrator.md): a small async state
-machine over a typed message bus, written for this project. No agent framework.
+Three things `OUT-0006` recorded, in the order they will cost you.
 
-The requirement that drives the design is already written down: **two runs over
-one corpus with one seed must produce identical numbers**, or the Phase 10
-ablation table means nothing.
+1. **Price the CLI.** Phase 4 shipped `cli_eval.py` unpriced; Phase 5 shipped
+   `cli_monitor.py` and its 18 tests unpriced. Two phases running is a pattern,
+   not an oversight. `EST-0007` should carry a line item for it.
+2. **A component described as "an extension" may have a subject of its own.**
+   The eval work was priced as four line items against four existing modules and
+   became five — `praxis/eval/memory.py` exists because the record-to-item join
+   needed somewhere to live that was not `harness.py`. Same shape as
+   `OUT-0004`'s corpus generator, one size smaller.
+3. **Price each agent's refusal vocabulary inside the agent.** This is the
+   correction `OUT-0005` bought and it kept working. An agent's happy path is
+   one function; the code that says no is the rest of the file.
 
-That property is currently true of everything Phase 3 built, and each piece has
-a test saying so — the segmenter's spans, the corpus's bytes, the answer key,
-and the mock's answers are all functions of their inputs. Phase 4 is where it
-is easy to lose: concurrency, `asyncio` scheduling order, and anything that
-reads a clock or a set iteration order.
-
-Do not design it here. The first action of the phase is the estimate, before
-any file is created:
-
-1. `git checkout -b feat/phase-4-<slug>` off `main`.
-2. Append `EST-0005` to `docs/dogfood/estimates.jsonl` **before** the work
-   starts, with `active_quantity` and `blocked_quantity`.
-3. Then work the phase per `CLAUDE.md` § Workflow per phase.
-
-Three things Phase 3 left standing for it:
-
-- **`SegmenterAgent` is the only agent so far, and it is the shape the rest
-  follow.** It takes a provider it did not choose, asks
-  `praxis.llm.structured.ask_for` for a Pydantic model, degrades rather than
-  raising on a bad answer about one document, and lets a failure about the
-  *run* propagate. Phase 4's orchestrator should be able to run it without
-  knowing any of that.
-- **`IngestionPipeline` is a hand-rolled sequence, and Phase 4 is what replaces
-  its wiring.** Its stages are the right ones; what it lacks is a run id
-  threaded through every write (`Repository.add` already takes `run_id` and the
-  pipeline does not pass one), and any notion of concurrency.
-- **`praxis/corpus/` is the fixture corpus for every later phase.** Regenerate
-  it rather than editing it, and never hand-edit `ground_truth.json` — the
-  offsets are written by construction and `verify_corpus` will catch a drift,
-  but only if someone runs it.
+The six-line-item pricing of the predicate DSL worked — the parser landed near
+its line-item reading rather than at the 2× a one-line-item pricing produced in
+Phase 3. Keep pricing parsers and harnesses by component.
 
 ---
 
-## Things a cold session will otherwise rediscover the hard way
+## Phase 6 — Half B
 
-Carried forward, because every one of them cost something.
+`ARCHITECTURE.md`'s Half B column: `EstimateExtractor`, `WorkClassifier`,
+`OutcomeMatcher`, `BiasDetective` (no LLM), `CalibratorAgent`, `ScoringAgent`
+(no LLM).
 
-**From Phase 4:**
+Four things worth knowing before planning it.
 
-- **Rich wraps a `console.print` at the terminal width, and CI's is narrower
-  than yours.** An error message carrying a path folded `praxis corpus
-  generate` in half on CI's 80 columns and passed locally. Put the remedy on
-  its own short line, and assert on that rather than on a fragment. A table
-  printed for a person to copy needs `soft_wrap=True, markup=False`.
-- **Latent, not fixed:** `test_corpus_generate_reports_a_bad_request_as_a_sentence`
-  fails at `COLUMNS=60` for the same reason. CI runs at 80 and it has always
-  passed there; it was left alone because Phase 3's output is not Phase 4's to
-  change. Worth a line when something else touches that command.
+**`BiasDetective` and `ScoringAgent` are deterministic code and `NON_LLM_AGENTS`
+enforces it.** Invariant 3, and `praxis doctor` fails if either acquires a model
+route. Brier, log score, MAPE, bias factors and intervals are arithmetic.
 
-**From Phase 3:**
+**`BiasDetective`'s whole point is refusing.** It answers with a factor, an `n`
+and an interval, and refuses below n = 5. Run against this project's own
+history it will decline on every class — n = 3 in one, n = 1 in three others.
+That is correct behaviour and the Phase 6 report should say so plainly before
+anyone reads it as a failure.
 
-- **A test built from two identical-looking literals tests nothing.** The NFC
-  test compared two spellings of `café` that were the same string in the source
-  file. Build both from `chr(...)` and assert they differ *before* asserting
-  normalisation collapses them.
-- **`stats.records` omits kinds with no rows.** It is a `GROUP BY`, so
-  `records[RecordKind.SPAN]` raises `KeyError` on an empty store. Use `.get(kind, 0)`.
-- **A `conftest` fixture inside a `@given` test needs
-  `suppress_health_check=[HealthCheck.function_scoped_fixture]`.**
-- **Ruff's auto-fix strips an import added before its use lands** — true of the
-  `post_edit_verify` hook *and* of a manual `ruff check` between two edits. Add
-  the import and its use in the same edit.
-- **The structured-output dialect rejects unsupported keywords with a 400**, it
-  does not ignore them. `praxis/llm/structured.py` strips them and says them in
-  the description instead, which is what the official SDKs do; the Pydantic
-  model stays the only validator.
-- **Generated prose has to be read by a person.** Nothing automated catches
-  "This rests on the index stays under 50 GB".
+**`Outcome` is what unlocks the two zeros above.** Once something writes one,
+`measured_in` binds a quantity, an assumption can be breached by a measured
+miss, and the fusion chain the product exists for runs end to end for the first
+time. Check those numbers rather than assuming they moved.
 
-**From Phase 2:**
+**The corpus already contains three outcome items** and `ItemKind.OUTCOME` is
+deliberately excluded from `GRADED_KINDS` in `praxis/eval/harness.py` — listing
+it with a permanent zero would have read as a regression. Phase 6 adds it there,
+and `praxis/eval/memory.py` is where its grading joins the rest.
 
-- **A single-seed test of a random generator tests one number.**
-- **Build test doubles out of the real object where one exists.** The
-  segmenter's mechanism tests use a real `LLMProvider` subclass, so they still
-  go through routing, the ledger and the trace sink.
-- **`assert_never` and mypy's `warn_unreachable` disagree** on an exhaustive
-  `if` chain. Put the check in a test.
-- **`guard_no_secrets.py` reads a long value after `api_key=` as a credential.**
-  Bind it to a local first.
-- **`mypy --strict` cannot check a `**kwargs` dictionary through a call.**
-- **The trace store and the audit trail are two tables and must stay two.**
-
-**From Phase 1 and 0:**
-
-- **Long text goes to a file.** ~965-byte shell parse limit, and PowerShell 5.1
-  mangles embedded quotes passed to native executables. `gh pr create
-  --body-file`, `git commit -F`. `.praxis-tmp/` is gitignored.
-- **Branch protection does not exist** — `403 Upgrade to GitHub Pro`. `main` is
-  protected only by client-side hooks. Branch and open a PR even for a one-line
-  docs change.
-- **A merge commit message must be a conventional commit.** The `commit-msg`
-  hook rejects `merge: ...`; the strand merges use `chore: merge the ... strand`.
-- **A check about other people's machines must not be tested only on this one.**
-- **`executescript` commits any open transaction before it runs.**
-- **An FTS5 table cannot be aliased on the left of `MATCH`.**
-- **`strategy.example()` inside a test raises** under `filterwarnings = ["error"]`.
-- **Editing a file with a Python script on this machine writes CRLF**, and the
-  pre-commit `mixed line ending` hook rewrites it and aborts. `git add` again
-  and re-run the commit.
-- **Nothing in `praxis/store/` or `praxis/llm/` is expected to need further
-  work.** Phase 3 added one read to `store/reports.py` and one generator hint to
-  `llm/synthesis.py`, both additive. Fix a bug if a test finds one; do not
-  redesign either.
+**A schema migration is likely.** Phase 5 needed none; Half B may. Check
+`praxis/domain/records.py` and `001_core.sql` before assuming either way, and
+say which in the estimate's conditions — `EST-0006` did, and that made the
+condition checkable afterwards.
 
 ---
 
-## Owner decisions — still standing, do not re-ask
+## Rules that have not changed
 
-1. **Store location.** Settled in
-   [ADR 0010](../adr/0010-store-location-under-a-syncing-filesystem.md).
-2. **The repository stays private for now**, revisited at the start of Phase 8.
-   Recorded in [`BACKLOG.md`](../../BACKLOG.md) with the trigger and the exact
-   commands. Consequence: `main` still has no server-side protection.
-3. **No API key exists and none is expected.** `PRAXIS_LLM_PROVIDER=mock` is
-   the default, CI has no secret, and `praxis doctor` checks the claim by making
-   a call rather than reading a setting.
+- **Log `EST-0007` before writing any Phase 6 file**, on the phase branch. A
+  phase with no prediction is a hole in the Phase 12 demo.
+- **`main` only moves through a reviewed, CI-green merge commit.** Never squash.
+- **Long text goes to a file**, never inline: `--body-file`, `-F`. The shell here
+  has a ~965-byte parse limit and PowerShell 5.1 mangles embedded quotes.
+- **Commit after every component**, then push, then append to this file. Never
+  batch.
+- Progress explanations to the product owner are in **Sinhala**; everything in
+  the repository is in English.
 
----
-
-## Phase 4 progress log
-
-Appended as each component lands, so an interrupted session can resume from the
-last line rather than from the diff.
-
-**Correction to "What Phase 4 is" above.** That section was written at the close
-of Phase 3 and says Phase 4 is orchestration. The owner re-scoped it: Phase 4 is
-**Half A core agents** — `DecisionScout`, `DecisionStructurer`,
-`AssumptionExtractor`, the pipeline wiring them onto Phase 3's ingestion, and
-the first evaluation harness. Orchestration moves later.
-[ADR 0004](../adr/0004-custom-async-orchestrator.md) still stands; nothing about
-it changed except when it is built.
-
-- `EST-0005` logged on the phase branch before any Phase 4 file existed: **6.0h
-  active, 16.0h blocked**, confidence 0.40, class `agent-implementation`. No
-  bias correction, for the fifth time — four outcomes, four classes, `n = 1`
-  each, still disagreeing in direction. The eval harness is priced as four line
-  items rather than one, which is the lesson `OUT-0004` paid for.
-- `praxis/prompts/` — the prompt library. Files named `<task>.v<n>.md`, read
-  through `importlib.resources`; a version bump is a new file and
-  `tests/prompts/test_library.py` pins every digest to enforce it. The
-  segmenter's Phase 3 prompt moved in **byte-identical**, so no prompt hash and
-  no mock answer changed.
-- Migration **004** — `prompt_id` and `prompt_sha` on `llm_trace`, nullable.
-  Schema is now at version 4. `LLMRequest.prompt_id` is excluded from
-  `canonical()`; the system text it names is already in the hash. ADR 0014.
-- `praxis/agents/offering.py` — the numbered span listing every extraction cites
-  through, plus `praxis/agents/errors.py`'s refusal vocabulary. ADR 0015. An
-  ordinal resolves or is refused; a *wrong* citation still survives and is named
-  `IN_ANOTHER_OFFERED_SPAN` separately from `NOWHERE`.
-- `DecisionScout` on `feat/phase-4-scout`, merged `--no-ff`. Scan tier,
-  ordinals only, no quotation and therefore no mis-attribution possible. No
-  floor to degrade to — a blind window is recorded as blind, because "every
-  passage holds a decision" would pay the structurer for the whole corpus.
-- `DecisionStructurer` on `feat/phase-4-structurer`, merged `--no-ff`. Extract
-  tier, one call per candidate. The rationale is on the `justified_by` edge and
-  not on the record, a decision with no alternatives is recorded as one rather
-  than invented into two, and a missing date falls back to `ingested_at` with
-  `date_was_stated` carrying the difference. 51 tests, `praxis/agents/
-  structurer.py` at 100%. `Answering` and `Refusing` moved into
-  `tests/agents/conftest.py` so both agents' tests share one copy.
-- **A moved document is not a fabricating model.** `verify_claim` was asked
-  first, so a span that no longer resolved came back `ABSENT` and was reported
-  as `FABRICATED_QUOTE`. `SPAN_DOES_NOT_RESOLVE` existed and nothing returned
-  it. Span resolution is now asked about before the quotation is judged.
-- **Offline, almost every extraction is refused, and that is the mock working.**
-  `praxis.llm.synthesis` draws the cited ordinal from the bracketed labels and
-  the quotation from the passages *independently*, so the two agree only by
-  chance. The eval harness will measure the plumbing rather than the model, and
-  `docs/reports/phase-4.md` has to say so beside the table.
-
-- `praxis/agents/citation.py` — the one gate every extracted claim's citation
-  passes through, lifted out of the structurer before the extractor could grow
-  a second copy. The order of its checks is the substance: an unoffered ordinal
-  beats everything downstream, and a span that will not resolve beats a bad
-  quotation.
-- `praxis/agents/offering.py` gained `spread(spans, index, behind=, ahead=)`,
-  and `around` now delegates to it, so one place knows how a window is cut.
-- `AssumptionExtractor` on `feat/phase-4-extractor`, merged `--no-ff`. Reason
-  tier, one call per decision, writing an `Assumption`, its `justified_by` edge,
-  the decision's `assumes` edge, and — when the claim is quantified and
-  forward-looking — an `Estimate` with **its own citation** plus the
-  `estimated_as` edge. 56 tests, `extractor.py` at 100%.
-- **ADR 0016**: the extractor writes the first `estimated_as` edge, which
-  `ARCHITECTURE.md` assigns to `FusionBridge`. The corpus labels those edges by
-  construction and nothing produced one to grade against; the cheap half of the
-  recognition is free in a call already holding the assumption and its quantity,
-  and the cross-document half is still `FusionBridge`'s.
-- **The extractor's window is 3 behind and 8 ahead**, which is 12 passages —
-  exactly ADR 0015's `spans_per_offering <= 12`. Assumptions are written *after*
-  a decision in both corpus shapes, so reaching equally would spend half the
-  listing on the title block and still stop short of the effort section.
-  Widening either part breaches a recorded assumption rather than editing a
-  constant.
-
-- `praxis/agents/extraction.py` and `praxis/agents/results.py` on
-  `feat/phase-4-pipeline`, merged `--no-ff`. `ExtractionPipeline` runs scout →
-  structurer → extractor over a store and writes in dependency order. 23 tests
-  reading every assertion back out of SQLite; both modules at 100%. **No ADR
-  0013** — the routing table it was reserved for is unchanged from ADR 0006 and
-  the pipeline decided nothing that file did not already say. The number stays
-  free rather than being spent on a restatement.
-- Three things the pipeline had to settle, each in its docstring: ids come from
-  a counter seeded off the store (`next_id` reads the highest ordinal, and one
-  extractor call builds three assumptions before any is written); a document
-  that already holds decisions is recognised rather than redone (sequential ids
-  would fork it, content-addressed `Link` ids would collide); and the extractor
-  runs once per *verified* decision, so a refused one is never paid for twice.
-- `run_id` is threaded through every write, which is the gap Phase 3's handover
-  flagged on `Repository.add`. Nothing generates one yet — the caller passes it
-  or it stays null, and ADR 0004's orchestrator is what will mint them.
-
-- `praxis/eval/` landed as the four priced components — `matching`, `metrics`,
-  `harness`, `report` — with `tests/eval/test_matching.py` and
-  `test_metrics.py` covering the deterministic half. 50 tests.
-
-- `tests/eval/test_harness.py` — the corpus really generated, ingested,
-  extracted and graded. Two runs render identical JSON; a record the run never
-  reported is still graded, because grading reads SQLite. 15 tests.
-
-- `tests/eval/test_report.py` — the renderer held to the numbers it was given:
-  table and JSON never disagree about a rate, and one result rendered behind
-  two different pairings is byte-identical. 26 tests. `praxis/eval/` is done.
-
-- `praxis extract` and `praxis eval` in `praxis/cli_eval.py`, registered from
-  `cli.py`. `extract` exits zero although the gate refused, because offline
-  that is almost every claim; `eval` grades into a scratch store rather than
-  the owner's, and prints to stdout exactly what `--markdown` writes.
-- **A provenance line has to be ASCII.** Redirecting `praxis eval` into a file
-  on Windows gets the console codepage, and the middot separator arrived as a
-  replacement byte in the one line naming the provider, seed and prompt
-  versions.
-
-- `docs/reports/phase-4.md`, `ARCHITECTURE.md` (Half A, evaluation, schema
-  version 4, orchestration moved to Phase 5+) and the README quickstart, which
-  now runs the whole pipeline end to end with no credentials.
-- **One commit was rewritten.** `c94a2f7` carried a copy of the previous
-  commit's subject while its diff was the whole of `praxis/eval/`. Reworded on
-  the unmerged branch and pushed with `--force-with-lease`, because this
-  history is meant to be a valid corpus and a subject that contradicts its own
-  diff is a bad row in it.
-
-### Resume here
-
-Phase 4 is complete: merged, tagged `v0.4-phase-4`, `OUT-0005` closed. Phase 5
-starts by reading `docs/reports/phase-4.md`'s last section, then logging
-`EST-0006` on a fresh branch **before** any Phase 5 file exists.
-
----
-
-## Phase 5 progress log
-
-Appended as each component lands, so an interrupted session can resume from the
-last line rather than from the diff.
-
-**Phase 5 is Assumption Formalization and Monitoring**, and it closes Half A.
-Phase 4 extracted assumptions as natural language tied to a `Span`; this phase
-makes them checkable. `AssumptionFormalizer`, `AssumptionMonitor`,
-`ContradictionDetector` and `ArchaeologistAgent`, plus the predicate DSL that
-[`BACKLOG.md`](../../BACKLOG.md) and ADR 0001 assumption 1 have both been
-waiting for.
-
-- `EST-0006` logged on the phase branch before any Phase 5 file existed: **6.5h
-  active, 24.0h blocked**, confidence 0.40, class `agent-implementation`. The
-  ratios were **recomputed from the log rather than recalled**, and they do not
-  say what the previous four calibration notes said: five outcomes across
-  **four** classes, not five, with `agent-implementation` at `n = 2` and both
-  points over-estimates. No correction applied for the sixth time -- and the
-  note refuses the disguised version too, since rescaling by the measured
-  throughput of the same work class is a bias correction wearing a hat.
-- `praxis/predicates/` — the DSL, on `feat/phase-5-predicates`. Lexer, parser
-  and renderer first, at 100% coverage. **A truth value is three-valued**:
-  `TRUE`, `FALSE`, `UNKNOWN(reason)`. An assumption mentioning a quantity
-  nobody measured has not been violated, it has not been *checked*, and a
-  two-valued evaluator has to call that false -- which is what raises a breach.
-  The whole distinction this phase is graded on lives in that gap, so it is in
-  the type rather than in a convention.
-- The grammar is shaped by the predicates already in this repository, not by
-  taste: digit separators because two ADRs write `1_000_000`, division because
-  ADR 0001's own assumption is a ratio, and `between a and b` because ADR 0007
-  writes commits-per-phase that way. It desugars rather than surviving as a
-  node the interval arithmetic would have to learn twice.
-- **A term at the top is refused.** `index_size_gb` is a quantity, not a claim,
-  and accepting it would let a predicate truncated by a bad model answer parse
-  as though it said something.
-- **The one ADR predicate that does not parse is left not parsing.** ADR 0015
-  assumption 3 says a ratio should be `outside [0.5, 2.0]`, which is English.
-  ADR 0001 assumption 1 exists to surface exactly that; widening the grammar
-  for one instance would be answering the question by editing it.
-- `praxis/predicates/evaluator.py` and `world.py`. **Kleene, not Python**:
-  `false and unknown` is `false`, because no measurement could rescue it. The
-  arithmetic context is *owned* rather than inherited -- `decimal`'s context is
-  per-thread and anyone can change it, and the test pins a threshold sitting
-  between two-thirds at three digits and at twenty-eight.
-- **The monotonicity property is the one the monitor rests on**, and it is
-  generated rather than sampled: adding facts may decide an undecided predicate
-  and may never change a decided one. If that breaks, supplying a fact can
-  raise a breach against a decision that was holding.
-- A `WorldState` is a value, not a service. Facts, events and a clock, answered
-  from what it was built with. Events match after case-and-whitespace
-  normalisation and nothing looser -- anything looser is a judgement, and it is
-  made in `AssumptionMonitor` on a path that can only *age* an assumption.
-- `praxis/predicates/expiry.py` and `intervals.py`. Three expiry forms and no
-  more -- an observation, not a design: every condition in `docs/adr/` and
-  `corpus/topics.py` is a `when`, an `after` or an `on_event`. Firing is
-  three-valued too, so an undecided condition expires nothing.
-- **The interval arithmetic settles contradictions a model has no privileged
-  access to.** `index_size_gb <= 50` against `> 50` permits disjoint sets of
-  numbers; that costs nothing, is reproducible, and leaves the `reason` tier
-  for pairs that are genuinely a judgement.
-- `constraints_of` returns **nothing at all** for a disjunction rather than
-  reading the readable half. A weakened claim is what produces a *false*
-  contradiction, and that is the expensive direction to be wrong in.
-- `praxis/predicates/` is done: **167 tests, 99% coverage**, no model anywhere
-  in it. The whole package is the deterministic half invariant 3 names.
-- `AssumptionFormalizer` on `feat/phase-5-formalizer`, 100% covered. It stores
-  the **rendered** predicate rather than the model's spelling, so `x<=50` and
-  `x <= 50` become one string and land in one blocking bucket later. One retry,
-  shown the parse error; two would be a repair loop, which
-  `praxis.llm.structured` already owns for the *schema*.
-- **Nothing is dropped.** An assumption that will not compile is written with
-  its confidence capped at 0.3 and the audit reason saying why. Safe because
-  the monitor cannot breach on a predicate that does not parse, and better than
-  silence because a person can fix what they can see.
-- `is_checkable` is a **parse, not a stored flag** -- a flag can disagree with
-  the text beside it. That is also the re-runnability: an assumption that
-  already parses is skipped with no model call.
-- **The offline provider now answers a `predicate` field from the passage.**
-  `praxis/llm/synthesis.py` gained `predicates_in` and `expiries_in`, matched on
-  shape because `praxis.llm` may not import `praxis.predicates`. Exactly the
-  `ordinals_in` argument from Phase 4: without it the branch that *stores* a
-  formalized predicate never runs offline and only the refusal path is covered.
-  The numbers are still about the plumbing, and the report has to say so.
-- `tests/test_boundaries.py` gained a row: `praxis/predicates/` never imports
-  `praxis.llm`. The package is not an agent, so `NON_LLM_AGENTS` cannot describe
-  it, and one convenient import is how invariant 3 would actually be lost here.
-- `praxis/monitor/` on `feat/phase-5-monitor`, at **99%**. **No model output can
-  breach an assumption**, and that is structural rather than a convention: the
-  model is asked one question -- does a recorded observation report the event an
-  `on_event(...)` names -- and its answer can only add an observation, which can
-  only fire an expiry, which can only produce `EXPIRED`. A wrong answer ages an
-  assumption early; it cannot accuse a decision of resting on something false.
-- The four statuses fall out of three-valued evaluation and nothing else: false
-  is a breach, true is holding, unknown-with-a-fired-expiry is expired, and
-  unknown-without-one is **unchanged and reported rather than written**.
-- That last row is the whole of re-runnability. Evaluation is free, so the
-  monitor always evaluates and **writes only when the verdict changes** — the
-  store already holds the last one, so this needs no column and no marker. The
-  test asserts it against version counts and audit rows, not against a flag.
-- An `AssumptionBreach` is a `Finding` with the kind Phase 1 already defined.
-  **One per breached assumption**, never one per decision resting on it: the
-  decisions are reverse-reachable over `assumes`, and N findings for one fact
-  would make a count of breaches a count of citations. Severity is arithmetic.
-- `AssumptionMonitor` takes an **optional** provider. Without one every
-  predicate is still evaluated and every breach still raised.
-- **The thesis runs in eight lines**: an outcome that missed its estimate
-  reaches back through `estimated_as` and breaches the assumption a decision
-  rests on. Tested against a hand-built store — it binds nothing in a corpus run
-  until Phase 6 writes an `Outcome`, and the report says so beside that zero.
-- `praxis/agents/blocking.py` on `feat/phase-5-contradictions`, 100% covered.
-  **This is the O(n²) answer.** Records are indexed under keys and only records
-  sharing a key are ever paired; pairs form inside buckets and nowhere else, so
-  cost is bounded by `max_bucket²` per surviving key and by the cap overall. The
-  bound is a generated test rather than an argument.
-- **`max_bucket` does two jobs**: it bounds the work *and* it is the entire
-  stop-word rule — a token in more records than that is by definition not
-  discriminating. No hand-written list of common words exists in this package.
-- Keys are namespaced because the evidence is not equal: one shared `subject:`
-  key is enough alone, several `word:` keys are needed. **That asymmetry is why
-  the formalizer runs first** — it is what turns prose into a subject key.
-- A pair is ordered by id, so one pair has one identity. `contradicts` is
-  symmetric and stored once and a `Link` id is derived from its endpoints, so an
-  unordered pair would let two runs write two edges asserting one fact.
-- `ContradictionDetector` and `praxis/agents/detection.py`, both 100% covered.
-  **Three stages, and only the last is a model**: blocking proposes, the
-  interval arithmetic settles every pair whose conflict is a fact rather than a
-  judgement (confidence 1.0, zero calls), and only the residue reaches the
-  `reason` tier, batched twelve pairs to a call.
-- `Settlement` records which stage decided, so the eval table reports the
-  recalls apart. A low contradiction recall means three different things if
-  blocking never proposed the pair, if the arithmetic could not read the
-  predicates, or if the model was asked and said no.
-- **A false contradiction is the expensive direction to be wrong in** — it sends
-  a person to re-read a decision that was fine, and every later finding pays.
-  Each stage refuses rather than guesses.
-- Re-running is duplicate-free *by construction*: a `Link` id is derived from
-  its endpoints and the pair is ordered before the edge is built. Known edges
-  are read through `links_touching`, so one written the other way round counts.
-- Detection result types went into `praxis/agents/results.py` — `praxis.eval`
-  reads them, and it should not have to import the agent that makes the calls.
-- `ArchaeologistAgent` on `feat/phase-5-archaeologist`. **Its spec was never
-  written down** — three fragments exist (`RejectedOption`'s docstring, the
-  corpus generator's note, ADR 0006's routing) and nothing else. The contract
-  taken is **retrieval and grounding, not generation**; the module docstring
-  records the judgement so it can be reviewed, and ADR 0020 is still to write.
-- **The model selects, the store speaks.** It is asked which recorded decision
-  and which rejected option, both by reference into a listing; the answer is
-  assembled from the stored `reason`, the decision's fields and the current
-  status of the assumptions it rested on. Nothing the model writes reaches the
-  answer — its `note` sits beside it and is never spliced in.
-- An invented option cannot be expressed: the named option is checked against
-  the decision's own `rejected` tuple, matched no looser than case and
-  whitespace. A fuzzy match would let "Postgres" answer for a decision that
-  rejected "Postgres full-text search" — usually right, and the reason attached
-  would be presented as a quotation.
-- Retrieval is FTS5, and the question is reduced to **quoted** terms first:
-  `Repository.search` passes its argument through unchanged, so a bare question
-  mark is a malformed match expression rather than a search.
-
-- `ArchaeologistAgent` tested at **99%**. One test asserts every line of the
-  answer contains a stored field; another feeds the model an invented sentence
-  and asserts it reaches the `note` and never the `answer`.
-- **The tests found a real defect.** `MIN_TERM_LENGTH` was 3 and the terms are
-  `OR`-joined, so `why`, `not` and `for` matched almost every document and a
-  question about zeppelins retrieved the search index — a model call per
-  question, with the refusal left to a prompt. Raised to 4, the floor
-  `blocking.py` already uses for the same reason.
-
-- **The corpus now contains contradictions.** Before this it had none, so a
-  detector finding nothing and one finding everything scored identically —
-  which is not a metric. Every topic gained a `reversal_predicate` written to
-  be **provably** disjoint from its original, so the planted pair lands inside
-  what `intervals.py` can settle and the two recalls read apart. A test asserts
-  all four are provable rather than trusting they read as opposites.
-- A revision note is a **second pass, not a fifth template**: it is a reply to
-  a document that already exists, and scheduling it in the rotation would let
-  one be written before the assumption it revises. Only two templates state an
-  assumption, so the pass takes topics that actually have one.
-- Four revisions, not eight — the corpus keeps assumptions that were overturned
-  *and* assumptions that were not, or a detector flagging every pair would
-  score perfectly. **First cross-document edges in the key**, which
-  `BACKLOG.md` deferred until the metric they feed existed.
-- Fixtures pinning a document count now pass `revisions=0` so they mean what
-  they say; `praxis corpus generate` gained `--revisions` and reports how many
-  `contradicts` pairs were planted.
-
-- **The answer key now says what a monitoring run should conclude.**
-  `FORMAT_VERSION` is 2; a version 1 key is refused rather than read as one
-  with no expectations, or "the monitor found nothing" and "the corpus expected
-  nothing" would be the same number.
-- Measurements are **derived from each predicate**, not written beside it.
-  `measurements.py` computes a witness inside or outside the satisfying range
-  using the same interval arithmetic the detector uses — a hand-written literal
-  can disagree with its predicate, and the eval table would then report a
-  monitor bug that was really a typo in the key.
-- **The world is chosen first; every verdict is computed from it.** The first
-  draft assigned roles and added the measurement each role needed — and two
-  documents state `index_size_gb <= 50`, so it wrote one fact twice and was
-  silently wrong about one. Deriving verdicts from the assembled world makes
-  that unrepresentable, and a test asserts the key cannot contradict itself.
-- What this grades is **the pipeline, not the arithmetic**: the verdicts come
-  from the same evaluator the monitor uses, so `tests/predicates/` is what
-  catches an evaluator bug and this catches everything between a document and a
-  status. All three verdicts are represented, so neither a monitor that always
-  cries breach nor one that never does can score well.
-
-### Resume here
-
-Remaining: the `praxis/eval/` extension, `praxis/cli_monitor.py`, ADRs
-0017–0020, and `docs/reports/phase-5.md`.
-- `praxis/store/traces.py` gained `cost_by_agent` and `calls_by_agent` — the
-  cost column an eval table reports. Summed in Python over exact decimal
-  strings, because SQL's `SUM` would cast a TEXT column to REAL and the total
-  would depend on row order. Calls are counted beside cost: offline every cost
-  is zero, so a cost column alone says nothing about whether an agent ran.
-- **`praxis/eval/adrs.py` answers ADR 0001's first assumption, and it holds.**
-  63 of 64 hand-written predicates parse — **0.9844** against a threshold of
-  0.9 — and every expiry condition parses. This is the first assumption in this
-  project recorded in Praxis's own schema and then actually *answered*.
-- The one unreadable row is ADR 0015's third assumption (`outside [0.5, 2.0]`,
-  which is English). **It stays a finding**: a test names it by file, so
-  widening the grammar for one instance fails rather than quietly turning the
-  question into a feature request answered by editing it.
-- `praxis/eval/metrics.py` extended, still 100% and still arithmetic over
-  counts. `PairScore` exists because `Score` pairs by **byte overlap** — right
-  for an extraction that points at a place, wrong for a `contradicts` edge that
-  is already two record ids. `Score` gained `.label` so both render through one
-  function.
-- **`aged_misreported_as_breached` is a named property, not a cell to find.**
-  It should be zero and by construction is: the monitor reaches `BREACHED` only
-  through arithmetic on facts, so non-zero means the property broke rather than
-  a model being wrong. `HOLDING` is excluded from it — that is a wrong verdict
-  about a *measured* quantity, a different failure worth not folding in.
-- `FormalizationScore` is deliberately not a precision or a recall: no key entry
-  says an assumption *should* have compiled, and reporting it as a recall would
-  invite comparison with the extraction recalls beside it.
-- `praxis/agents/formalization.py` — the store pass for the formalizer, which
-  the agent had been missing. Two different skip reasons: already parses
-  (nothing to compile) and **already attempted**, read off the audit trail —
-  without the second, a re-run pays the `reason` tier for every uncompilable
-  assumption forever. `force` is named rather than guessed at, because the
-  first check is about the text and the second about the history.
-  **Committed under a stop signal with ruff and mypy green and no tests yet.**
-
-### Resume here — Phase 5 is NOT finished
-
-Stopped mid-strand on `feat/phase-5-eval` (pushed, tree clean). Merged and
-complete: predicates, formalizer, monitor, contradictions, archaeologist,
-corpus. On the eval strand and done: `cost_by_agent`/`calls_by_agent`,
-`praxis/eval/adrs.py`, the `metrics.py` extension.
-
-In order, what is left:
-
-1. **Tests for `praxis/agents/formalization.py`** — it is the only thing in the
-   tree with production code and no tests. Close this first.
-2. **`praxis/eval/harness.py`** — run formalize → monitor → detect after
-   extraction and grade them: `FormalizationScore` from the stored predicates,
-   `monitoring_score` against `truth.monitoring.verdicts`, `pair_score` over
-   `contradicts` links against the key's expected pairs (split by `Settlement`,
-   plus blocking recall), and cost per document per agent.
-3. **`praxis/eval/report.py`** — render the new rows into Phase 4's existing
-   table via `.label`; no arithmetic in that module.
-4. **`praxis/cli_monitor.py`** — `praxis formalize | monitor | contradictions |
-   why`, registered from `cli.py`.
-5. **ADRs 0017–0020** — the predicate DSL; blocking plus arithmetic-first
-   contradiction; the monitor's write-on-change and the no-model-can-breach
-   property; the ArchaeologistAgent contract (its spec was never written down,
-   so that ADR is the review surface).
-6. **`docs/reports/phase-5.md`** with the metrics table, then the PR, CI green,
-   merge commit, tag `v0.5-phase-5`, verify on the remote, close `EST-0006`
-   with an outcome.
-
-**Two things the report must say rather than let a number speak for itself.**
-The mock now answers a `predicate` field from the passage, so the formalizer's
-offline path genuinely runs — unlike Phase 4's all-zeros — and those numbers
-measure the plumbing, not a model. And the monitor's store-derived binding will
-read **zero** in a corpus run because nothing writes an `Outcome` until Phase 6:
-mechanism waiting, not mechanism failing.
-
-**Already earned and worth leading the report with:** ADR 0001's first
-assumption is answered and holds — 63 of 64 hand-written predicates parse,
-**0.9844** against its own threshold of 0.9.
-- `tests/agents/test_formalization.py` closes the one module that had production
-  code and no tests. 28 tests, **100%**. The two skip reasons are asserted
-  *apart* and each asserts the provider was never called — a skip that still
-  pays the reason tier is what the audit-trail check exists to prevent, and a
-  count alone would not catch it. `force` is tested from both sides: it re-opens
-  what an older prompt failed at and does **not** re-open one that already
-  parses, because the first check is about the text and `force` says nothing
-  about the text.
-- **The eval harness now grades the memory half.** `praxis/eval/memory.py` owns
-  the grading, `harness.py` runs formalize → monitor → detect after extraction;
-  splitting them keeps `harness.py` under the size limit and the join in one
-  place. Whole `praxis/eval` package at **100%**.
-- Everything is read back out of SQLite, which bites harder here than for
-  extraction: a monitoring verdict is a *status on a record*, so a run that
-  concluded `BREACHED` and had the write refused must grade as what the store
-  holds. The two exceptions are taken from the `DetectionRun` because no store
-  holds them — **which stage settled a pair, and what blocking proposed**.
-- `blocking_recall` is a recall and not a `PairScore`, for the reason
-  `fusion_recall` gives. Blocking is high-recall by design and a pair it
-  proposes that the key does not label is not wrong, so a precision against that
-  denominator would punish the stage for doing its job.
-- **An edge between two records the key cannot name is counted apart, not
-  scored.** The corpus labels the contradictions it *planted*; calling the rest
-  false positives would report the corpus's silence as the detector's error.
-- `praxis/eval/report.py` renders the memory half as **three sections, not one
-  table** — a parse rate, a confusion matrix collapsed to a number, and a
-  precision/recall over identified pairs are not comparable, and one table would
-  invite the comparison `FormalizationScore` argues against.
-- **Two counts carry their explanation into the artefact.** A zero beside "aged,
-  misreported as breached" reads as an unfilled column when it is a property
-  holding; a count of edges the key cannot name reads as that many detector
-  errors unless the line says otherwise. Both notes are constants, tested.
-- The confusion matrix is keyed `expected>reached` in the JSON, since JSON has
-  no tuple key. Costs are strings for the reason the rates are — invariant 4
-  reaches the artefact. `praxis/eval` is at **100%** across all seven modules.
-- **`praxis/cli_monitor.py`: `formalize`, `monitor`, `contradictions`, `why`**,
-  registered from `cli.py` in the order they are meant to be run. Both CLI
-  modules at **100%**. `_configured` became `configured_store` so the two open
-  the owner's store the same way rather than answering "what does a missing
-  store print" in two places.
-- Each command **says what it did not pay for**, because each is re-runnable and
-  a person has to tell "nothing changed" from "nothing worked". A second
-  `formalize` prints the two skip counts; a second `contradictions` prints zero
-  new edges. Those are correct outputs and the rendering has to make them read
-  that way.
-- `monitor` takes measurements as a **file**, not flags — a rate typed on a
-  command line is a string, and invariant 4's problem would arrive in the shell
-  before any code could refuse it.
-- `why` prints the record's words and the model's under **separate headings**. A
-  rendering that spliced the selection note into the answer would break the
-  agent's guarantee at the last moment where it still could. Tested directly.
-- **ADRs 0017–0020 written**: the predicate language, contradiction detection in
-  three stages, the monitor's two properties, the archaeologist's contract.
-  0019 pairs write-on-change with no-model-can-breach in one record because each
-  is what makes the other safe to run unattended. **0020 is the review surface**
-  for a contract that was never specified — three fragments existed and nothing
-  else, so what it states is a judgement.
-- Every predicate was checked against the real parser *before* being written
-  down. The ADR corpus is now **80 predicates, 79 parsing — 0.9875** against ADR
-  0001's threshold of 0.9, with all 80 expiry conditions parsing. The one
-  unreadable row is still ADR 0015's third assumption.
+One thing to carry forward: `praxis/agents/formalization.py` shipped at the end
+of a session with ruff and mypy green and **no tests**, under a stop signal. No
+other module here has ever shipped that way, the handover named it as the first
+thing to close, and the next session closed it at 100% before starting anything
+else. That worked — but the cheaper lesson is not to let a component reach a
+commit without its tests in the first place.
