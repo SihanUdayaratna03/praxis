@@ -643,3 +643,14 @@ assumption is answered and holds — 63 of 64 hand-written predicates parse,
 - **An edge between two records the key cannot name is counted apart, not
   scored.** The corpus labels the contradictions it *planted*; calling the rest
   false positives would report the corpus's silence as the detector's error.
+- `praxis/eval/report.py` renders the memory half as **three sections, not one
+  table** — a parse rate, a confusion matrix collapsed to a number, and a
+  precision/recall over identified pairs are not comparable, and one table would
+  invite the comparison `FormalizationScore` argues against.
+- **Two counts carry their explanation into the artefact.** A zero beside "aged,
+  misreported as breached" reads as an unfilled column when it is a property
+  holding; a count of edges the key cannot name reads as that many detector
+  errors unless the line says otherwise. Both notes are constants, tested.
+- The confusion matrix is keyed `expected>reached` in the JSON, since JSON has
+  no tuple key. Costs are strings for the reason the rates are — invariant 4
+  reaches the artefact. `praxis/eval` is at **100%** across all seven modules.
