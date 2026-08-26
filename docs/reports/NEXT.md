@@ -627,3 +627,19 @@ assumption is answered and holds — 63 of 64 hand-written predicates parse,
   what an older prompt failed at and does **not** re-open one that already
   parses, because the first check is about the text and `force` says nothing
   about the text.
+- **The eval harness now grades the memory half.** `praxis/eval/memory.py` owns
+  the grading, `harness.py` runs formalize → monitor → detect after extraction;
+  splitting them keeps `harness.py` under the size limit and the join in one
+  place. Whole `praxis/eval` package at **100%**.
+- Everything is read back out of SQLite, which bites harder here than for
+  extraction: a monitoring verdict is a *status on a record*, so a run that
+  concluded `BREACHED` and had the write refused must grade as what the store
+  holds. The two exceptions are taken from the `DetectionRun` because no store
+  holds them — **which stage settled a pair, and what blocking proposed**.
+- `blocking_recall` is a recall and not a `PairScore`, for the reason
+  `fusion_recall` gives. Blocking is high-recall by design and a pair it
+  proposes that the key does not label is not wrong, so a precision against that
+  denominator would punish the stage for doing its job.
+- **An edge between two records the key cannot name is counted apart, not
+  scored.** The corpus labels the contradictions it *planted*; calling the rest
+  false positives would report the corpus's silence as the detector's error.
