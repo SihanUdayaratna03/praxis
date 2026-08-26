@@ -654,3 +654,19 @@ assumption is answered and holds — 63 of 64 hand-written predicates parse,
 - The confusion matrix is keyed `expected>reached` in the JSON, since JSON has
   no tuple key. Costs are strings for the reason the rates are — invariant 4
   reaches the artefact. `praxis/eval` is at **100%** across all seven modules.
+- **`praxis/cli_monitor.py`: `formalize`, `monitor`, `contradictions`, `why`**,
+  registered from `cli.py` in the order they are meant to be run. Both CLI
+  modules at **100%**. `_configured` became `configured_store` so the two open
+  the owner's store the same way rather than answering "what does a missing
+  store print" in two places.
+- Each command **says what it did not pay for**, because each is re-runnable and
+  a person has to tell "nothing changed" from "nothing worked". A second
+  `formalize` prints the two skip counts; a second `contradictions` prints zero
+  new edges. Those are correct outputs and the rendering has to make them read
+  that way.
+- `monitor` takes measurements as a **file**, not flags — a rate typed on a
+  command line is a string, and invariant 4's problem would arrive in the shell
+  before any code could refuse it.
+- `why` prints the record's words and the model's under **separate headings**. A
+  rendering that spliced the selection note into the answer would break the
+  agent's guarantee at the last moment where it still could. Tested directly.
