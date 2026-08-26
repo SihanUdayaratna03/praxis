@@ -211,6 +211,23 @@ def fusion_recall(found: int, expected: int) -> Decimal:
     return _ratio(found, expected, PERFECT)
 
 
+def blocking_recall(proposed: int, expected: int) -> Decimal:
+    """Of the contradictions the corpus labels, how many blocking proposed.
+
+    A recall and nothing else, for the reason `fusion_recall` gives. Blocking is
+    a high-recall stage by design -- it puts forward every pair worth comparing
+    and lets two later stages refuse -- so a pair it proposes that the key does
+    not label is not thereby wrong, and a precision against that denominator
+    would punish the stage for doing its job.
+
+    It is reported because it is the ceiling the two settlement recalls sit
+    under. A pair blocking never proposed is a pair nothing will ever look at,
+    and without this number a low detection recall cannot be told apart from a
+    model that was never asked.
+    """
+    return _ratio(proposed, expected, PERFECT)
+
+
 def _ratio(numerator: int, denominator: int, when_empty: Decimal) -> Decimal:
     """A rate, or the stated convention when there is nothing to divide by."""
     if denominator == 0:

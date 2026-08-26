@@ -368,3 +368,37 @@ def test_a_run_that_lost_nothing_has_perfect_integrity(store, truth):
 
     assert result.citations.refused == 0
     assert result.citations.integrity == Decimal("1.0000")
+
+
+# -- what each agent cost per document -----------------------------------------
+
+
+def test_no_run_id_means_no_cost_to_report(store, truth):
+    # The trace table is keyed by run. Summing every row would total every run
+    # the store ever held, which is a number about the file rather than the run.
+    assert grade(store, truth, ExtractionRun()).cost == {}
+
+
+def test_cost_is_reported_per_agent_per_document(corpus):
+    # Offline every cost is zero, so what this asserts is the division and the
+    # keys -- that an agent which ran has a row, and that the denominator is the
+    # corpus rather than the call count.
+    connection = connect(MEMORY)
+    migrate(connection)
+    repository = Repository(connection)
+    try:
+        result = evaluate(repository, a_provider(), corpus, at=AT, run_id="RUN-0001")
+    finally:
+        repository.close()
+
+    assert result.documents == DOCUMENTS
+    assert set(result.cost) <= {
+        "AssumptionExtractor",
+        "AssumptionFormalizer",
+        "AssumptionMonitor",
+        "ContradictionDetector",
+        "DecisionScout",
+        "DecisionStructurer",
+        "SegmenterAgent",
+    }
+    assert all(isinstance(spent, Decimal) for spent in result.cost.values())
