@@ -162,6 +162,22 @@ def test_only_the_store_knows_the_database_driver(path: Path):
     assert "sqlite3" not in imports_of(path)
 
 
+@pytest.mark.parametrize(
+    "path", [p for p in source_files() if p.parent.name == "predicates"], ids=relative
+)
+def test_the_predicate_language_never_reaches_a_model(path: Path):
+    """Invariant 3 names the predicate evaluator, so it is checked as code.
+
+    `praxis.predicates` is not an agent and has no entry in `NON_LLM_AGENTS`,
+    which is exactly why this test exists: the registry cannot describe a
+    package, and the way determinism would be lost here is one convenient
+    import -- a formalizer asking a model to *evaluate* a predicate rather than
+    to write one. A predicate whose truth depends on sampling is not a
+    predicate, and this is where that stops being a sentence in a document.
+    """
+    assert "praxis.llm" not in _dotted_imports(path)
+
+
 DETERMINISTIC_MODULES = {
     "SourceAdapter": "praxis/ingest/adapters.py",
     "VerifierAgent": "praxis/ingest/verifier.py",

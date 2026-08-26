@@ -232,7 +232,9 @@ def test_init_warns_before_it_writes_to_a_synced_path(
 def test_corpus_generate_writes_a_corpus_that_verifies(tmp_path: Path) -> None:
     root = tmp_path / "corpus"
 
-    result = runner.invoke(app, ["corpus", "generate", str(root), "--documents", "4"])
+    result = runner.invoke(
+        app, ["corpus", "generate", str(root), "--documents", "4", "--revisions", "0"]
+    )
 
     assert result.exit_code == 0, result.output
     assert "OK" in result.output
@@ -243,13 +245,17 @@ def test_corpus_generate_writes_a_corpus_that_verifies(tmp_path: Path) -> None:
 def test_corpus_generate_takes_its_seed_from_the_configuration(tmp_path: Path) -> None:
     """So that a corpus regenerated on another machine is the same corpus,
     without anyone having to remember a number."""
-    result = runner.invoke(app, ["corpus", "generate", str(tmp_path / "c"), "--documents", "2"])
+    result = runner.invoke(
+        app, ["corpus", "generate", str(tmp_path / "c"), "--documents", "2", "--revisions", "0"]
+    )
 
     assert f"seed {get_settings().seed}" in result.output
 
 
 def test_corpus_generate_reports_a_bad_request_as_a_sentence(tmp_path: Path) -> None:
-    result = runner.invoke(app, ["corpus", "generate", str(tmp_path / "c"), "--documents", "0"])
+    result = runner.invoke(
+        app, ["corpus", "generate", str(tmp_path / "c"), "--documents", "0", "--revisions", "0"]
+    )
 
     assert result.exit_code == 1
     assert "at least one document" in result.output
@@ -257,7 +263,7 @@ def test_corpus_generate_reports_a_bad_request_as_a_sentence(tmp_path: Path) -> 
 
 def test_ingest_reads_a_corpus_into_the_store(tmp_path: Path) -> None:
     corpus = tmp_path / "corpus"
-    runner.invoke(app, ["corpus", "generate", str(corpus), "--documents", "3"])
+    runner.invoke(app, ["corpus", "generate", str(corpus), "--documents", "3", "--revisions", "0"])
     runner.invoke(app, ["init"])
 
     result = runner.invoke(app, ["ingest", str(corpus / "documents")])
@@ -270,7 +276,7 @@ def test_ingest_reads_a_corpus_into_the_store(tmp_path: Path) -> None:
 
 def test_ingest_recognises_a_corpus_it_has_already_read(tmp_path: Path) -> None:
     corpus = tmp_path / "corpus"
-    runner.invoke(app, ["corpus", "generate", str(corpus), "--documents", "2"])
+    runner.invoke(app, ["corpus", "generate", str(corpus), "--documents", "2", "--revisions", "0"])
     runner.invoke(app, ["init"])
     runner.invoke(app, ["ingest", str(corpus / "documents")])
 
@@ -313,7 +319,9 @@ def test_bare_corpus_shows_its_subcommands() -> None:
 def a_corpus(tmp_path: Path, documents: int = 3) -> Path:
     """A generated corpus, through the command a user would type."""
     root = tmp_path / "corpus"
-    runner.invoke(app, ["corpus", "generate", str(root), "--documents", str(documents)])
+    runner.invoke(
+        app, ["corpus", "generate", str(root), "--documents", str(documents), "--revisions", "0"]
+    )
     return root
 
 
@@ -549,3 +557,125 @@ def test_eval_closes_its_scratch_store_when_the_migration_fails(
 
     assert result.exit_code == 1
     assert "the schema will not apply" in result.output
+
+
+# --- Phase 5: the memory half ---------------------------------------------
+
+
+def an_extracted_store(tmp_path: Path, documents: int = 3) -> Path:
+    """A store with Half A's records in it, ready for the memory commands."""
+    corpus = an_ingested_store(tmp_path, documents)
+    runner.invoke(app, ["extract"])
+    return corpus
+
+
+def test_formalize_compiles_the_store_s_assumptions(tmp_path: Path) -> None:
+    an_extracted_store(tmp_path)
+
+    result = runner.invoke(app, ["formalize"])
+
+    assert result.exit_code == 0, result.output
+    assert "compiled" in result.output
+    assert "calls via mock" in result.output
+
+
+def test_formalize_reports_what_it_did_not_pay_for_twice(tmp_path: Path) -> None:
+    # The claim the audit-trail check exists for. A second pass over the same
+    # store spends nothing, and saying so is how a person knows it did not.
+    an_extracted_store(tmp_path)
+    runner.invoke(app, ["formalize"])
+
+    result = runner.invoke(app, ["formalize"])
+
+    assert result.exit_code == 0, result.output
+    assert "skipped" in result.output
+
+
+def test_formalize_without_a_store_says_to_run_init(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["formalize"])
+
+    assert result.exit_code == 1
+    assert "praxis init" in result.output
+
+
+def test_monitor_reaches_a_verdict_about_every_assumption(tmp_path: Path) -> None:
+    an_extracted_store(tmp_path)
+    runner.invoke(app, ["formalize"])
+
+    result = runner.invoke(app, ["monitor"])
+
+    assert result.exit_code == 0, result.output
+    assert "assumptions" in result.output
+    assert "unchecked" in result.output
+
+
+def test_monitor_names_expired_apart_from_breached(tmp_path: Path) -> None:
+    # The distinction this phase is graded on. A monitor that folded the two
+    # into one line would be reporting a number nobody can act on.
+    an_extracted_store(tmp_path)
+
+    result = runner.invoke(app, ["monitor"])
+
+    assert result.exit_code == 0, result.output
+    assert "expired" in result.output
+    assert "breached" in result.output
+
+
+def test_monitor_reads_the_facts_it_is_given(tmp_path: Path) -> None:
+    an_extracted_store(tmp_path)
+    facts = tmp_path / "facts.json"
+    facts.write_text('{"facts": {"index_size_gb": "80"}}', encoding="utf-8")
+
+    result = runner.invoke(app, ["monitor", "--facts", str(facts)])
+
+    assert result.exit_code == 0, result.output
+
+
+def test_monitor_reports_an_unreadable_facts_file_as_a_sentence(tmp_path: Path) -> None:
+    an_extracted_store(tmp_path)
+
+    result = runner.invoke(app, ["monitor", "--facts", str(tmp_path / "absent.json")])
+
+    assert result.exit_code == 1
+    assert "praxis monitor" in result.output
+
+
+def test_contradictions_reports_each_stage_apart(tmp_path: Path) -> None:
+    # A pair nobody proposed and a pair a model judged not to conflict are
+    # different results, so the output has to be able to say which happened.
+    an_extracted_store(tmp_path)
+    runner.invoke(app, ["formalize"])
+
+    result = runner.invoke(app, ["contradictions"])
+
+    assert result.exit_code == 0, result.output
+    assert "proposed" in result.output
+    assert "by arithmetic" in result.output
+
+
+def test_contradictions_writes_no_duplicates_on_a_second_run(tmp_path: Path) -> None:
+    an_extracted_store(tmp_path)
+    runner.invoke(app, ["contradictions"])
+
+    result = runner.invoke(app, ["contradictions"])
+
+    assert result.exit_code == 0, result.output
+    assert "written    0 new edges" in result.output
+
+
+def test_why_refuses_a_question_the_record_does_not_answer(tmp_path: Path) -> None:
+    # A refusal is the cheap outcome and a wrong match is the expensive one, so
+    # this exits non-zero rather than printing a guess.
+    an_extracted_store(tmp_path)
+
+    result = runner.invoke(app, ["why", "why not zeppelins"])
+
+    assert result.exit_code == 1
+    assert "praxis why" in result.output
+
+
+def test_why_without_a_store_says_to_run_init(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["why", "why not Postgres"])
+
+    assert result.exit_code == 1
+    assert "praxis init" in result.output

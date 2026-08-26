@@ -28,6 +28,7 @@ from rich.console import Console
 
 from praxis import __version__
 from praxis.cli_eval import eval_corpus, extract
+from praxis.cli_monitor import contradictions, formalize, monitor, why
 from praxis.cli_tables import configuration_table, links_table, records_table, routing_table
 from praxis.config.models import (
     NON_LLM_AGENTS,
@@ -36,7 +37,14 @@ from praxis.config.models import (
     routed_agents,
 )
 from praxis.config.settings import ProviderName, Settings, get_settings
-from praxis.corpus.generator import DEFAULT_DOCUMENTS, CorpusError, generate_corpus
+from praxis.corpus.generator import (
+    DEFAULT_DOCUMENTS,
+    DEFAULT_REVISIONS,
+    CorpusError,
+    generate_corpus,
+)
+from praxis.corpus.groundtruth import CorpusGroundTruth
+from praxis.domain.links import LinkType
 from praxis.ingest.pipeline import IngestionPipeline, IngestionRun
 from praxis.llm.errors import ProviderError
 from praxis.llm.factory import provider_for
@@ -240,6 +248,14 @@ def _report_ingestion(run: IngestionRun, settings: Settings) -> None:
 app.command(name="extract")(extract)
 app.command(name="eval")(eval_corpus)
 
+# The memory half, from `praxis.cli_monitor`, for the same reason. These four
+# run over what the store already holds rather than over its documents, and the
+# order they are registered in is the order they are meant to be run in.
+app.command(name="formalize")(formalize)
+app.command(name="monitor")(monitor)
+app.command(name="contradictions")(contradictions)
+app.command(name="why")(why)
+
 
 @corpus_app.command(name="generate")
 def corpus_generate(
@@ -247,6 +263,10 @@ def corpus_generate(
     documents: Annotated[
         int, typer.Option(help="How many documents to write.")
     ] = DEFAULT_DOCUMENTS,
+    revisions: Annotated[
+        int,
+        typer.Option(help="Revision notes overturning an earlier assumption."),
+    ] = DEFAULT_REVISIONS,
     seed: Annotated[int | None, typer.Option(help="Overrides PRAXIS_SEED for this corpus.")] = None,
 ) -> None:
     """Write the synthetic corpus and the answer key Phase 10 grades against.
@@ -254,6 +274,11 @@ def corpus_generate(
     Deterministic: the same seed produces the same bytes, so regenerating is
     safe and a corpus in version control has a legible diff. The generated
     corpus verifies against itself before this returns.
+
+    Revision notes are written after the main pass and each overturns an
+    assumption an earlier document stated, which is the `contradicts` ground
+    truth `ContradictionDetector` is graded against. `--revisions 0` writes the
+    Phase 3 corpus and nothing else.
     """
     settings = get_settings()
     configure_logging(settings)
@@ -262,6 +287,7 @@ def corpus_generate(
         truth = generate_corpus(
             root,
             documents=documents,
+            revisions=revisions,
             seed=settings.seed if seed is None else seed,
             generated_at=datetime.now(UTC),
         )
@@ -276,6 +302,7 @@ def corpus_generate(
     console.print(f"  documents  {len(truth.documents)}, seed {truth.seed}")
     console.print(f"  items      {', '.join(f'{n} {k.value}' for k, n in counts.items())}")
     console.print(f"  negatives  {distractors} distractors")
+    console.print(f"  edges      {_contradictions(truth)} contradicts pairs planted")
 
 
 @app.command()
@@ -406,3 +433,16 @@ def _report(
     console.print(f"  python     {sys.version.split()[0]}")
     console.print(f"  version    {__version__}")
     console.print(f"  data dir   {settings.data_dir}")
+
+
+def _contradictions(truth: CorpusGroundTruth) -> int:
+    """How many `contradicts` edges the answer key asserts.
+
+    Reported because it is the number that decides whether a contradiction
+    metric means anything: before the revision notes existed the corpus had
+    none, and a detector finding nothing scored the same as one finding
+    everything.
+    """
+    return sum(
+        1 for item in truth.items for link in item.links if link.link_type is LinkType.CONTRADICTS
+    )

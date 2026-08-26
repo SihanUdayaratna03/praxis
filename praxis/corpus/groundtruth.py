@@ -40,14 +40,21 @@ from typing import Final, Self
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from praxis.domain.base import NonEmptyStr
-from praxis.domain.enums import RecordKind, SourceKind
+from praxis.domain.enums import AssumptionStatus, RecordKind, SourceKind
 from praxis.domain.links import LinkType, endpoints_are_valid
 from praxis.ingest.adapters import read_source
 from praxis.ingest.errors import IngestionError
 
-FORMAT_VERSION: Final = 1
+FORMAT_VERSION: Final = 2
 """The shape of this file. A grader reads it before anything else and refuses a
-corpus it does not understand, rather than mis-scoring one."""
+corpus it does not understand, rather than mis-scoring one.
+
+Version 2 added the `monitoring` section: the measurements a monitoring run
+should be graded against and what it should conclude about each assumption.
+A version 1 key is refused rather than read as one with no expectations,
+because "the monitor found nothing" and "the corpus expected nothing" would
+otherwise be the same number.
+"""
 
 GROUND_TRUTH_FILENAME: Final = "ground_truth.json"
 DOCUMENTS_DIRNAME: Final = "documents"
@@ -118,6 +125,57 @@ class ExpectedField(BaseModel):
             message = f"a {self.comparison.value} comparison has no use for a tolerance"
             raise ValueError(message)
         return self
+
+
+class ExpectedVerdict(BaseModel):
+    """What a monitoring run should conclude about one assumption.
+
+    Attributes:
+        item_id: The assumption item, which must be in this corpus.
+        status: What `AssumptionMonitor` should decide, given `facts` and
+            `events`. `UNVERIFIED` is a real expectation and the most common
+            one -- most assumptions in any corpus have never been measured, and
+            a monitor that guessed at them would be the failure this phase is
+            arranged to prevent.
+        note: Why. Read by a person looking at a failed grading.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    item_id: NonEmptyStr
+    status: AssumptionStatus
+    note: str = ""
+
+
+class MonitoringExpectation(BaseModel):
+    """The world a monitoring run is graded in, and what it should conclude.
+
+    Separate from the items because it is not a property of any one document.
+    The measurements are the state of the world at a moment; the verdicts are
+    what follows from them, and both span the whole corpus.
+
+    Attributes:
+        facts: Identifier to measurement, as text. Text rather than a number
+            because JSON has one numeric type and Python reads it as a float,
+            which is the representation invariant 4 keeps out of the arithmetic
+            -- `praxis.monitor.facts` parses these back to `Decimal`.
+        events: What has been observed to happen, in the words someone used.
+        as_of: When these were true. Timezone-aware, invariant 5.
+        verdicts: One per assumption the corpus has an expectation about.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    facts: Mapping[str, str] = {}
+    events: tuple[str, ...] = ()
+    as_of: AwareDatetime | None = None
+    verdicts: tuple[ExpectedVerdict, ...] = ()
+
+    def expected(self, item_id: str) -> AssumptionStatus | None:
+        """What this corpus expects for one assumption, or `None` if it says nothing."""
+        return next(
+            (verdict.status for verdict in self.verdicts if verdict.item_id == item_id), None
+        )
 
 
 class ExpectedLink(BaseModel):
@@ -231,6 +289,7 @@ class CorpusGroundTruth(BaseModel):
     seed: int
     generated_at: AwareDatetime
     documents: tuple[DocumentGroundTruth, ...] = ()
+    monitoring: MonitoringExpectation = MonitoringExpectation()
 
     @property
     def items(self) -> tuple[GroundTruthItem, ...]:
@@ -304,6 +363,7 @@ def verify_corpus(root: Path) -> tuple[str, ...]:
     for document in truth.documents:
         problems.extend(_document_problems(root, document, seen))
     problems.extend(_edge_problems(truth))
+    problems.extend(_monitoring_problems(truth))
     return tuple(problems)
 
 
@@ -367,6 +427,26 @@ def _edge_problems(truth: CorpusGroundTruth) -> list[str]:
                     f"{item.kind.value} --{link.link_type.value}--> {target.kind.value} "
                     f"is not a relationship the graph expresses ({item.item_id})"
                 )
+    return problems
+
+
+def _monitoring_problems(truth: CorpusGroundTruth) -> list[str]:
+    """Check every expected verdict names an assumption this corpus contains.
+
+    The same check `_edge_problems` makes about edges, for the same reason: an
+    expectation about an item that is not here would be graded as a miss
+    forever, and the miss would look like a monitor that never found it.
+    """
+    by_id = {item.item_id: item for item in truth.items}
+    problems: list[str] = []
+    for verdict in truth.monitoring.verdicts:
+        found = by_id.get(verdict.item_id)
+        if found is None:
+            problems.append(f"{verdict.item_id} has an expected verdict and is not in this corpus")
+        elif found.kind is not ItemKind.ASSUMPTION:
+            problems.append(
+                f"{verdict.item_id} has an expected verdict and is a {found.kind.value}"
+            )
     return problems
 
 

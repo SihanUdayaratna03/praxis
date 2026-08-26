@@ -334,3 +334,349 @@ it changed except when it is built.
 Phase 4 is complete: merged, tagged `v0.4-phase-4`, `OUT-0005` closed. Phase 5
 starts by reading `docs/reports/phase-4.md`'s last section, then logging
 `EST-0006` on a fresh branch **before** any Phase 5 file exists.
+
+---
+
+## Phase 5 progress log
+
+Appended as each component lands, so an interrupted session can resume from the
+last line rather than from the diff.
+
+**Phase 5 is Assumption Formalization and Monitoring**, and it closes Half A.
+Phase 4 extracted assumptions as natural language tied to a `Span`; this phase
+makes them checkable. `AssumptionFormalizer`, `AssumptionMonitor`,
+`ContradictionDetector` and `ArchaeologistAgent`, plus the predicate DSL that
+[`BACKLOG.md`](../../BACKLOG.md) and ADR 0001 assumption 1 have both been
+waiting for.
+
+- `EST-0006` logged on the phase branch before any Phase 5 file existed: **6.5h
+  active, 24.0h blocked**, confidence 0.40, class `agent-implementation`. The
+  ratios were **recomputed from the log rather than recalled**, and they do not
+  say what the previous four calibration notes said: five outcomes across
+  **four** classes, not five, with `agent-implementation` at `n = 2` and both
+  points over-estimates. No correction applied for the sixth time -- and the
+  note refuses the disguised version too, since rescaling by the measured
+  throughput of the same work class is a bias correction wearing a hat.
+- `praxis/predicates/` — the DSL, on `feat/phase-5-predicates`. Lexer, parser
+  and renderer first, at 100% coverage. **A truth value is three-valued**:
+  `TRUE`, `FALSE`, `UNKNOWN(reason)`. An assumption mentioning a quantity
+  nobody measured has not been violated, it has not been *checked*, and a
+  two-valued evaluator has to call that false -- which is what raises a breach.
+  The whole distinction this phase is graded on lives in that gap, so it is in
+  the type rather than in a convention.
+- The grammar is shaped by the predicates already in this repository, not by
+  taste: digit separators because two ADRs write `1_000_000`, division because
+  ADR 0001's own assumption is a ratio, and `between a and b` because ADR 0007
+  writes commits-per-phase that way. It desugars rather than surviving as a
+  node the interval arithmetic would have to learn twice.
+- **A term at the top is refused.** `index_size_gb` is a quantity, not a claim,
+  and accepting it would let a predicate truncated by a bad model answer parse
+  as though it said something.
+- **The one ADR predicate that does not parse is left not parsing.** ADR 0015
+  assumption 3 says a ratio should be `outside [0.5, 2.0]`, which is English.
+  ADR 0001 assumption 1 exists to surface exactly that; widening the grammar
+  for one instance would be answering the question by editing it.
+- `praxis/predicates/evaluator.py` and `world.py`. **Kleene, not Python**:
+  `false and unknown` is `false`, because no measurement could rescue it. The
+  arithmetic context is *owned* rather than inherited -- `decimal`'s context is
+  per-thread and anyone can change it, and the test pins a threshold sitting
+  between two-thirds at three digits and at twenty-eight.
+- **The monotonicity property is the one the monitor rests on**, and it is
+  generated rather than sampled: adding facts may decide an undecided predicate
+  and may never change a decided one. If that breaks, supplying a fact can
+  raise a breach against a decision that was holding.
+- A `WorldState` is a value, not a service. Facts, events and a clock, answered
+  from what it was built with. Events match after case-and-whitespace
+  normalisation and nothing looser -- anything looser is a judgement, and it is
+  made in `AssumptionMonitor` on a path that can only *age* an assumption.
+- `praxis/predicates/expiry.py` and `intervals.py`. Three expiry forms and no
+  more -- an observation, not a design: every condition in `docs/adr/` and
+  `corpus/topics.py` is a `when`, an `after` or an `on_event`. Firing is
+  three-valued too, so an undecided condition expires nothing.
+- **The interval arithmetic settles contradictions a model has no privileged
+  access to.** `index_size_gb <= 50` against `> 50` permits disjoint sets of
+  numbers; that costs nothing, is reproducible, and leaves the `reason` tier
+  for pairs that are genuinely a judgement.
+- `constraints_of` returns **nothing at all** for a disjunction rather than
+  reading the readable half. A weakened claim is what produces a *false*
+  contradiction, and that is the expensive direction to be wrong in.
+- `praxis/predicates/` is done: **167 tests, 99% coverage**, no model anywhere
+  in it. The whole package is the deterministic half invariant 3 names.
+- `AssumptionFormalizer` on `feat/phase-5-formalizer`, 100% covered. It stores
+  the **rendered** predicate rather than the model's spelling, so `x<=50` and
+  `x <= 50` become one string and land in one blocking bucket later. One retry,
+  shown the parse error; two would be a repair loop, which
+  `praxis.llm.structured` already owns for the *schema*.
+- **Nothing is dropped.** An assumption that will not compile is written with
+  its confidence capped at 0.3 and the audit reason saying why. Safe because
+  the monitor cannot breach on a predicate that does not parse, and better than
+  silence because a person can fix what they can see.
+- `is_checkable` is a **parse, not a stored flag** -- a flag can disagree with
+  the text beside it. That is also the re-runnability: an assumption that
+  already parses is skipped with no model call.
+- **The offline provider now answers a `predicate` field from the passage.**
+  `praxis/llm/synthesis.py` gained `predicates_in` and `expiries_in`, matched on
+  shape because `praxis.llm` may not import `praxis.predicates`. Exactly the
+  `ordinals_in` argument from Phase 4: without it the branch that *stores* a
+  formalized predicate never runs offline and only the refusal path is covered.
+  The numbers are still about the plumbing, and the report has to say so.
+- `tests/test_boundaries.py` gained a row: `praxis/predicates/` never imports
+  `praxis.llm`. The package is not an agent, so `NON_LLM_AGENTS` cannot describe
+  it, and one convenient import is how invariant 3 would actually be lost here.
+- `praxis/monitor/` on `feat/phase-5-monitor`, at **99%**. **No model output can
+  breach an assumption**, and that is structural rather than a convention: the
+  model is asked one question -- does a recorded observation report the event an
+  `on_event(...)` names -- and its answer can only add an observation, which can
+  only fire an expiry, which can only produce `EXPIRED`. A wrong answer ages an
+  assumption early; it cannot accuse a decision of resting on something false.
+- The four statuses fall out of three-valued evaluation and nothing else: false
+  is a breach, true is holding, unknown-with-a-fired-expiry is expired, and
+  unknown-without-one is **unchanged and reported rather than written**.
+- That last row is the whole of re-runnability. Evaluation is free, so the
+  monitor always evaluates and **writes only when the verdict changes** — the
+  store already holds the last one, so this needs no column and no marker. The
+  test asserts it against version counts and audit rows, not against a flag.
+- An `AssumptionBreach` is a `Finding` with the kind Phase 1 already defined.
+  **One per breached assumption**, never one per decision resting on it: the
+  decisions are reverse-reachable over `assumes`, and N findings for one fact
+  would make a count of breaches a count of citations. Severity is arithmetic.
+- `AssumptionMonitor` takes an **optional** provider. Without one every
+  predicate is still evaluated and every breach still raised.
+- **The thesis runs in eight lines**: an outcome that missed its estimate
+  reaches back through `estimated_as` and breaches the assumption a decision
+  rests on. Tested against a hand-built store — it binds nothing in a corpus run
+  until Phase 6 writes an `Outcome`, and the report says so beside that zero.
+- `praxis/agents/blocking.py` on `feat/phase-5-contradictions`, 100% covered.
+  **This is the O(n²) answer.** Records are indexed under keys and only records
+  sharing a key are ever paired; pairs form inside buckets and nowhere else, so
+  cost is bounded by `max_bucket²` per surviving key and by the cap overall. The
+  bound is a generated test rather than an argument.
+- **`max_bucket` does two jobs**: it bounds the work *and* it is the entire
+  stop-word rule — a token in more records than that is by definition not
+  discriminating. No hand-written list of common words exists in this package.
+- Keys are namespaced because the evidence is not equal: one shared `subject:`
+  key is enough alone, several `word:` keys are needed. **That asymmetry is why
+  the formalizer runs first** — it is what turns prose into a subject key.
+- A pair is ordered by id, so one pair has one identity. `contradicts` is
+  symmetric and stored once and a `Link` id is derived from its endpoints, so an
+  unordered pair would let two runs write two edges asserting one fact.
+- `ContradictionDetector` and `praxis/agents/detection.py`, both 100% covered.
+  **Three stages, and only the last is a model**: blocking proposes, the
+  interval arithmetic settles every pair whose conflict is a fact rather than a
+  judgement (confidence 1.0, zero calls), and only the residue reaches the
+  `reason` tier, batched twelve pairs to a call.
+- `Settlement` records which stage decided, so the eval table reports the
+  recalls apart. A low contradiction recall means three different things if
+  blocking never proposed the pair, if the arithmetic could not read the
+  predicates, or if the model was asked and said no.
+- **A false contradiction is the expensive direction to be wrong in** — it sends
+  a person to re-read a decision that was fine, and every later finding pays.
+  Each stage refuses rather than guesses.
+- Re-running is duplicate-free *by construction*: a `Link` id is derived from
+  its endpoints and the pair is ordered before the edge is built. Known edges
+  are read through `links_touching`, so one written the other way round counts.
+- Detection result types went into `praxis/agents/results.py` — `praxis.eval`
+  reads them, and it should not have to import the agent that makes the calls.
+- `ArchaeologistAgent` on `feat/phase-5-archaeologist`. **Its spec was never
+  written down** — three fragments exist (`RejectedOption`'s docstring, the
+  corpus generator's note, ADR 0006's routing) and nothing else. The contract
+  taken is **retrieval and grounding, not generation**; the module docstring
+  records the judgement so it can be reviewed, and ADR 0020 is still to write.
+- **The model selects, the store speaks.** It is asked which recorded decision
+  and which rejected option, both by reference into a listing; the answer is
+  assembled from the stored `reason`, the decision's fields and the current
+  status of the assumptions it rested on. Nothing the model writes reaches the
+  answer — its `note` sits beside it and is never spliced in.
+- An invented option cannot be expressed: the named option is checked against
+  the decision's own `rejected` tuple, matched no looser than case and
+  whitespace. A fuzzy match would let "Postgres" answer for a decision that
+  rejected "Postgres full-text search" — usually right, and the reason attached
+  would be presented as a quotation.
+- Retrieval is FTS5, and the question is reduced to **quoted** terms first:
+  `Repository.search` passes its argument through unchanged, so a bare question
+  mark is a malformed match expression rather than a search.
+
+- `ArchaeologistAgent` tested at **99%**. One test asserts every line of the
+  answer contains a stored field; another feeds the model an invented sentence
+  and asserts it reaches the `note` and never the `answer`.
+- **The tests found a real defect.** `MIN_TERM_LENGTH` was 3 and the terms are
+  `OR`-joined, so `why`, `not` and `for` matched almost every document and a
+  question about zeppelins retrieved the search index — a model call per
+  question, with the refusal left to a prompt. Raised to 4, the floor
+  `blocking.py` already uses for the same reason.
+
+- **The corpus now contains contradictions.** Before this it had none, so a
+  detector finding nothing and one finding everything scored identically —
+  which is not a metric. Every topic gained a `reversal_predicate` written to
+  be **provably** disjoint from its original, so the planted pair lands inside
+  what `intervals.py` can settle and the two recalls read apart. A test asserts
+  all four are provable rather than trusting they read as opposites.
+- A revision note is a **second pass, not a fifth template**: it is a reply to
+  a document that already exists, and scheduling it in the rotation would let
+  one be written before the assumption it revises. Only two templates state an
+  assumption, so the pass takes topics that actually have one.
+- Four revisions, not eight — the corpus keeps assumptions that were overturned
+  *and* assumptions that were not, or a detector flagging every pair would
+  score perfectly. **First cross-document edges in the key**, which
+  `BACKLOG.md` deferred until the metric they feed existed.
+- Fixtures pinning a document count now pass `revisions=0` so they mean what
+  they say; `praxis corpus generate` gained `--revisions` and reports how many
+  `contradicts` pairs were planted.
+
+- **The answer key now says what a monitoring run should conclude.**
+  `FORMAT_VERSION` is 2; a version 1 key is refused rather than read as one
+  with no expectations, or "the monitor found nothing" and "the corpus expected
+  nothing" would be the same number.
+- Measurements are **derived from each predicate**, not written beside it.
+  `measurements.py` computes a witness inside or outside the satisfying range
+  using the same interval arithmetic the detector uses — a hand-written literal
+  can disagree with its predicate, and the eval table would then report a
+  monitor bug that was really a typo in the key.
+- **The world is chosen first; every verdict is computed from it.** The first
+  draft assigned roles and added the measurement each role needed — and two
+  documents state `index_size_gb <= 50`, so it wrote one fact twice and was
+  silently wrong about one. Deriving verdicts from the assembled world makes
+  that unrepresentable, and a test asserts the key cannot contradict itself.
+- What this grades is **the pipeline, not the arithmetic**: the verdicts come
+  from the same evaluator the monitor uses, so `tests/predicates/` is what
+  catches an evaluator bug and this catches everything between a document and a
+  status. All three verdicts are represented, so neither a monitor that always
+  cries breach nor one that never does can score well.
+
+### Resume here
+
+Remaining: the `praxis/eval/` extension, `praxis/cli_monitor.py`, ADRs
+0017–0020, and `docs/reports/phase-5.md`.
+- `praxis/store/traces.py` gained `cost_by_agent` and `calls_by_agent` — the
+  cost column an eval table reports. Summed in Python over exact decimal
+  strings, because SQL's `SUM` would cast a TEXT column to REAL and the total
+  would depend on row order. Calls are counted beside cost: offline every cost
+  is zero, so a cost column alone says nothing about whether an agent ran.
+- **`praxis/eval/adrs.py` answers ADR 0001's first assumption, and it holds.**
+  63 of 64 hand-written predicates parse — **0.9844** against a threshold of
+  0.9 — and every expiry condition parses. This is the first assumption in this
+  project recorded in Praxis's own schema and then actually *answered*.
+- The one unreadable row is ADR 0015's third assumption (`outside [0.5, 2.0]`,
+  which is English). **It stays a finding**: a test names it by file, so
+  widening the grammar for one instance fails rather than quietly turning the
+  question into a feature request answered by editing it.
+- `praxis/eval/metrics.py` extended, still 100% and still arithmetic over
+  counts. `PairScore` exists because `Score` pairs by **byte overlap** — right
+  for an extraction that points at a place, wrong for a `contradicts` edge that
+  is already two record ids. `Score` gained `.label` so both render through one
+  function.
+- **`aged_misreported_as_breached` is a named property, not a cell to find.**
+  It should be zero and by construction is: the monitor reaches `BREACHED` only
+  through arithmetic on facts, so non-zero means the property broke rather than
+  a model being wrong. `HOLDING` is excluded from it — that is a wrong verdict
+  about a *measured* quantity, a different failure worth not folding in.
+- `FormalizationScore` is deliberately not a precision or a recall: no key entry
+  says an assumption *should* have compiled, and reporting it as a recall would
+  invite comparison with the extraction recalls beside it.
+- `praxis/agents/formalization.py` — the store pass for the formalizer, which
+  the agent had been missing. Two different skip reasons: already parses
+  (nothing to compile) and **already attempted**, read off the audit trail —
+  without the second, a re-run pays the `reason` tier for every uncompilable
+  assumption forever. `force` is named rather than guessed at, because the
+  first check is about the text and the second about the history.
+  **Committed under a stop signal with ruff and mypy green and no tests yet.**
+
+### Resume here — Phase 5 is NOT finished
+
+Stopped mid-strand on `feat/phase-5-eval` (pushed, tree clean). Merged and
+complete: predicates, formalizer, monitor, contradictions, archaeologist,
+corpus. On the eval strand and done: `cost_by_agent`/`calls_by_agent`,
+`praxis/eval/adrs.py`, the `metrics.py` extension.
+
+In order, what is left:
+
+1. **Tests for `praxis/agents/formalization.py`** — it is the only thing in the
+   tree with production code and no tests. Close this first.
+2. **`praxis/eval/harness.py`** — run formalize → monitor → detect after
+   extraction and grade them: `FormalizationScore` from the stored predicates,
+   `monitoring_score` against `truth.monitoring.verdicts`, `pair_score` over
+   `contradicts` links against the key's expected pairs (split by `Settlement`,
+   plus blocking recall), and cost per document per agent.
+3. **`praxis/eval/report.py`** — render the new rows into Phase 4's existing
+   table via `.label`; no arithmetic in that module.
+4. **`praxis/cli_monitor.py`** — `praxis formalize | monitor | contradictions |
+   why`, registered from `cli.py`.
+5. **ADRs 0017–0020** — the predicate DSL; blocking plus arithmetic-first
+   contradiction; the monitor's write-on-change and the no-model-can-breach
+   property; the ArchaeologistAgent contract (its spec was never written down,
+   so that ADR is the review surface).
+6. **`docs/reports/phase-5.md`** with the metrics table, then the PR, CI green,
+   merge commit, tag `v0.5-phase-5`, verify on the remote, close `EST-0006`
+   with an outcome.
+
+**Two things the report must say rather than let a number speak for itself.**
+The mock now answers a `predicate` field from the passage, so the formalizer's
+offline path genuinely runs — unlike Phase 4's all-zeros — and those numbers
+measure the plumbing, not a model. And the monitor's store-derived binding will
+read **zero** in a corpus run because nothing writes an `Outcome` until Phase 6:
+mechanism waiting, not mechanism failing.
+
+**Already earned and worth leading the report with:** ADR 0001's first
+assumption is answered and holds — 63 of 64 hand-written predicates parse,
+**0.9844** against its own threshold of 0.9.
+- `tests/agents/test_formalization.py` closes the one module that had production
+  code and no tests. 28 tests, **100%**. The two skip reasons are asserted
+  *apart* and each asserts the provider was never called — a skip that still
+  pays the reason tier is what the audit-trail check exists to prevent, and a
+  count alone would not catch it. `force` is tested from both sides: it re-opens
+  what an older prompt failed at and does **not** re-open one that already
+  parses, because the first check is about the text and `force` says nothing
+  about the text.
+- **The eval harness now grades the memory half.** `praxis/eval/memory.py` owns
+  the grading, `harness.py` runs formalize → monitor → detect after extraction;
+  splitting them keeps `harness.py` under the size limit and the join in one
+  place. Whole `praxis/eval` package at **100%**.
+- Everything is read back out of SQLite, which bites harder here than for
+  extraction: a monitoring verdict is a *status on a record*, so a run that
+  concluded `BREACHED` and had the write refused must grade as what the store
+  holds. The two exceptions are taken from the `DetectionRun` because no store
+  holds them — **which stage settled a pair, and what blocking proposed**.
+- `blocking_recall` is a recall and not a `PairScore`, for the reason
+  `fusion_recall` gives. Blocking is high-recall by design and a pair it
+  proposes that the key does not label is not wrong, so a precision against that
+  denominator would punish the stage for doing its job.
+- **An edge between two records the key cannot name is counted apart, not
+  scored.** The corpus labels the contradictions it *planted*; calling the rest
+  false positives would report the corpus's silence as the detector's error.
+- `praxis/eval/report.py` renders the memory half as **three sections, not one
+  table** — a parse rate, a confusion matrix collapsed to a number, and a
+  precision/recall over identified pairs are not comparable, and one table would
+  invite the comparison `FormalizationScore` argues against.
+- **Two counts carry their explanation into the artefact.** A zero beside "aged,
+  misreported as breached" reads as an unfilled column when it is a property
+  holding; a count of edges the key cannot name reads as that many detector
+  errors unless the line says otherwise. Both notes are constants, tested.
+- The confusion matrix is keyed `expected>reached` in the JSON, since JSON has
+  no tuple key. Costs are strings for the reason the rates are — invariant 4
+  reaches the artefact. `praxis/eval` is at **100%** across all seven modules.
+- **`praxis/cli_monitor.py`: `formalize`, `monitor`, `contradictions`, `why`**,
+  registered from `cli.py` in the order they are meant to be run. Both CLI
+  modules at **100%**. `_configured` became `configured_store` so the two open
+  the owner's store the same way rather than answering "what does a missing
+  store print" in two places.
+- Each command **says what it did not pay for**, because each is re-runnable and
+  a person has to tell "nothing changed" from "nothing worked". A second
+  `formalize` prints the two skip counts; a second `contradictions` prints zero
+  new edges. Those are correct outputs and the rendering has to make them read
+  that way.
+- `monitor` takes measurements as a **file**, not flags — a rate typed on a
+  command line is a string, and invariant 4's problem would arrive in the shell
+  before any code could refuse it.
+- `why` prints the record's words and the model's under **separate headings**. A
+  rendering that spliced the selection note into the answer would break the
+  agent's guarantee at the last moment where it still could. Tested directly.
+- **ADRs 0017–0020 written**: the predicate language, contradiction detection in
+  three stages, the monitor's two properties, the archaeologist's contract.
+  0019 pairs write-on-change with no-model-can-breach in one record because each
+  is what makes the other safe to run unattended. **0020 is the review surface**
+  for a contract that was never specified — three fragments existed and nothing
+  else, so what it states is a judgement.
+- Every predicate was checked against the real parser *before* being written
+  down. The ADR corpus is now **80 predicates, 79 parsing — 0.9875** against ADR
+  0001's threshold of 0.9, with all 80 expiry conditions parsing. The one
+  unreadable row is still ADR 0015's third assumption.

@@ -24,12 +24,14 @@ this module performs.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
+from praxis.agents.detection import DetectionRun, detect_in_store
 from praxis.agents.extraction import ExtractionPipeline
+from praxis.agents.formalization import formalize_store
 from praxis.agents.results import ExtractionRun
 from praxis.corpus.groundtruth import (
     DOCUMENTS_DIRNAME,
@@ -41,18 +43,23 @@ from praxis.domain.ids import DocumentId, SpanId
 from praxis.domain.links import LinkType
 from praxis.domain.records import Assumption, Decision, Document, Estimate, Link, Span
 from praxis.eval.matching import SET_SEPARATOR, Claim, Pairing, fusion_pairs, pair
+from praxis.eval.memory import MemoryResult, grade_memory
 from praxis.eval.metrics import (
     CitationIntegrity,
     Score,
     citation_integrity,
+    cost_per_document,
     exact_matches,
     fusion_recall,
     score,
 )
 from praxis.ingest.pipeline import IngestionPipeline
 from praxis.llm.provider import LLMProvider
+from praxis.monitor.facts import FactsFile
+from praxis.monitor.run import monitor_store
 from praxis.obs.logging import get_logger
 from praxis.store.repository import Repository
+from praxis.store.traces import cost_by_agent
 
 _log = get_logger(__name__)
 
@@ -87,6 +94,11 @@ class EvalResult:
         fusion_found: `estimated_as` edges written.
         fusion_expected: `estimated_as` edges the corpus labels.
         documents: How many documents were graded.
+        memory: What the formalization, monitoring and detection passes
+            concluded. Present whether or not they ran: a store nothing
+            formalized reports a parse rate over the predicates it does hold,
+            which is a true statement about that store.
+        cost: What each agent spent per document, from the trace table.
     """
 
     run: ExtractionRun
@@ -95,6 +107,8 @@ class EvalResult:
     fusion_found: int
     fusion_expected: int
     documents: int
+    memory: MemoryResult = field(default_factory=MemoryResult)
+    cost: Mapping[str, Decimal] = field(default_factory=dict)
 
     @property
     def fusion_recall(self) -> Decimal:
@@ -106,7 +120,14 @@ class EvalResult:
         return next((result for result in self.kinds if result.kind is kind), None)
 
 
-def grade(repository: Repository, truth: CorpusGroundTruth, run: ExtractionRun) -> EvalResult:
+def grade(
+    repository: Repository,
+    truth: CorpusGroundTruth,
+    run: ExtractionRun,
+    *,
+    detection: DetectionRun | None = None,
+    run_id: str | None = None,
+) -> EvalResult:
     """Grade what a store holds against the corpus's answer key.
 
     Args:
@@ -114,12 +135,19 @@ def grade(repository: Repository, truth: CorpusGroundTruth, run: ExtractionRun) 
         truth: The answer key beside the documents that were ingested.
         run: What the extraction reported, for the refusal counts. Nothing is
             graded from it -- the records come out of the store.
+        detection: What the detection run reported, for the settlement split
+            and what blocking proposed. Neither is written anywhere, which is
+            why they are the two things taken from a run rather than a store.
+        run_id: The run whose trace rows the cost column totals. Without one
+            there is no cost to report -- the trace table is keyed by run, and
+            summing every row would total every run this store ever held.
 
     Returns:
         Every number the report prints.
     """
     claims = claims_in(repository)
     kinds = tuple(_graded(claims, truth, kind) for kind in GRADED_KINDS)
+    documents = len(truth.documents)
     return EvalResult(
         run=run,
         kinds=kinds,
@@ -128,7 +156,11 @@ def grade(repository: Repository, truth: CorpusGroundTruth, run: ExtractionRun) 
             1 for link in repository.list_all(Link) if link.link_type is LinkType.ESTIMATED_AS
         ),
         fusion_expected=len(fusion_pairs(truth)),
-        documents=len(truth.documents),
+        documents=documents,
+        memory=grade_memory(
+            repository, truth, _pairing_for(kinds, ItemKind.ASSUMPTION), detection=detection
+        ),
+        cost=_cost(repository, documents, run_id),
     )
 
 
@@ -162,6 +194,7 @@ def evaluate(
         corpus / DOCUMENTS_DIRNAME, at=at
     )
     run = ExtractionPipeline(repository, provider).extract_store(at=at, run_id=run_id)
+    memory = _remember(repository, provider, truth, at=at, run_id=run_id)
     _log.info(
         "eval_run",
         documents=len(ingestion.ingested),
@@ -169,9 +202,68 @@ def evaluate(
         decisions=run.decisions,
         assumptions=run.assumptions,
         estimates=run.estimates,
-        calls=ingestion.calls + run.calls,
+        calls=ingestion.calls + run.calls + memory.calls,
     )
-    return grade(repository, truth, run)
+    return grade(repository, truth, run, detection=memory.detection, run_id=run_id)
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryPasses:
+    """What the three passes after extraction did, before anything is graded.
+
+    Attributes:
+        formalized: Assumptions compiled into checkable predicates.
+        revised: Assumptions whose status the monitor changed.
+        detection: The detection run, kept because the settlement split and
+            what blocking proposed are the two facts no store holds.
+        calls: Model calls the three passes made between them.
+    """
+
+    formalized: int
+    revised: int
+    detection: DetectionRun
+    calls: int
+
+
+def _remember(
+    repository: Repository,
+    provider: LLMProvider,
+    truth: CorpusGroundTruth,
+    *,
+    at: datetime | None,
+    run_id: str | None,
+) -> MemoryPasses:
+    """Compile, evaluate and compare, in that order and for that reason.
+
+    Formalization runs first because the monitor can only reach a verdict about
+    a predicate that parses, and detection runs last because the interval
+    arithmetic reads the same compiled predicates and blocking buckets records
+    by the quantities they constrain. Running them in any other order would
+    measure the order rather than the agents.
+
+    The monitor is given the corpus's own world -- the measurements and
+    observations the answer key states -- because a verdict is only gradeable
+    against the facts the key computed it from.
+    """
+    formalization = formalize_store(repository, provider, at=at, run_id=run_id)
+    monitoring = monitor_store(
+        repository,
+        provider=provider,
+        supplied=FactsFile(
+            facts=truth.monitoring.facts,
+            events=truth.monitoring.events,
+            as_of=truth.monitoring.as_of,
+        ),
+        at=at,
+        run_id=run_id,
+    )
+    detection = detect_in_store(repository, provider=provider, at=at, run_id=run_id)
+    return MemoryPasses(
+        formalized=len(formalization.checkable),
+        revised=monitoring.revised,
+        detection=detection,
+        calls=formalization.calls + monitoring.calls + detection.result.calls,
+    )
 
 
 def claims_in(repository: Repository) -> tuple[Claim, ...]:
@@ -267,3 +359,21 @@ def _graded(claims: tuple[Claim, ...], truth: CorpusGroundTruth, kind: ItemKind)
     return KindResult(
         pairing=pairing, score=score(pairing, kind), exact=exact_matches(pairing.matched)
     )
+
+
+def _pairing_for(kinds: tuple[KindResult, ...], kind: ItemKind) -> Pairing:
+    """One kind's pairing, reused rather than recomputed.
+
+    `praxis.eval.memory` joins stored records to answer-key items through the
+    assumption pairing, and pairing twice would be two chances to pair one
+    record differently -- the greedy walk is deterministic, but two callers
+    agreeing by construction beats two callers agreeing by argument.
+    """
+    return next(result.pairing for result in kinds if result.kind is kind)
+
+
+def _cost(repository: Repository, documents: int, run_id: str | None) -> dict[str, Decimal]:
+    """What each agent spent per document, or nothing when there is no run to total."""
+    if run_id is None:
+        return {}
+    return cost_per_document(cost_by_agent(repository.connection, run_id), documents)
