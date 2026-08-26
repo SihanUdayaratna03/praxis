@@ -2,10 +2,12 @@
 
 > Status: this describes the system Praxis is being built toward. Phase 0
 > shipped the foundation — config, logging, CLI, CI, hooks — Phase 1 the data
-> model and the store, Phase 2 the model access layer, and Phase 3 ingestion:
-> the first real agents. Sections marked *(built)* exist and are tested;
-> everything else is the target, not the present. Each phase updates this file
-> when something structural lands.
+> model and the store, Phase 2 the model access layer, Phase 3 ingestion: the
+> first real agents, Phase 4 Half A's extraction and the eval harness, and
+> Phase 5 the memory that extraction feeds: a predicate language, the monitor
+> that evaluates it, contradiction detection and the archaeologist. Sections
+> marked *(built)* exist and are tested; everything else is the target, not the
+> present. Each phase updates this file when something structural lands.
 
 ## The shape of the thing
 
@@ -237,6 +239,61 @@ Prompts are versioned stored artefacts read through `importlib.resources`, and
 table can name the bytes that produced it. See
 [ADR 0014](docs/adr/0014-prompts-as-versioned-stored-artefacts.md).
 
+## Half A memory *(Phase 5, built)*
+
+Extraction produces records; this is what makes them a memory rather than a
+filing cabinet. Four components, and the boundary between what is arithmetic
+and what is a judgement is the whole design.
+
+```
+  assumptions ──▶ AssumptionFormalizer ──▶ AssumptionMonitor ──▶ finding
+                  prose -> predicate       predicate + facts
+                  reason tier              arithmetic only
+                        │
+                        ▼
+                  ContradictionDetector ──▶ contradicts edges
+                  blocking -> intervals -> a model, in that order
+```
+
+`praxis/predicates/` is a small **total** language: comparisons over named
+quantities, `and`/`or`/`not`, and a closed set of call forms, evaluated to
+true, false or unknown-with-a-reason. Nothing raises at evaluation time, and
+`render(parse(s))` round-trips — which is what lets a stored predicate be
+normalised so two spellings of one claim land in one place. Expiry conditions
+are a second, smaller grammar, because "is this still true" and "is it time to
+look again" are different questions. See
+[ADR 0017](docs/adr/0017-a-small-total-predicate-language.md).
+
+`AssumptionFormalizer` compiles an assumption's prose into that grammar and
+**never drops what will not compile** — the best attempt is stored, marked, with
+its confidence capped, because the monitor refuses to breach on a predicate it
+cannot read and a person can fix what they can see.
+
+`AssumptionMonitor` evaluates every predicate against what is measured and
+writes **only what changed**. Two properties hold together: no model can produce
+a breach — `BREACHED` is reached only by arithmetic on facts, and the single
+model call in a pass can only ever move an assumption to `EXPIRED` — and a
+second pass over an unchanged world writes nothing at all. The eval table
+reports `aged_misreported_as_breached` by name, and it is zero by construction.
+See [ADR 0019](docs/adr/0019-only-arithmetic-can-breach-and-writes-happen-on-change.md).
+
+`ContradictionDetector` runs three stages and only the last is a model:
+deterministic blocking proposes the pairs worth comparing, interval arithmetic
+settles every pair whose conflict is a fact rather than a judgement, and only
+the residue is batched to the `reason` tier. `Settlement` records which stage
+decided, so a low recall can be traced to the stage that lost the pair. See
+[ADR 0018](docs/adr/0018-blocking-then-arithmetic-then-a-model.md).
+
+`ArchaeologistAgent` answers "why not X" from the record. **The model selects;
+the store speaks** — it is asked only which decision and which rejected option,
+by reference into a listing, and the answer is assembled from stored fields. An
+option the decision never recorded cannot be named, and a question the record
+does not cover is refused. See
+[ADR 0020](docs/adr/0020-the-archaeologist-retrieves-and-never-generates.md).
+
+`praxis formalize`, `praxis monitor`, `praxis contradictions` and `praxis why`
+are the four commands, in the order they are meant to be run.
+
 ## Evaluation *(Phase 4, built)*
 
 `praxis/eval/` grades a run against `praxis/corpus/`'s answer key, in four
@@ -256,6 +313,20 @@ without labelled negatives only recall is measurable. Reported once for the
 run: citation integrity and how it failed, and the recall over the
 `estimated_as` edges the corpus labels, which is the only number that is a
 claim about the thesis rather than about extraction.
+
+Phase 5 added a fifth module and a second half to the table. `memory` grades
+what the store *remembers*: how much of what was extracted compiled into a
+checkable predicate, what the monitor concluded against the verdicts the answer
+key computes, and the `contradicts` edges against the pairs the corpus planted —
+split by which stage settled them, under a blocking recall that is the ceiling
+the others sit under. Records join to the key through the assumption pairing,
+because the two sides allocate ids independently and nothing relates them but
+the passage both point at.
+
+`praxis/eval/adrs.py` is the one metric that grades the *project* rather than a
+run: it recomputes ADR 0001's own first assumption from the files in
+`docs/adr/` each time, so widening the grammar to make it hold would be visible
+as a grammar change rather than invisible as a passing test.
 
 `praxis eval <corpus>` is the whole of it in one command, into a scratch store
 rather than the configured one.
@@ -333,6 +404,7 @@ praxis/
   cli.py               typer app: version, config, doctor, init, ingest,
                        store stats, corpus generate
   cli_eval.py          praxis extract and praxis eval
+  cli_monitor.py       praxis formalize, monitor, contradictions and why
   cli_tables.py        what the CLI's output looks like
   config/settings.py   pydantic-settings; PRAXIS_* environment
   config/models.py     model ids, prices, roles, routing  ← the only place
@@ -373,6 +445,7 @@ praxis/
   corpus/drafting.py   assembling a document while recording where it landed
   corpus/templates.py  four document shapes, four extraction problems
   corpus/topics.py     the material: eight engineering decisions
+  corpus/measurements.py the world a monitoring run is graded in, derived
   corpus/generator.py  writes the corpus, then verifies it against itself
   prompts/library.py   versioned prompt files, read as packaged resources
   prompts/texts/*.md   <task>.v<n>.md; a version bump is a new file
@@ -383,10 +456,30 @@ praxis/
   agents/structurer.py a candidate span -> a Decision record
   agents/extractor.py  a decision -> its assumptions, and the estimates in them
   agents/extraction.py scout -> structurer -> extractor, over a whole store
+  agents/formalizer.py an assumption's prose -> a predicate that parses
+  agents/formalization.py the formalizer over a store, and what it skips twice
+  agents/blocking.py   which pairs are worth comparing. Deterministic
+  agents/contradiction.py blocking -> intervals -> a model, in that order
+  agents/detection.py  the detector over a store; edges written once
+  agents/archaeologist.py why not X, answered out of the record only
   agents/results.py    what a run wrote, and everything it lost
+  predicates/lexer.py  the tokens a predicate is made of
+  predicates/parser.py recursive descent; a grammar small enough to read
+  predicates/ast.py    the tree, its rendering, and the three-valued verdict
+  predicates/evaluator.py total evaluation. Unknown is not false
+  predicates/intervals.py what a predicate permits, for proving a conflict
+  predicates/expiry.py when to look again, which is not whether it holds
+  predicates/world.py  the facts and events a predicate is evaluated against
+  predicates/errors.py what a malformed predicate raises, at parse time
+  monitor/monitor.py   one assumption -> a verdict. No model can breach
+  monitor/run.py       the monitor over a store; writes only on a change
+  monitor/facts.py     measurements a person supplies, layered on the store's
+  monitor/breach.py    the finding a violated predicate raises
   eval/matching.py     which record answers which item. Byte overlap, not equality
   eval/metrics.py      arithmetic over the pairs. No model, ever
   eval/harness.py      a corpus end to end, graded from what SQLite holds
+  eval/memory.py       grading what the store remembers, not what it copied
+  eval/adrs.py         the one metric that grades the project, not a run
   eval/report.py       the table and the JSON. No arithmetic
   obs/logging.py       structured JSON logging
 tests/                 pytest + hypothesis
