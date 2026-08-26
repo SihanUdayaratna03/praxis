@@ -619,3 +619,11 @@ mechanism waiting, not mechanism failing.
 **Already earned and worth leading the report with:** ADR 0001's first
 assumption is answered and holds — 63 of 64 hand-written predicates parse,
 **0.9844** against its own threshold of 0.9.
+- `tests/agents/test_formalization.py` closes the one module that had production
+  code and no tests. 28 tests, **100%**. The two skip reasons are asserted
+  *apart* and each asserts the provider was never called — a skip that still
+  pays the reason tier is what the audit-trail check exists to prevent, and a
+  count alone would not catch it. `force` is tested from both sides: it re-opens
+  what an older prompt failed at and does **not** re-open one that already
+  parses, because the first check is about the text and `force` says nothing
+  about the text.
