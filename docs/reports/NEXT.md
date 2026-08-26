@@ -670,3 +670,13 @@ assumption is answered and holds — 63 of 64 hand-written predicates parse,
 - `why` prints the record's words and the model's under **separate headings**. A
   rendering that spliced the selection note into the answer would break the
   agent's guarantee at the last moment where it still could. Tested directly.
+- **ADRs 0017–0020 written**: the predicate language, contradiction detection in
+  three stages, the monitor's two properties, the archaeologist's contract.
+  0019 pairs write-on-change with no-model-can-breach in one record because each
+  is what makes the other safe to run unattended. **0020 is the review surface**
+  for a contract that was never specified — three fragments existed and nothing
+  else, so what it states is a judgement.
+- Every predicate was checked against the real parser *before* being written
+  down. The ADR corpus is now **80 predicates, 79 parsing — 0.9875** against ADR
+  0001's threshold of 0.9, with all 80 expiry conditions parsing. The one
+  unreadable row is still ADR 0015's third assumption.
