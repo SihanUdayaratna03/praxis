@@ -67,6 +67,10 @@ Expiry conditions say when to re-check, not when the decision dies:
 | [0014](0014-prompts-as-versioned-stored-artefacts.md) | Prompts are versioned files, and every trace names the one it read | accepted |
 | [0015](0015-extraction-cites-spans-by-offered-ordinal.md) | Extraction cites spans by offered ordinal, never by span id | accepted |
 | [0016](0016-the-extractor-writes-the-first-estimated-as-edge.md) | `AssumptionExtractor` writes the first `estimated_as` edge | accepted |
+| [0017](0017-a-small-total-predicate-language.md) | A small total predicate language with three-valued evaluation | accepted |
+| [0018](0018-blocking-then-arithmetic-then-a-model.md) | Find contradictions by blocking, then arithmetic, then a model | accepted |
+| [0019](0019-only-arithmetic-can-breach-and-writes-happen-on-change.md) | Only arithmetic can breach, and a pass writes only on a change | accepted |
+| [0020](0020-the-archaeologist-retrieves-and-never-generates.md) | `ArchaeologistAgent` retrieves and grounds, and never generates | accepted |
 
 0010 was decided during Phase 0 because Phase 1 needed a settled answer before
 it wrote its first database. Numbers are never reused or renumbered, so 0008
