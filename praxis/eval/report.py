@@ -25,10 +25,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from decimal import Decimal
 from typing import Any, Final
 
 from praxis.eval.harness import EvalResult, KindResult
-from praxis.eval.metrics import CitationIntegrity
+from praxis.eval.memory import MemoryResult
+from praxis.eval.metrics import CitationIntegrity, PairScore
 
 SCORE_HEADINGS: Final = (
     "Kind",
@@ -43,11 +45,31 @@ SCORE_HEADINGS: Final = (
     "Exact",
 )
 
+PAIR_HEADINGS: Final = ("Stage", "Found", "Missed", "Spurious", "Precision", "Recall", "F1")
+"""The contradiction rows. `Stage` rather than `Kind`: these are not kinds of
+claim, they are the three answers to one question -- everything the store holds,
+and the two stages that settled it."""
+
 PROVENANCE_SEPARATOR: Final = " -- "
 """Between two provenance entries. ASCII; see `_provenance`."""
 
 NOTHING_TO_GRADE: Final = "--"
 """Shown where a rate exists by convention but no evidence went into it."""
+
+AGED_NOTE: Final = (
+    "Should be zero by construction: the monitor reaches a breach only through "
+    "arithmetic on facts, so a non-zero count here is a broken property rather "
+    "than a model being wrong."
+)
+"""Printed beside the count, because a zero with no explanation reads as a
+column nobody filled in."""
+
+UNNAMED_NOTE: Final = (
+    "not false positives. The corpus labels the contradictions it planted, so a "
+    "pair it never labelled is unjudgeable rather than wrong."
+)
+"""Printed beside the count, so the table does not invite the reading that the
+detector produced that many errors."""
 
 OFFLINE_CAVEAT: Final = (
     "Every number above was produced by the offline provider, which draws each "
@@ -99,6 +121,8 @@ def as_markdown(
         f"Model calls: {result.run.calls}. "
         f"Windows never answered about: {result.run.blind_windows}.",
         "",
+        *_memory_lines(result.memory),
+        *_cost_lines(result.cost),
     ]
     if offline:
         lines += [f"> {OFFLINE_CAVEAT}", ""]
@@ -133,10 +157,144 @@ def as_json(result: EvalResult, *, provenance: Mapping[str, str] | None = None) 
             "expected": result.fusion_expected,
             "recall": str(result.fusion_recall),
         },
+        "memory": _memory_data(result.memory),
+        # Strings for the reason the rates are strings: these are `Decimal` and
+        # JSON floats would put back the representation invariant 4 excludes.
+        "cost_per_document": {agent: str(spent) for agent, spent in sorted(result.cost.items())},
     }
     if provenance:
         payload["provenance"] = dict(provenance)
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def _memory_lines(memory: MemoryResult) -> list[str]:
+    """What the store remembers, rendered. Every value is already computed.
+
+    Three sections rather than one table, because the three are not comparable:
+    a parse rate is a property of stored text, a monitoring accuracy is a
+    confusion matrix collapsed to one number, and the contradiction rows are a
+    precision and a recall over identified pairs.
+    """
+    return [
+        "## Formalization",
+        "",
+        f"- Assumptions stored: **{memory.formalization.total}**, "
+        f"predicates that parse: **{memory.formalization.predicates_parsed}** "
+        f"(**{memory.formalization.parse_rate}**).",
+        f"- Checkable -- predicate *and* expiry parse: "
+        f"**{memory.formalization.checkable}** "
+        f"(**{memory.formalization.checkable_rate}**). "
+        f"Only these can be given a verdict.",
+        "",
+        "## Monitoring",
+        "",
+        f"- Expectations: **{memory.monitoring.total}**, "
+        f"agreed: **{memory.monitoring.agreed}** "
+        f"(accuracy **{memory.monitoring.accuracy}**).",
+        f"- Breaches: precision **{memory.monitoring.breaches.precision}**, "
+        f"recall **{memory.monitoring.breaches.recall}**.",
+        f"- Aged, misreported as breached: "
+        f"**{memory.monitoring.aged_misreported_as_breached}**. "
+        f"{AGED_NOTE}",
+        "",
+        "## Contradictions",
+        "",
+        _row(PAIR_HEADINGS),
+        _row(["---"] * len(PAIR_HEADINGS)),
+        *(
+            _pair_row(found)
+            for found in (memory.contradictions, memory.by_arithmetic, memory.by_model)
+        ),
+        "",
+        f"Pairs the corpus planted: **{memory.expected}**, "
+        f"of which blocking proposed **{memory.proposed}** "
+        f"(recall **{memory.proposed_recall}**).",
+        "",
+        f"Assumptions the answer key could name: **{memory.identified}**. "
+        f"Edges touching a record it could not: **{memory.unnamed}** -- "
+        f"{UNNAMED_NOTE}",
+        "",
+    ]
+
+
+def _pair_row(found: PairScore) -> str:
+    """One contradiction stage as a table row."""
+    return _row(
+        [
+            found.label,
+            str(found.true_positives),
+            str(found.false_negatives),
+            str(found.false_positives),
+            str(found.precision),
+            str(found.recall),
+            str(found.f1),
+        ]
+    )
+
+
+def _cost_lines(cost: Mapping[str, Decimal]) -> list[str]:
+    """What each agent spent per document, or nothing when no run was totalled."""
+    if not cost:
+        return []
+    return [
+        "## Cost per document",
+        "",
+        _row(("Agent", "USD per document")),
+        _row(("---", "---")),
+        *(_row((agent, str(spent))) for agent, spent in sorted(cost.items())),
+        "",
+    ]
+
+
+def _memory_data(memory: MemoryResult) -> dict[str, Any]:
+    """The memory half as data, for the ablation table."""
+    return {
+        "formalization": {
+            "total": memory.formalization.total,
+            "predicates_parsed": memory.formalization.predicates_parsed,
+            "checkable": memory.formalization.checkable,
+            "parse_rate": str(memory.formalization.parse_rate),
+            "checkable_rate": str(memory.formalization.checkable_rate),
+        },
+        "monitoring": {
+            "total": memory.monitoring.total,
+            "agreed": memory.monitoring.agreed,
+            "accuracy": str(memory.monitoring.accuracy),
+            "aged_misreported_as_breached": memory.monitoring.aged_misreported_as_breached,
+            "breaches": _pair_data(memory.monitoring.breaches),
+            # Keyed "expected>reached" so the matrix survives JSON, which has no
+            # tuple key. The arrow reads as the claim it is: the corpus said
+            # this, the store says that.
+            "matrix": {
+                f"{wanted.value}>{got.value}": count
+                for (wanted, got), count in sorted(
+                    memory.monitoring.matrix.items(), key=lambda entry: entry[0][0].value
+                )
+            },
+        },
+        "contradictions": {
+            "expected": memory.expected,
+            "proposed": memory.proposed,
+            "proposed_recall": str(memory.proposed_recall),
+            "identified": memory.identified,
+            "unnamed": memory.unnamed,
+            "all": _pair_data(memory.contradictions),
+            "arithmetic": _pair_data(memory.by_arithmetic),
+            "model": _pair_data(memory.by_model),
+        },
+    }
+
+
+def _pair_data(found: PairScore) -> dict[str, Any]:
+    """One `PairScore`'s numbers, already computed."""
+    return {
+        "true_positives": found.true_positives,
+        "false_positives": found.false_positives,
+        "false_negatives": found.false_negatives,
+        "precision": str(found.precision),
+        "recall": str(found.recall),
+        "f1": str(found.f1),
+    }
 
 
 def _score_data(kind: KindResult) -> dict[str, Any]:

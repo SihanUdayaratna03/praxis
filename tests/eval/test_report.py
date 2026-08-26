@@ -25,18 +25,32 @@ conversation in which everyone knew the mock produced it.
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 
 import pytest
 from praxis.agents.errors import Refusal
 from praxis.agents.results import ExtractionRun, Stage
 from praxis.corpus.groundtruth import GroundTruthItem, ItemKind
+from praxis.domain.enums import AssumptionStatus
 from praxis.eval.harness import EvalResult, KindResult
 from praxis.eval.matching import Pairing
-from praxis.eval.metrics import CitationIntegrity, Score, exact_matches, score
+from praxis.eval.memory import MemoryResult
+from praxis.eval.metrics import (
+    CitationIntegrity,
+    FormalizationScore,
+    MonitoringScore,
+    PairScore,
+    Score,
+    exact_matches,
+    score,
+)
 from praxis.eval.report import (
+    AGED_NOTE,
     NOTHING_TO_GRADE,
     OFFLINE_CAVEAT,
+    PAIR_HEADINGS,
     SCORE_HEADINGS,
+    UNNAMED_NOTE,
     as_json,
     as_markdown,
 )
@@ -374,3 +388,99 @@ def test_a_row_renders_from_the_counts_alone_and_never_from_the_pairing():
     )
 
     assert as_markdown(a_result(empty)) == as_markdown(a_result(populated))
+
+
+# -- the memory half -----------------------------------------------------------
+
+
+def a_memory(**kwargs) -> MemoryResult:
+    """A memory grading, built from counts for the reason `a_kind` gives."""
+    kwargs.setdefault(
+        "formalization", FormalizationScore(total=10, predicates_parsed=8, checkable=6)
+    )
+    kwargs.setdefault(
+        "contradictions", PairScore(label="contradiction", true_positives=2, false_negatives=1)
+    )
+    kwargs.setdefault("expected", 3)
+    kwargs.setdefault("proposed", 3)
+    kwargs.setdefault("identified", 7)
+    return MemoryResult(**kwargs)
+
+
+def test_the_formalization_rates_are_the_ones_metrics_computed():
+    memory = a_memory()
+
+    rendered = as_markdown(a_result(memory=memory))
+
+    assert str(memory.formalization.parse_rate) in rendered
+    assert str(memory.formalization.checkable_rate) in rendered
+
+
+def test_every_contradiction_stage_gets_its_own_row():
+    # A low recall means three different things depending on which stage lost
+    # the pair, so the table has to be able to say which.
+    rendered = as_markdown(a_result(memory=a_memory()))
+
+    assert all(heading in rendered for heading in PAIR_HEADINGS)
+    assert "| contradiction |" in rendered
+    assert "| arithmetic |" in rendered
+    assert "| model |" in rendered
+
+
+def test_the_blocking_recall_is_printed_as_the_ceiling_it_is():
+    memory = a_memory()
+
+    rendered = as_markdown(a_result(memory=memory))
+
+    assert str(memory.proposed_recall) in rendered
+
+
+def test_the_aged_count_carries_its_explanation():
+    # A zero with no note reads as a column nobody filled in.
+    assert AGED_NOTE in as_markdown(a_result(memory=a_memory()))
+
+
+def test_the_unnamed_count_says_it_is_not_a_false_positive():
+    assert UNNAMED_NOTE in as_markdown(a_result(memory=a_memory(unnamed=4)))
+
+
+def test_a_run_with_no_cost_totalled_prints_no_cost_table():
+    assert "Cost per document" not in as_markdown(a_result(memory=a_memory()))
+
+
+def test_the_cost_table_names_each_agent_and_what_it_spent():
+    cost = {"DecisionScout": Decimal("0.001200"), "AssumptionFormalizer": Decimal("0.000300")}
+
+    rendered = as_markdown(a_result(memory=a_memory(), cost=cost))
+
+    assert "## Cost per document" in rendered
+    assert "| DecisionScout | 0.001200 |" in rendered
+    assert "| AssumptionFormalizer | 0.000300 |" in rendered
+
+
+def test_the_memory_numbers_reach_the_json():
+    payload = json.loads(as_json(a_result(memory=a_memory())))
+
+    assert payload["memory"]["formalization"]["checkable"] == 6
+    assert payload["memory"]["contradictions"]["all"]["true_positives"] == 2
+    assert payload["memory"]["contradictions"]["proposed_recall"] == "1.0000"
+
+
+def test_the_confusion_matrix_survives_json_with_no_tuple_keys():
+    memory = a_memory(
+        monitoring=MonitoringScore(
+            matrix={(AssumptionStatus.BREACHED, AssumptionStatus.HOLDING): 2}
+        )
+    )
+
+    payload = json.loads(as_json(a_result(memory=memory)))
+
+    assert payload["memory"]["monitoring"]["matrix"] == {"breached>holding": 2}
+
+
+def test_a_cost_is_a_string_in_the_json_and_never_a_float():
+    # Invariant 4 reaches the artefact: a float here would put back exactly the
+    # representation the arithmetic excludes.
+    payload = json.loads(as_json(a_result(memory=a_memory(), cost={"S": Decimal("0.000001")})))
+
+    assert payload["cost_per_document"] == {"S": "0.000001"}
