@@ -203,11 +203,8 @@ def status_update(topic: Topic, draft: Draft, rng: Random, index: int) -> Writte
     draft.block("What shipped")
     draft.block(f"{_sentence(topic.subject)} is live in production.")
     draft.block("Estimates and actuals")
-    estimate = draft.block(
-        f"{topic.owner} put {topic.subject} at {topic.estimate_weeks} weeks of hands-on "
-        f"work, and that is the number we planned against."
-    )
-    outcome = draft.block(f"It actually took {topic.actual_weeks} weeks of hands-on work.")
+    estimate = draft.block(_estimate_sentence(topic))
+    outcome = draft.block(_outcome_sentence(topic))
     draft.block("Next up")
     hypothetical = draft.block(topic.hypothetical)
     draft.block(rng.choice(_SIGN_OFFS))
@@ -375,12 +372,51 @@ def _assumption_fields(statement: str, predicate: str, expiry: str) -> tuple[Exp
     )
 
 
+def _estimate_sentence(topic: Topic) -> str:
+    """The prediction, with its waiting stated only when there is any.
+
+    A topic that predicts no block says nothing about blocking, rather than
+    saying "and no time waiting". A corpus where every estimate mentioned
+    waiting would let an extractor score well on `blocked_quantity` by always
+    reporting one, which is the same failure a corpus of only-optimistic
+    estimates has -- and it is why `Topic.blocked_weeks` is zero for most of
+    them.
+    """
+    predicted = (
+        f"{topic.owner} put {topic.subject} at {topic.estimate_weeks} weeks of hands-on "
+        f"work, and that is the number we planned against."
+    )
+    if not topic.blocked_weeks:
+        return predicted
+    return (
+        f"{predicted} We also expected about {topic.blocked_weeks} weeks of waiting on "
+        f"people outside the team before any of it could start."
+    )
+
+
+def _outcome_sentence(topic: Topic) -> str:
+    """The actual, in a sentence that never uses the word outcome."""
+    happened = f"It actually took {topic.actual_weeks} weeks of hands-on work"
+    if not topic.actual_blocked_weeks:
+        return f"{happened}."
+    return (
+        f"{happened}, with a further {topic.actual_blocked_weeks} weeks sitting blocked "
+        f"on other people."
+    )
+
+
 def _estimate_fields(topic: Topic) -> tuple[ExpectedField, ...]:
     """What an `Estimate` extracted from this topic should say."""
     return (
         ExpectedField(
             name="active_quantity",
             value=str(topic.estimate_weeks),
+            comparison=Comparison.NUMERIC,
+            tolerance=Decimal(0),
+        ),
+        ExpectedField(
+            name="blocked_quantity",
+            value=str(topic.blocked_weeks),
             comparison=Comparison.NUMERIC,
             tolerance=Decimal(0),
         ),
@@ -396,6 +432,12 @@ def _outcome_fields(topic: Topic) -> tuple[ExpectedField, ...]:
         ExpectedField(
             name="active_quantity",
             value=str(topic.actual_weeks),
+            comparison=Comparison.NUMERIC,
+            tolerance=Decimal(0),
+        ),
+        ExpectedField(
+            name="blocked_quantity",
+            value=str(topic.actual_blocked_weeks),
             comparison=Comparison.NUMERIC,
             tolerance=Decimal(0),
         ),
