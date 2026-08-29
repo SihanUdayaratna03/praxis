@@ -247,3 +247,11 @@ mid-phase can be resumed from the last line rather than from a diff.
   sides are graded, and three properties are held by tests. `GENERATOR_VERSION`
   2 → 3; `FORMAT_VERSION` stays 2. Corpus: 9 estimates, 3 resolved, **6
   unmatched** — the match rate's ceiling is 0.33 by construction.
+- `3aa8aa0` **Phase 7's query, executed** — `calibration_history()` in
+  `praxis/store/reports.py` (the only place SQL lives), delegated from the
+  repository, 15 tests, module at **100%**. One indexed join, because the
+  pairing is a column, an unmatched estimate is an `unresolved` row, units are
+  reconciled at write time, and `work_class` is on the estimate. Sketching it
+  is what made the unresolved row a design decision rather than a nicety: the
+  denominator and the sample now come out of one read. The current-version
+  filter is load-bearing here — `WorkClassifier` revises onto this axis.
