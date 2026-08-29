@@ -263,3 +263,15 @@ mid-phase can be resumed from the last line rather than from a diff.
   **Both Phase 5 zeros move**, checked by three end-to-end tests: a matched
   outcome binds `search_index_weeks = 7`, the monitor breaches `A-0001` on it,
   and an unresolved outcome binds and breaches nothing.
+- `779ed90` **`praxis estimates`** — `praxis/cli_estimate.py`, 20 + 5 tests,
+  module at **100%**. Priced as a line item, which is OUT-0006's first lesson.
+  One command, not three. Tests found three real defects: rich swallowed a
+  bracketed `[partial]` as markup; a test assigning `console.file` pinned the
+  module console to a stale stdout and silently ate later CLI output; and the
+  re-run claim was too strong — extraction skips a document only once it has
+  *produced* an estimate, the same limitation `praxis extract` has had since
+  Phase 4. Corrected, tested, and in `BACKLOG.md`.
+- **Synthesis: no gap.** Checked before assuming, per the plan.
+  `EstimateSightings`, `ClassAnswer` and `OutcomeAnswer` all validate against
+  `synthesise_answer` — `Decimal`, the `Unit` enum, ordinals and quotes are
+  already handled at `synthesis.py:328`. No extension written.
