@@ -239,3 +239,11 @@ mid-phase can be resumed from the last line rather than from a diff.
   bug**: `WorkClassifier` was overwriting `created_by` on revision, which made
   every classified document look unread and would have re-extracted it next
   run. `created_by` is the producing agent; the audit trail is who revised.
+- `81a2067` **Corpus: blocked time** — checked first, and the estimate/outcome
+  ground truth was already there (`status_update` joins them; `issue_export`
+  plants an unmatched estimate). The real gap was `blocked_quantity`, stated by
+  no document and graded by neither field tuple. `Topic` gains
+  `blocked_weeks`/`actual_blocked_weeks`, the status update states both, both
+  sides are graded, and three properties are held by tests. `GENERATOR_VERSION`
+  2 → 3; `FORMAT_VERSION` stays 2. Corpus: 9 estimates, 3 resolved, **6
+  unmatched** — the match rate's ceiling is 0.33 by construction.
