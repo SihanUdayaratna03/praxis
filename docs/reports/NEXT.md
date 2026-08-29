@@ -210,3 +210,8 @@ mid-phase can be resumed from the last line rather than from a diff.
 - `3801800` **EST-0007 logged** — 5.0h active, 18.0h blocked, uncorrected for the
   seventh time (`agent-implementation` at n = 3, threshold 5). Branch
   `feat/phase-6-half-b-agents` cut from `main` at `931055c`, pushed.
+- `0a5f910` **`EstimateExtractor`** — `praxis/agents/estimator.py`, prompt
+  `extract_estimates.v1`, 32 tests, module at **100%**. Scan tier, one call per
+  window, cites through the existing `CitationGate` unchanged. Refuses a
+  quantity with no unit, never invents an owner, never sets `work_class`. An id
+  is spent only after the citation survives. Merged `--no-ff` as `033019b`.
