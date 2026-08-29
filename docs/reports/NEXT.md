@@ -255,3 +255,11 @@ mid-phase can be resumed from the last line rather than from a diff.
   is what made the unresolved row a design decision rather than a nicety: the
   denominator and the sample now come out of one read. The current-version
   filter is load-bearing here — `WorkClassifier` revises onto this axis.
+- `ec98402` **Eval extension** — `praxis/eval/estimation.py` plus edits to
+  `harness`, `metrics` and `report`; 21 + 8 tests; all three modules at
+  **100%**. `ItemKind.OUTCOME` joins `GRADED_KINDS`, closing the line Phase 4
+  left open. Pass order is now extract → **estimate/classify/match** →
+  formalize → monitor → detect, and that order is load-bearing.
+  **Both Phase 5 zeros move**, checked by three end-to-end tests: a matched
+  outcome binds `search_index_weeks = 7`, the monitor breaches `A-0001` on it,
+  and an unresolved outcome binds and breaches nothing.
