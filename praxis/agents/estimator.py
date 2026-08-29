@@ -50,8 +50,9 @@ from typing import Final
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from praxis.agents.citation import CitationGate, Cited, Uncited
+from praxis.agents.classifier import UNCLASSIFIED
 from praxis.agents.errors import Refusal
-from praxis.agents.extractor import NOT_STATED, UNCLASSIFIED, IdAllocator
+from praxis.agents.extractor import NOT_STATED, IdAllocator
 from praxis.agents.offering import Offering, windows_of
 from praxis.domain.enums import RecordKind, Unit
 from praxis.domain.ids import EstimateId
