@@ -231,3 +231,11 @@ mid-phase can be resumed from the last line rather than from a diff.
   reproduce 5 of this project's 6 hand-scored outcomes and `OUT-0002` is pinned
   as a deliberate disagreement. Cross-document matching deferred to
   `BACKLOG.md` under ADR 0015. Merged `--no-ff`.
+- `53f5a80` **`EstimationPipeline`** — `praxis/agents/estimation.py`, 24 tests,
+  module at **100%**. Extract → classify → match over a store, writing through
+  the Phase 1 `Repository`. A second pass costs zero calls, for three different
+  reasons. `Stage` gains `ESTIMATE`/`CLASSIFY`/`MATCH`; `StoreAllocator` and
+  `spans_by_document` promoted out of `extraction.py`. **Found and fixed a real
+  bug**: `WorkClassifier` was overwriting `created_by` on revision, which made
+  every classified document look unread and would have re-extracted it next
+  run. `created_by` is the producing agent; the audit trail is who revised.
