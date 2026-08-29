@@ -199,3 +199,14 @@ other module here has ever shipped that way, the handover named it as the first
 thing to close, and the next session closed it at 100% before starting anything
 else. That worked — but the cheaper lesson is not to let a component reach a
 commit without its tests in the first place.
+
+---
+
+## Phase 6 progress log
+
+One line per component, appended as it lands. Written so a session that dies
+mid-phase can be resumed from the last line rather than from a diff.
+
+- `3801800` **EST-0007 logged** — 5.0h active, 18.0h blocked, uncorrected for the
+  seventh time (`agent-implementation` at n = 3, threshold 5). Branch
+  `feat/phase-6-half-b-agents` cut from `main` at `931055c`, pushed.
