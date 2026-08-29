@@ -215,3 +215,10 @@ mid-phase can be resumed from the last line rather than from a diff.
   window, cites through the existing `CitationGate` unchanged. Refuses a
   quantity with no unit, never invents an owner, never sets `work_class`. An id
   is spent only after the citation survives. Merged `--no-ff` as `033019b`.
+- `11bdaa3` **`WorkClassifier`** — `praxis/agents/classifier.py`, prompt
+  `classify_work.v1`, 41 tests, module at **100%**. Revises rather than writes,
+  so it also repairs the `unclassified` rows Phase 4 left. The store's existing
+  vocabulary is offered to the model and `proposed` is computed against the
+  store, not taken from the answer. `work_class_of` moved here from
+  `extractor.py` — one spelling rule, one place, property-tested total and
+  idempotent. Merged `--no-ff` as `114202a`.
