@@ -12,10 +12,11 @@ populated.**
 
 | | |
 | --- | --- |
-| `main` | see the tag below; local and remote identical |
-| Tag | `v0.6-phase-6` |
-| CI | green on the Phase 6 PR |
+| `main` | `ef0bb2d`, local and remote identical |
+| Tag | `v0.6-phase-6` → `ef0bb2d` (dereferenced through the remote, not assumed) |
+| CI | 5/5 green on [#14](https://github.com/SihanUdayaratna03/praxis/pull/14) |
 | Open PRs | none |
+| Remote branches | `main` only |
 | Working tree | clean |
 | Suite | **2431 passed**, coverage **98.80%** (gate 85%) |
 | Schema | version 4 — Phase 6 needed no migration |
