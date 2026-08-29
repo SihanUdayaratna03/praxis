@@ -36,6 +36,7 @@ SHIPPED: dict[str, str] = {
     "formalize_assumption@v1": ("943d6f1f4898b3f8caaa90aee15ff2707e4fde4939ace152eeb31330babf678a"),
     "group_blocks@v1": "00f9f9da6d7485ef4157fbeb1d95620b92ff083cf96798eeb93d0999a9cef72c",
     "judge_contradiction@v1": ("8ead31233bc8dbd9159e9d6fa0523112ee28869447d9e940d85712e762ceec14"),
+    "match_outcome@v1": ("875475647c386c54bc0377a6a9b83d0d4db36626fb001587a82e89e6c68e031d"),
     "match_event@v1": "c8781c6ceaa3c2b67225da3620e015c1abf610533cba80b34de69df6ae7d74a2",
     "scan_for_decisions@v1": ("66b4da5129cb270889d9f531ee52e5b0dfa16bc100462e86e4b5d4912b5b7103"),
     "structure_decision@v1": ("c74ca84ae7ae94fb4bda71eb97bfb44c77fe2b5784178ef664caf89c43b8fc6a"),
