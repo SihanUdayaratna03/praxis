@@ -30,6 +30,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from praxis.agents.detection import DetectionRun, detect_in_store
+from praxis.agents.estimation import EstimationRun, estimate_store
 from praxis.agents.extraction import ExtractionPipeline
 from praxis.agents.formalization import formalize_store
 from praxis.agents.results import ExtractionRun
@@ -41,7 +42,16 @@ from praxis.corpus.groundtruth import (
 )
 from praxis.domain.ids import DocumentId, SpanId
 from praxis.domain.links import LinkType
-from praxis.domain.records import Assumption, Decision, Document, Estimate, Link, Span
+from praxis.domain.records import (
+    Assumption,
+    Decision,
+    Document,
+    Estimate,
+    Link,
+    Outcome,
+    Span,
+)
+from praxis.eval.estimation import EstimationResult, grade_estimation
 from praxis.eval.matching import SET_SEPARATOR, Claim, Pairing, fusion_pairs, pair
 from praxis.eval.memory import MemoryResult, grade_memory
 from praxis.eval.metrics import (
@@ -63,10 +73,24 @@ from praxis.store.traces import cost_by_agent
 
 _log = get_logger(__name__)
 
-GRADED_KINDS: tuple[ItemKind, ...] = (ItemKind.DECISION, ItemKind.ASSUMPTION, ItemKind.ESTIMATE)
-"""What Half A can produce. `OUTCOME` is Half B's and is graded from Phase 6;
-listing it here with a permanent zero would read as a regression rather than as
-work that has not started."""
+GRADED_KINDS: tuple[ItemKind, ...] = (
+    ItemKind.DECISION,
+    ItemKind.ASSUMPTION,
+    ItemKind.ESTIMATE,
+    ItemKind.OUTCOME,
+)
+"""Every kind an extractor is graded on, both halves.
+
+`OUTCOME` joined in Phase 6, which is what Phase 4's version of this line said
+would happen: it was held out while nothing could write one, because a permanent
+zero in the table reads as a regression rather than as work that has not started.
+
+`ESTIMATE` is graded across both halves at once and that is deliberate.
+`AssumptionExtractor` writes an estimate wherever an assumption turns out to be
+a quantified claim, and `EstimateExtractor` writes the ones that are nowhere near
+an assumption; the answer key does not care which agent found a passage, and
+splitting the row by producing agent would measure the pipeline's internal
+division rather than its recall."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +122,9 @@ class EvalResult:
             concluded. Present whether or not they ran: a store nothing
             formalized reports a parse rate over the predicates it does hold,
             which is a true statement about that store.
+        estimation: What Half B concluded -- whether the store's estimates are
+            on the calibration axis, and which of them an actual answered.
+            Present on the same terms and for the same reason.
         cost: What each agent spent per document, from the trace table.
     """
 
@@ -108,6 +135,7 @@ class EvalResult:
     fusion_expected: int
     documents: int
     memory: MemoryResult = field(default_factory=MemoryResult)
+    estimation: EstimationResult = field(default_factory=EstimationResult)
     cost: Mapping[str, Decimal] = field(default_factory=dict)
 
     @property
@@ -120,12 +148,13 @@ class EvalResult:
         return next((result for result in self.kinds if result.kind is kind), None)
 
 
-def grade(
+def grade(  # noqa: PLR0913 -- one argument per source the table reads from
     repository: Repository,
     truth: CorpusGroundTruth,
     run: ExtractionRun,
     *,
     detection: DetectionRun | None = None,
+    estimation: EstimationRun | None = None,
     run_id: str | None = None,
 ) -> EvalResult:
     """Grade what a store holds against the corpus's answer key.
@@ -138,6 +167,10 @@ def grade(
         detection: What the detection run reported, for the settlement split
             and what blocking proposed. Neither is written anywhere, which is
             why they are the two things taken from a run rather than a store.
+        estimation: What the Half B pass reported, for the split of *why* an
+            estimate went unmatched. The outcome row is identical whichever
+            stage lost the pairing -- which is what makes re-running free -- so
+            the cause is a fact about the run and about nothing else.
         run_id: The run whose trace rows the cost column totals. Without one
             there is no cost to report -- the trace table is keyed by run, and
             summing every row would total every run this store ever held.
@@ -159,6 +192,9 @@ def grade(
         documents=documents,
         memory=grade_memory(
             repository, truth, _pairing_for(kinds, ItemKind.ASSUMPTION), detection=detection
+        ),
+        estimation=grade_estimation(
+            repository, truth, _pairing_for(kinds, ItemKind.ESTIMATE), run=estimation
         ),
         cost=_cost(repository, documents, run_id),
     )
@@ -194,6 +230,7 @@ def evaluate(
         corpus / DOCUMENTS_DIRNAME, at=at
     )
     run = ExtractionPipeline(repository, provider).extract_store(at=at, run_id=run_id)
+    estimation = estimate_store(repository, provider, at=at, run_id=run_id)
     memory = _remember(repository, provider, truth, at=at, run_id=run_id)
     _log.info(
         "eval_run",
@@ -202,9 +239,17 @@ def evaluate(
         decisions=run.decisions,
         assumptions=run.assumptions,
         estimates=run.estimates,
-        calls=ingestion.calls + run.calls + memory.calls,
+        outcomes=estimation.outcomes,
+        calls=ingestion.calls + run.calls + estimation.calls + memory.calls,
     )
-    return grade(repository, truth, run, detection=memory.detection, run_id=run_id)
+    return grade(
+        repository,
+        truth,
+        run,
+        detection=memory.detection,
+        estimation=estimation,
+        run_id=run_id,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -241,6 +286,13 @@ def _remember(
     by the quantities they constrain. Running them in any other order would
     measure the order rather than the agents.
 
+    Half B runs *before* all three, in `evaluate`. `measured_in` binds a
+    quantity only where an assumption's `estimated_as` edge reaches an estimate
+    that an `Outcome` resolves, so a monitor run before anything writes an
+    outcome has nothing to bind and reports a zero about ordering rather than
+    about mechanism. This is the one place in the harness where moving a call
+    changes a number that is not about the agent it belongs to.
+
     The monitor is given the corpus's own world -- the measurements and
     observations the answer key states -- because a verdict is only gradeable
     against the facts the key computed it from.
@@ -275,6 +327,12 @@ def claims_in(repository: Repository) -> tuple[Claim, ...]:
     The field names are the answer key's, not the records': `praxis.corpus`
     writes what it expects under `ExpectedField.name`, and this is the one place
     the two vocabularies meet. Anywhere else would be two places.
+
+    **An unresolved outcome cites no span and is not a claim.** It has no
+    position in the key's coordinate system, so it cannot be paired with an item
+    by byte overlap and grading it as a miss would count a correct refusal as a
+    wrong answer. Those rows are the whole subject of `MatchScore` instead, where
+    they are the numerator of a refusal rate rather than a false negative.
     """
     where = _Where(
         spans={span.id: span for span in repository.list_all(Span)},
@@ -321,6 +379,20 @@ def claims_in(repository: Repository) -> tuple[Claim, ...]:
                 },
             )
             for record in repository.list_all(Estimate)
+        ),
+        *(
+            where.claim(
+                record.id,
+                ItemKind.OUTCOME,
+                record.span_id,
+                {
+                    "active_quantity": str(record.active_quantity),
+                    "blocked_quantity": str(record.blocked_quantity),
+                    "unit": record.unit.value,
+                },
+            )
+            for record in repository.list_all(Outcome)
+            if record.span_id is not None
         ),
     )
 

@@ -235,12 +235,32 @@ def test_two_runs_over_one_corpus_produce_identical_numbers(corpus):
     assert as_json(first) == as_json(second)
 
 
-def test_outcomes_are_not_graded_until_half_b(corpus):
+def test_outcomes_are_graded_from_phase_6(corpus):
+    """The line Phase 4 held open, closed. `OUTCOME` was kept out of the table
+    while nothing could write one, because a permanent zero reads as a
+    regression rather than as work that has not started. Something writes one
+    now, so it is a row."""
     result = evaluated(corpus)
 
-    assert ItemKind.OUTCOME not in GRADED_KINDS
-    assert result.for_kind(ItemKind.OUTCOME) is None
+    assert ItemKind.OUTCOME in GRADED_KINDS
+    assert result.for_kind(ItemKind.OUTCOME) is not None
     assert result.for_kind(ItemKind.DECISION) is not None
+
+
+def test_the_estimation_half_is_graded_from_the_store(corpus):
+    """Every number in the estimation half comes out of SQLite, like the rest.
+
+    The one exception is the split of *why* an estimate went unmatched, which
+    is a fact about the run because the outcome row is identical whichever
+    stage lost the pairing -- and that identity is what makes re-running free.
+    So the counts must agree with the store and the reasons must add up to the
+    unresolved rows rather than to some other number.
+    """
+    result = evaluated(corpus)
+    matching = result.estimation.matching
+
+    assert matching.asked == matching.resolved + matching.unresolved
+    assert sum(matching.by_reason.values()) == matching.unresolved
 
 
 def test_the_fusion_denominator_is_the_edges_the_corpus_labels(corpus, truth):

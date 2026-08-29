@@ -36,9 +36,18 @@ class Topic:
         assumption: The belief the decision rests on, in plain words.
         predicate: The same claim as a checkable expression.
         expiry: When it should be re-examined.
-        estimate_weeks: What was predicted.
-        actual_weeks: What happened. Differs from the estimate in both
-            directions across the set, on purpose.
+        estimate_weeks: What hands-on effort was predicted.
+        actual_weeks: What hands-on effort it really took. Differs from the
+            estimate in both directions across the set, on purpose.
+        blocked_weeks: Waiting predicted -- on a vendor, an approval, another
+            team. Zero for most topics, because most work is not blocked, and a
+            corpus where every estimate carried a block would let an agent score
+            well by always reporting one.
+        actual_blocked_weeks: What the waiting really came to. Its errors are
+            deliberately unlike the effort errors: `OUT-0001` showed that wall
+            clock matching an estimate can hide a 2.3x error in the engineering,
+            and a corpus whose two quantities moved together could not express
+            that.
         owner: Whose estimate it was. Calibration is per estimator.
         team: Who the decision binds.
         work_class: The grouping key calibration is computed within.
@@ -62,6 +71,8 @@ class Topic:
     expiry: str
     estimate_weeks: int
     actual_weeks: int
+    blocked_weeks: int
+    actual_blocked_weeks: int
     owner: str
     team: str
     work_class: str
@@ -85,6 +96,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         expiry="when(indexed_documents >= 10000000)",
         estimate_weeks=4,
         actual_weeks=7,
+        blocked_weeks=0,
+        actual_blocked_weeks=0,
         owner="Nadeesha",
         team="Discovery",
         work_class="infrastructure",
@@ -109,6 +122,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         expiry="when(monthly_active_accounts >= 100000)",
         estimate_weeks=3,
         actual_weeks=3,
+        blocked_weeks=2,
+        actual_blocked_weeks=5,
         owner="Priyanka",
         team="Payments",
         work_class="backend",
@@ -133,6 +148,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         expiry="when(field_engineers >= 500)",
         estimate_weeks=6,
         actual_weeks=11,
+        blocked_weeks=0,
+        actual_blocked_weeks=3,
         owner="Tharindu",
         team="Mobile",
         work_class="mobile",
@@ -154,6 +171,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         expiry="when(phases_completed >= 4)",
         estimate_weeks=6,
         actual_weeks=9,
+        blocked_weeks=3,
+        actual_blocked_weeks=3,
         owner="Nadeesha",
         team="Platform",
         work_class="migration",
@@ -178,6 +197,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         expiry="when(largest_account_rows >= 50000000)",
         estimate_weeks=2,
         actual_weeks=1,
+        blocked_weeks=0,
+        actual_blocked_weeks=0,
         owner="Ishara",
         team="Reporting",
         work_class="backend",
@@ -205,6 +226,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         expiry='on_event("an incident is prolonged by a stale flag")',
         estimate_weeks=2,
         actual_weeks=4,
+        blocked_weeks=1,
+        actual_blocked_weeks=0,
         owner="Priyanka",
         team="Platform",
         work_class="backend",
@@ -226,6 +249,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         expiry="when(quarters_since_decision >= 2)",
         estimate_weeks=3,
         actual_weeks=2,
+        blocked_weeks=2,
+        actual_blocked_weeks=0,
         owner="Ishara",
         team="Data",
         work_class="data-engineering",
@@ -250,6 +275,8 @@ TOPICS: Final[tuple[Topic, ...]] = (
         expiry="when(monthly_ci_minutes >= 200000)",
         estimate_weeks=5,
         actual_weeks=8,
+        blocked_weeks=4,
+        actual_blocked_weeks=2,
         owner="Tharindu",
         team="Developer Experience",
         work_class="infrastructure",

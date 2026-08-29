@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
+from praxis.agents.classifier import UNCLASSIFIED
 from praxis.agents.errors import ExtractionError, Refusal
 from praxis.agents.extractor import (
     DEFAULT_AHEAD,
@@ -28,7 +29,6 @@ from praxis.agents.extractor import (
     EXTRACT_TASK,
     EXTRACTOR_NAME,
     NOT_STATED,
-    UNCLASSIFIED,
     AssumptionExtractor,
     ExtractionResult,
 )

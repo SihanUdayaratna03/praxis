@@ -248,6 +248,85 @@ def test_estimates_miss_in_both_directions(corpus):
     assert any(actual < estimated for estimated, actual in pairs)
 
 
+def test_both_sides_of_an_estimate_are_graded(corpus):
+    """`blocked_quantity` is graded, not only `active_quantity`.
+
+    The field exists because `OUT-0001` proved it had to: Phase 0's wall clock
+    matched its estimate almost exactly and the engineering was 2.3x
+    over-estimated, with an external block absorbing the difference. A corpus
+    that graded only the effort figure would let an extractor look perfect on
+    exactly the case that motivated the split.
+    """
+    truth = load_ground_truth(corpus)
+    priced = [
+        item
+        for item in truth.items
+        if item.kind in (ItemKind.ESTIMATE, ItemKind.OUTCOME) and not item.is_distractor
+    ]
+
+    assert priced
+    for item in priced:
+        named = {field.name for field in item.fields}
+        assert {"active_quantity", "blocked_quantity"} <= named
+
+
+def test_blocked_time_is_predicted_and_missed_in_both_directions(corpus):
+    """Its errors are deliberately unlike the effort errors.
+
+    A corpus whose two quantities moved together could not express the thing
+    the split exists for -- an estimate that looks right in total and is wrong
+    about the work. So the set holds a topic that predicted no block and got
+    one, a topic that predicted one and got more, and a topic that predicted one
+    and got none.
+    """
+    truth = load_ground_truth(corpus)
+    pairs = [
+        (
+            _blocked(truth.item(outcome.resolves_item_id or "")),
+            _blocked(outcome),
+        )
+        for outcome in truth.items
+        if outcome.kind is ItemKind.OUTCOME
+    ]
+
+    assert any(actual > predicted for predicted, actual in pairs)
+    assert any(actual < predicted for predicted, actual in pairs)
+
+
+def test_not_every_estimate_predicts_a_block(corpus):
+    """Otherwise an extractor scores well on the field by always reporting one."""
+    truth = load_ground_truth(corpus)
+    predicted = [
+        _blocked(item)
+        for item in truth.items
+        if item.kind is ItemKind.ESTIMATE and not item.is_distractor
+    ]
+
+    assert any(value == 0 for value in predicted)
+    assert any(value > 0 for value in predicted)
+
+
+def test_an_estimate_that_nothing_resolves_is_in_the_corpus(corpus):
+    """The unmatched case, which is a real finding rather than a gap.
+
+    `OutcomeMatcher`'s match rate has a ceiling below 1 by construction, and it
+    is meant to: an estimate nobody ever wrote an actual for is the ordinary
+    case in a real corpus and the reason an `unresolved` `Outcome` exists.
+    """
+    truth = load_ground_truth(corpus)
+    estimates = {
+        item.item_id
+        for item in truth.items
+        if item.kind is ItemKind.ESTIMATE and not item.is_distractor
+    }
+    resolved = {
+        outcome.resolves_item_id for outcome in truth.items if outcome.kind is ItemKind.OUTCOME
+    }
+
+    assert estimates - resolved
+    assert estimates & resolved
+
+
 def test_one_subject_appears_in_more_than_one_kind_of_document(corpus):
     """What a real corpus looks like, and what makes contradiction and
     archaeology gradeable in the phases that build them."""
@@ -281,7 +360,21 @@ def test_nothing_is_left_behind_when_the_key_cannot_be_written(tmp_path):
 
 
 def _numeric(item) -> float:
-    field = next(found for found in item.fields if found.name == "active_quantity")
+    return _quantity(item, "active_quantity")
+
+
+def _blocked(item) -> float:
+    return _quantity(item, "blocked_quantity")
+
+
+def _quantity(item, name: str) -> float:
+    """One numeric expected field, as a number.
+
+    Named apart from `_field` below, which returns a string: two helpers with
+    one name would silently make every comparison here a string comparison, and
+    `"11" > "6"` is false.
+    """
+    field = next(found for found in item.fields if found.name == name)
     return float(field.value)
 
 

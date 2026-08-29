@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -430,7 +431,7 @@ def test_eval_writes_the_numbers_as_data_when_asked(tmp_path: Path) -> None:
     payload = json.loads(written.read_text(encoding="utf-8"))
     assert payload["documents"] == 3
     assert payload["provenance"]["provider"] == "mock"
-    assert set(payload["kinds"]) == {"decision", "assumption", "estimate"}
+    assert set(payload["kinds"]) == {"decision", "assumption", "estimate", "outcome"}
 
 
 def test_eval_writes_the_same_table_it_printed(tmp_path: Path) -> None:
@@ -676,6 +677,63 @@ def test_why_refuses_a_question_the_record_does_not_answer(tmp_path: Path) -> No
 
 def test_why_without_a_store_says_to_run_init(tmp_path: Path) -> None:
     result = runner.invoke(app, ["why", "why not Postgres"])
+
+    assert result.exit_code == 1
+    assert "praxis init" in result.output
+
+
+# --- Phase 6: the calibration half ------------------------------------------
+
+
+def test_estimates_runs_half_b_over_the_store(tmp_path: Path) -> None:
+    an_extracted_store(tmp_path)
+
+    result = runner.invoke(app, ["estimates"])
+
+    assert result.exit_code == 0, result.output
+    assert "praxis estimates: OK" in result.output
+    assert "match rate" in result.output
+    assert "calls via mock" in result.output
+
+
+def test_estimates_reports_what_it_did_not_pay_for_twice(tmp_path: Path) -> None:
+    # The claim the skip checks exist for, and the honest version of it. The
+    # classify and match stages cost nothing on a second pass. Extraction skips
+    # only a document that PRODUCED an estimate, because an append-only store
+    # records no attempt that wrote nothing -- the same limitation `praxis
+    # extract` has about a document holding no decision. Offline the citation
+    # gate refuses almost everything, so this store has documents in exactly
+    # that state and the command is honest about re-reading them.
+    an_extracted_store(tmp_path)
+    runner.invoke(app, ["estimates"])
+
+    result = runner.invoke(app, ["estimates"])
+
+    assert result.exit_code == 0, result.output
+    assert "skipped" in result.output
+
+
+def test_estimates_prints_the_match_rate_with_its_denominator(tmp_path: Path) -> None:
+    # Never the rate alone: two of two and two of forty are different facts.
+    an_extracted_store(tmp_path)
+
+    result = runner.invoke(app, ["estimates"])
+
+    assert re.search(r"matched\s+\d+ of \d+ \(match rate 0\.\d{4}\)", result.output)
+
+
+def test_estimates_quiet_prints_the_totals_and_names_nothing(tmp_path: Path) -> None:
+    an_extracted_store(tmp_path)
+
+    result = runner.invoke(app, ["estimates", "--quiet"])
+
+    assert result.exit_code == 0, result.output
+    assert "praxis estimates: OK" in result.output
+    assert "resolves" not in result.output
+
+
+def test_estimates_without_a_store_says_to_run_init(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["estimates"])
 
     assert result.exit_code == 1
     assert "praxis init" in result.output

@@ -67,16 +67,32 @@ nothing else. The table is an artefact; "wrote x" is a remark to the person who
 typed the command.
 """
 
-EXTRACTION_PROMPTS: tuple[str, ...] = (
+GRADED_PROMPTS: tuple[str, ...] = (
     "scan_for_decisions",
     "structure_decision",
     "extract_assumptions",
+    "extract_estimates",
+    "classify_work",
+    "match_outcome",
+    "formalize_assumption",
+    "judge_contradiction",
+    "match_event",
 )
-"""The prompts Half A reads, in the order the three agents run.
+"""Every prompt a graded run reads, in the order the agents run.
 
-Named here rather than derived from every prompt that ships, so that the
-provenance line on a Half A metrics table does not silently start reporting a
-Half B prompt version as though it had produced these numbers.
+Named here rather than derived from every prompt that ships, so that a prompt
+nothing in this run used cannot appear in the provenance line as though it had
+produced these numbers -- `answer_why_not` is shipped and `praxis eval` never
+reads it.
+
+It grew in Phase 6 and the reason is worth stating: this was
+`EXTRACTION_PROMPTS`, and its own docstring warned against letting a Half B
+version appear on a Half A table. `praxis eval` now runs both halves and the
+three memory passes, so the table it prints carries Formalization, Monitoring,
+Contradictions and Estimation sections -- and a provenance line naming only the
+three extraction prompts leaves two thirds of the numbers unattributed, which is
+the failure the line exists to prevent rather than the one it was guarding
+against.
 """
 
 
@@ -193,7 +209,7 @@ def provenance_of(settings: Settings, corpus: Path) -> dict[str, str]:
     return {
         "provider": settings.llm_provider.value,
         "corpus_seed": str(load_ground_truth(corpus).seed),
-        **{name: f"v{latest[name]}" for name in EXTRACTION_PROMPTS if name in latest},
+        **{name: f"v{latest[name]}" for name in GRADED_PROMPTS if name in latest},
     }
 
 

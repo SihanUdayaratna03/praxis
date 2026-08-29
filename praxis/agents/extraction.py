@@ -81,8 +81,12 @@ neither is inferred from the other.
 """
 
 
-class _Allocator:
+class StoreAllocator:
     """Sequential ids from a counter seeded off the store, once per kind.
+
+    Public because Half B's pass needs exactly this and a second copy would be
+    a second answer to "what is the next id", which is the one question a
+    sequential scheme cannot have two answers to.
 
     `Repository.next_id` reads the highest ordinal in the store, which is right
     for a caller that writes between calls and wrong for one that does not --
@@ -162,7 +166,7 @@ class ExtractionPipeline:
         if already_extracted or not spans:
             return DocumentExtraction(document=document, already_extracted=already_extracted)
         moment = at if at is not None else datetime.now(UTC)
-        allocate = _Allocator(self._repository)
+        allocate = StoreAllocator(self._repository)
         sighted = self._scout.scan(tuple(spans))
         refused = [
             Refused(
@@ -221,7 +225,7 @@ class ExtractionPipeline:
         ablation table rests on.
         """
         documents = sorted(self._repository.list_all(Document), key=lambda entry: entry.id)
-        spans = _by_document(self._repository.list_all(Span))
+        spans = spans_by_document(self._repository.list_all(Span))
         done = _documents_with_decisions(self._repository.list_all(Decision), spans)
         results = tuple(
             self.extract_document(
@@ -346,7 +350,7 @@ def _from_extraction(
     ]
 
 
-def _by_document(spans: Iterable[Span]) -> dict[DocumentId, tuple[Span, ...]]:
+def spans_by_document(spans: Iterable[Span]) -> dict[DocumentId, tuple[Span, ...]]:
     """Group every span by its document, in document order within each.
 
     One read rather than one per document. Sorted by start byte because the

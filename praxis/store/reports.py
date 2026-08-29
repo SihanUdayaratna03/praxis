@@ -1,8 +1,13 @@
-"""Search and counting: the two reads that are about the store, not a record.
+"""Search, counting and calibration: the reads that are about more than a record.
 
 Separate from `praxis.store.repository` because they answer questions no single
 record can. `praxis store stats` and `praxis doctor` are the callers now;
 `ReporterAgent` is the caller this shape is really for.
+
+`calibration_history` is here for a second reason as well as the first: no raw
+SQL leaves `praxis.store`, so the query Phase 7 groups estimates by person and
+work class with has to live in this package whichever phase writes it. It is
+written in Phase 6, against Half B's output while that output can still change.
 """
 
 from __future__ import annotations
@@ -10,9 +15,10 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Mapping
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Final
 
-from praxis.domain.enums import RecordKind
+from praxis.domain.enums import MatchQuality, RecordKind, Unit
 from praxis.domain.ids import DocumentId, NodeId
 from praxis.domain.links import LinkType
 from praxis.store import audit
@@ -128,6 +134,158 @@ def document_with_content(connection: sqlite3.Connection, content_hash: str) -> 
     with translating_sqlite_errors():
         row = connection.execute(_BY_CONTENT_HASH_SQL, (content_hash,)).fetchone()
     return None if row is None else DocumentId(str(row["id"]))
+
+
+_CALIBRATION_SQL: Final = """
+    SELECT e.id               AS estimate_id,
+           e.owner            AS owner,
+           e.work_class       AS work_class,
+           e.unit             AS unit,
+           e.subject          AS subject,
+           e.active_quantity  AS estimated_active,
+           e.blocked_quantity AS estimated_blocked,
+           o.id               AS outcome_id,
+           o.active_quantity  AS actual_active,
+           o.blocked_quantity AS actual_blocked,
+           o.match_quality    AS match_quality
+    FROM estimate AS e
+    JOIN record_head    AS eh  ON eh.id = e.id AND eh.version = e.version
+    JOIN record_version AS erv ON erv.id = e.id AND erv.version = e.version
+    JOIN outcome        AS o   ON o.estimate_id = e.id
+    JOIN record_head    AS oh  ON oh.id = o.id AND oh.version = o.version
+    JOIN record_version AS orv ON orv.id = o.id AND orv.version = o.version
+    WHERE erv.retracted = 0 AND orv.retracted = 0
+    ORDER BY e.owner, e.work_class, e.id
+"""
+"""Phase 7's question, written in Phase 6 so its shape can be checked now.
+
+"For this person and this class of work, what is the distribution of estimated
+against actual" is what `CalibratorAgent` and `BiasDetective` compute a factor
+from, and a shape that is awkward there is cheap to change while `OutcomeMatcher`
+is still being written and expensive afterwards. Four properties of Half B's
+output are what keep this to one indexed join:
+
+- the pairing is a **column** (`outcome.estimate_id`) and not an edge, so this is
+  a join rather than a graph walk per estimate;
+- an unmatched estimate carries an **unresolved** outcome rather than nothing, so
+  this is an inner join with no absences to account for, and `n` is a filter on
+  `match_quality` rather than a second query against a table of silences;
+- units are reconciled **at write time**, so nothing here converts; and
+- `work_class` lives on the estimate, so the grouping keys are the two columns
+  `estimate_owner_work_class` already indexes.
+
+Both sides are narrowed to the current, unretracted version. That matters more
+here than anywhere else in this module: `WorkClassifier` revises an estimate to
+put it on this axis, so an unfiltered read would return the row under its old
+class as well and count one estimate twice, in two different groups.
+"""
+
+
+@dataclass(frozen=True, slots=True)
+class CalibrationRow:
+    """One estimate beside what actually happened to it.
+
+    Attributes:
+        estimate_id: The prediction.
+        owner: Whose it was. Half of the grouping key.
+        work_class: What kind of work. The other half.
+        unit: Shared by both quantities, by construction -- `OutcomeMatcher`
+            stores an outcome in its estimate's unit or refuses the pairing.
+        subject: What was estimated, for a person reading a row.
+        estimated_active: Predicted hands-on effort.
+        estimated_blocked: Predicted waiting.
+        outcome_id: The row answering it, resolved or not.
+        actual_active: Effort really spent, or `None` when unresolved.
+        actual_blocked: Waiting really incurred, or `None` when unresolved.
+        match_quality: How well the two agree. `unresolved` means nothing ever
+            answered this estimate, which is a row rather than an absence.
+    """
+
+    estimate_id: str
+    owner: str
+    work_class: str
+    unit: Unit
+    subject: str
+    estimated_active: Decimal
+    estimated_blocked: Decimal
+    outcome_id: str
+    actual_active: Decimal | None
+    actual_blocked: Decimal | None
+    match_quality: MatchQuality
+
+    @property
+    def resolved(self) -> bool:
+        """Whether this row carries an actual to compare against."""
+        return self.match_quality is not MatchQuality.UNRESOLVED
+
+    @property
+    def group(self) -> tuple[str, str]:
+        """The key calibration is computed within: one person, one kind of work."""
+        return self.owner, self.work_class
+
+
+def calibration_history(
+    connection: sqlite3.Connection,
+    *,
+    owner: str | None = None,
+    work_class: str | None = None,
+) -> tuple[CalibrationRow, ...]:
+    """Every estimate the store holds beside the outcome standing against it.
+
+    The read Phase 7 computes calibration factors from. It is here rather than
+    in an agent because no raw SQL leaves `praxis.store`, and it is written now
+    rather than then because the point of writing it is to find out whether
+    `OutcomeMatcher`'s output shape answers it cleanly.
+
+    Unresolved rows are returned rather than filtered out. Whether to exclude
+    them is the caller's decision and `CalibrationRow.resolved` is how, because
+    "eleven estimates, four of them never answered" and "seven estimates" are
+    different facts and only one of them is honest.
+
+    Args:
+        connection: An open store.
+        owner: Restrict to one estimator. `None` for every estimator.
+        work_class: Restrict to one class of work. `None` for every class.
+
+    Returns:
+        Rows ordered by owner, then work class, then estimate id -- so the
+        grouping a caller does is a walk rather than a sort.
+    """
+    with translating_sqlite_errors():
+        rows = connection.execute(_CALIBRATION_SQL).fetchall()
+    return tuple(
+        _calibration_row(row)
+        for row in rows
+        if (owner is None or row["owner"] == owner)
+        and (work_class is None or row["work_class"] == work_class)
+    )
+
+
+def _calibration_row(row: sqlite3.Row) -> CalibrationRow:
+    """One row, with the quantities back in `Decimal`.
+
+    `Decimal` and never `float`, invariant 4: these are summed and divided
+    across a whole calibration history, and binary floating point would make
+    those sums depend on the order the rows came back in.
+    """
+    return CalibrationRow(
+        estimate_id=str(row["estimate_id"]),
+        owner=str(row["owner"]),
+        work_class=str(row["work_class"]),
+        unit=Unit(row["unit"]),
+        subject=str(row["subject"]),
+        estimated_active=Decimal(str(row["estimated_active"])),
+        estimated_blocked=Decimal(str(row["estimated_blocked"])),
+        outcome_id=str(row["outcome_id"]),
+        actual_active=_quantity(row["actual_active"]),
+        actual_blocked=_quantity(row["actual_blocked"]),
+        match_quality=MatchQuality(row["match_quality"]),
+    )
+
+
+def _quantity(value: object) -> Decimal | None:
+    """A nullable stored quantity, as a `Decimal` or as nothing."""
+    return None if value is None else Decimal(str(value))
 
 
 def stats(connection: sqlite3.Connection) -> StoreStats:

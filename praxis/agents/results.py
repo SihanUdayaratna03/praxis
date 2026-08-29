@@ -34,17 +34,31 @@ from praxis.domain.records import Document, Link
 
 
 class Stage(StrEnum):
-    """Which of the three agents lost a record.
+    """Which agent lost a record.
 
     Carried on every refusal, because "the scout cited a passage it was not
     shown" and "the extractor did" are the same `Refusal` about two different
     prompts, and a table that cannot tell them apart cannot say which prompt to
     change.
+
+    Half A's three and Half B's three share this enum rather than having one
+    each. The eval harness groups a single sequence of refusals, and two
+    vocabularies for "the model cited a passage it was not shown" would split
+    one row of that table down a line nobody could act on.
     """
 
     SCAN = "scan"
     STRUCTURE = "structure"
     EXTRACT = "extract"
+
+    ESTIMATE = "estimate"
+    """`EstimateExtractor` reading a document for the quantities it predicts."""
+
+    CLASSIFY = "classify"
+    """`WorkClassifier` putting an estimate on the axis calibration groups by."""
+
+    MATCH = "match"
+    """`OutcomeMatcher` looking for what actually happened to an estimate."""
 
 
 @dataclass(frozen=True, slots=True)
