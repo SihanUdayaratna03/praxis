@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
+from praxis.agents.classifier import UNCLASSIFIED
 from praxis.agents.errors import Refusal
 from praxis.agents.estimator import (
     DEFAULT_WINDOW_SPANS,
@@ -29,7 +30,7 @@ from praxis.agents.estimator import (
     EstimateExtraction,
     EstimateExtractor,
 )
-from praxis.agents.extractor import NOT_STATED, UNCLASSIFIED
+from praxis.agents.extractor import NOT_STATED
 from praxis.agents.offering import windows_of
 from praxis.config.models import ModelRole, role_for_agent
 from praxis.domain.enums import RecordKind, Unit

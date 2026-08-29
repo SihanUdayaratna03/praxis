@@ -31,15 +31,17 @@ trade. `ExtractionRejection.lost` says which record was dropped, so the eval
 table can report the two recalls apart.
 
 **`work_class` falls back to `unclassified` rather than to a guess.**
-`WorkClassifier` owns that field and arrives in Half B; calibration is per
-estimator *per work class*, so a plausible-looking guess here would split one
-estimator's history into two classes with half the sample each. An honest
-`unclassified` is a row `BiasDetective` can exclude. A wrong one is not.
+`praxis.agents.classifier` owns that field, and the spelling rule lives there
+too -- this module calls `work_class_of` rather than keeping a second copy of
+it, because one estimator's history split across two spellings of one class is
+the failure that field exists to prevent. Calibration is per estimator *per work
+class*, so a plausible-looking guess here would halve a sample `BiasDetective`
+already refuses below. An honest `unclassified` is a row it can exclude, and a
+row `WorkClassifier` can later revise. A wrong one is neither.
 """
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -49,6 +51,7 @@ from typing import Final
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from praxis.agents.citation import CitationGate, Uncited
+from praxis.agents.classifier import work_class_of
 from praxis.agents.errors import ExtractionError, Refusal
 from praxis.agents.offering import Offering, spread
 from praxis.domain.enums import RecordKind, Unit
@@ -88,22 +91,10 @@ an offering stays small enough for its ordinals to be unambiguous, written as
 part means breaching a recorded assumption rather than changing a constant.
 """
 
-UNCLASSIFIED: Final = "unclassified"
-"""What `work_class` says when the document did not make the kind of work clear.
-
-Not a default in the sense of a guess. `WorkClassifier` owns this field in Half
-B, and a row it can recognise as unclassified is one it can revise; a row that
-says `data-migration` because that seemed likely is one nobody will ever look
-at again.
-"""
-
 NOT_STATED: Final = "not stated"
 """What an owner or subject says when the document names none. `Estimate.owner`
 is a calibration key and cannot be empty, and an invented name would put one
 person's miss in another person's history."""
-
-_CLASS_RE: Final = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
-"""`WorkClass`'s own spelling, so this module cannot drift from the record."""
 
 IdAllocator = Callable[[RecordKind], str]
 """How this agent gets ids without holding a repository.
@@ -493,7 +484,7 @@ class AssumptionExtractor:
                 id=EstimateId(writing.allocate(RecordKind.ESTIMATE)),
                 subject=answer.estimate_subject or assumption.statement,
                 owner=answer.estimate_owner or NOT_STATED,
-                work_class=_work_class(answer.estimate_work_class),
+                work_class=work_class_of(answer.estimate_work_class),
                 active_quantity=answer.estimate_active_quantity or Decimal(0),
                 blocked_quantity=answer.estimate_blocked_quantity or Decimal(0),
                 unit=answer.estimate_unit,
@@ -539,21 +530,6 @@ def _lost(evidence: Uncited, kind: RecordKind) -> ExtractionRejection:
         lost=kind,
         ordinal=evidence.ordinal,
     )
-
-
-def _work_class(stated: str | None) -> str:
-    """Normalise the model's answer, or say the work was not classified.
-
-    Only spelling is repaired: `Data Migration` and `data migration` are the
-    same class written by two models, and letting both through would halve a
-    sample `BiasDetective` already refuses to answer below `n = 5`. Anything
-    that is not a run of words is not repaired into one -- it is `unclassified`,
-    which Half B can revise.
-    """
-    if stated is None:
-        return UNCLASSIFIED
-    kebab = "-".join(stated.lower().split())
-    return kebab if _CLASS_RE.fullmatch(kebab) else UNCLASSIFIED
 
 
 def _first_problem(exc: ValidationError, what: str) -> str:

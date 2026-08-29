@@ -30,6 +30,7 @@ from praxis.prompts.library import (
 # The one legitimate edit is a typo fixed before the prompt has ever run.
 SHIPPED: dict[str, str] = {
     "answer_why_not@v1": ("84545460c97653038f0381a1122421ac52a7623a2142a1f29c8a33b2603d2dbe"),
+    "classify_work@v1": ("ea83286351445249e18b31a3dee8b22d911c04d23938742e9bf5c4d3773d89b4"),
     "extract_assumptions@v1": ("901030479201b71dd8afb9afe4a8bcc6aba108072befd4f876f3daf850983486"),
     "extract_estimates@v1": ("866f76e98def53bcf532c4af754763b1014ab03197f969f78a4317baa31d0865"),
     "formalize_assumption@v1": ("943d6f1f4898b3f8caaa90aee15ff2707e4fde4939ace152eeb31330babf678a"),
