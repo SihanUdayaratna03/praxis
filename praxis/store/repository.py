@@ -371,6 +371,17 @@ class Repository:
         """The document already holding these exact bytes, if there is one."""
         return reports.document_with_content(self._connection, content_hash)
 
+    def calibration_history(
+        self, *, owner: str | None = None, work_class: str | None = None
+    ) -> tuple[reports.CalibrationRow, ...]:
+        """Every estimate beside the outcome standing against it.
+
+        The read Phase 7 computes calibration factors from, and the reason
+        `OutcomeMatcher`'s output shape was settled against a real query rather
+        than against a sketch.
+        """
+        return reports.calibration_history(self._connection, owner=owner, work_class=work_class)
+
     def stats(self) -> reports.StoreStats:
         """Row and edge counts, for `praxis store stats` and `praxis doctor`."""
         return reports.stats(self._connection)
