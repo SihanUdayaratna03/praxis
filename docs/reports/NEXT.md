@@ -222,3 +222,12 @@ mid-phase can be resumed from the last line rather than from a diff.
   store, not taken from the answer. `work_class_of` moved here from
   `extractor.py` — one spelling rule, one place, property-tested total and
   idempotent. Merged `--no-ff` as `114202a`.
+- `00dad80` **`OutcomeMatcher`** — `praxis/agents/matcher.py` plus
+  `praxis/agents/reconciliation.py`, prompt `match_outcome.v1`, 64 tests, both
+  modules at **100%**. Three stages, only the middle a model. `match_quality`
+  and unit conversion live in `reconciliation.py`, which imports no provider —
+  invariant 3 made structural. Every path leaves exactly one `Outcome` per
+  estimate; an unmatched one is `unresolved`, never dropped. The bands
+  reproduce 5 of this project's 6 hand-scored outcomes and `OUT-0002` is pinned
+  as a deliberate disagreement. Cross-document matching deferred to
+  `BACKLOG.md` under ADR 0015. Merged `--no-ff`.
