@@ -28,9 +28,10 @@ from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any, Final
 
+from praxis.eval.estimation import EstimationResult
 from praxis.eval.harness import EvalResult, KindResult
 from praxis.eval.memory import MemoryResult
-from praxis.eval.metrics import CitationIntegrity, PairScore
+from praxis.eval.metrics import CitationIntegrity, MatchScore, PairScore
 
 SCORE_HEADINGS: Final = (
     "Kind",
@@ -55,6 +56,25 @@ PROVENANCE_SEPARATOR: Final = " -- "
 
 NOTHING_TO_GRADE: Final = "--"
 """Shown where a rate exists by convention but no evidence went into it."""
+
+CLASSIFICATION_NOTE: Final = (
+    "A classified rate and a class accuracy are not the same claim, and the "
+    "higher one is not the better one. An agent that classifies everything "
+    "wrongly scores 1.0 on the first and 0.0 on the second; one that classifies "
+    "nothing scores 0.0 on both, and that is the safer failure -- BiasDetective "
+    "can exclude an unclassified row and cannot detect a confidently wrong one."
+)
+"""Printed above the two rates, because a reader comparing them without it will
+compare them the wrong way round."""
+
+MATCH_CEILING_NOTE: Final = (
+    "The match rate has a ceiling below 1 by construction. The corpus states "
+    "nine estimates and resolves three, because an estimate nobody ever wrote "
+    "an actual for is the ordinary case in a real corpus -- which is what an "
+    "unresolved outcome exists for. A matcher scoring 1.0 here would have "
+    "invented the other six pairings."
+)
+"""Printed beneath the match rate so that a 0.33 is not read as a failure."""
 
 AGED_NOTE: Final = (
     "Should be zero by construction: the monitor reaches a breach only through "
@@ -122,6 +142,7 @@ def as_markdown(
         f"Windows never answered about: {result.run.blind_windows}.",
         "",
         *_memory_lines(result.memory),
+        *_estimation_lines(result.estimation),
         *_cost_lines(result.cost),
     ]
     if offline:
@@ -158,6 +179,7 @@ def as_json(result: EvalResult, *, provenance: Mapping[str, str] | None = None) 
             "recall": str(result.fusion_recall),
         },
         "memory": _memory_data(result.memory),
+        "estimation": _estimation_data(result.estimation),
         # Strings for the reason the rates are strings: these are `Decimal` and
         # JSON floats would put back the representation invariant 4 excludes.
         "cost_per_document": {agent: str(spent) for agent, spent in sorted(result.cost.items())},
@@ -165,6 +187,98 @@ def as_json(result: EvalResult, *, provenance: Mapping[str, str] | None = None) 
     if provenance:
         payload["provenance"] = dict(provenance)
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def _estimation_lines(estimation: EstimationResult) -> list[str]:
+    """What the store learned about its own estimates, rendered.
+
+    Two sections rather than one table, because the two are not comparable: a
+    classification rate is a property of the stored records, and a match rate is
+    a property of a search that mostly and correctly comes back empty.
+
+    Every value is already computed. This module does no arithmetic, so a change
+    to how a number is printed can never move it -- the rule Phase 4 set for the
+    extraction table and the reason a formatting commit is safe to review
+    quickly.
+    """
+    classification = estimation.classification
+    matching = estimation.matching
+    return [
+        "## Estimation",
+        "",
+        f"Estimates on the calibration axis: **{classification.classified}** of "
+        f"{classification.total} (**{classification.classified_rate}**), across "
+        f"{classification.vocabulary} classes, {classification.proposed} of them not in "
+        f"the corpus's own vocabulary.",
+        "",
+        f"Work class agreed with the answer key on **{classification.agreed}** of "
+        f"{classification.identified} estimates the key could name "
+        f"(**{classification.accuracy}**).",
+        "",
+        f"> {CLASSIFICATION_NOTE}",
+        "",
+        f"Estimates an outcome resolved: **{matching.resolved}** of {matching.asked} "
+        f"(match rate **{matching.match_rate}**), against "
+        f"{estimation.expected_resolutions} the corpus resolves.",
+        "",
+        _row(PAIR_HEADINGS),
+        _row(["---"] * len(PAIR_HEADINGS)),
+        _pair_row(estimation.resolution),
+        "",
+        *_unmatched_lines(matching),
+        f"> {MATCH_CEILING_NOTE}",
+        "",
+    ]
+
+
+def _unmatched_lines(matching: MatchScore) -> list[str]:
+    """Why each unmatched estimate went unmatched, or that none did.
+
+    Printed as a list rather than folded into the rate, because a low match rate
+    means four different things and only two of them are about the model. An
+    empty split is stated rather than skipped: "the causes were not reported"
+    and "nothing was lost" are different, and a missing section would read as
+    the second.
+    """
+    if not matching.unresolved:
+        return ["No estimate went unmatched.", ""]
+    if not matching.by_reason:
+        return [f"Unmatched: {matching.unresolved}, causes not reported.", ""]
+    return [
+        f"Unmatched, by what lost the pairing ({matching.unresolved} in total):",
+        "",
+        *(
+            f"- `{reason}` — {count}"
+            for reason, count in sorted(matching.by_reason.items(), key=lambda row: -row[1])
+        ),
+        "",
+    ]
+
+
+def _estimation_data(estimation: EstimationResult) -> dict[str, Any]:
+    """The same numbers as data, for Phase 10's ablation table."""
+    return {
+        "classification": {
+            "total": estimation.classification.total,
+            "classified": estimation.classification.classified,
+            "classified_rate": str(estimation.classification.classified_rate),
+            "identified": estimation.classification.identified,
+            "agreed": estimation.classification.agreed,
+            "accuracy": str(estimation.classification.accuracy),
+            "proposed": estimation.classification.proposed,
+            "vocabulary": estimation.classification.vocabulary,
+        },
+        "matching": {
+            "asked": estimation.matching.asked,
+            "resolved": estimation.matching.resolved,
+            "unresolved": estimation.matching.unresolved,
+            "match_rate": str(estimation.matching.match_rate),
+            "expected_resolutions": estimation.expected_resolutions,
+            "by_reason": dict(sorted(estimation.matching.by_reason.items())),
+        },
+        "resolution": _pair_data(estimation.resolution),
+        "identified": estimation.identified,
+    }
 
 
 def _memory_lines(memory: MemoryResult) -> list[str]:

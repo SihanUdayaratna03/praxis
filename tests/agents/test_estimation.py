@@ -40,14 +40,17 @@ from praxis.agents.reconciliation import candidates_for
 from praxis.agents.results import Stage
 from praxis.config.settings import Settings
 from praxis.domain.enums import MatchQuality, RecordKind, Unit
-from praxis.domain.ids import EstimateId
-from praxis.domain.records import Document, Estimate, Outcome, Span
+from praxis.domain.ids import AssumptionId, EstimateId
+from praxis.domain.links import LinkType
+from praxis.domain.records import Assumption, Document, Estimate, Link, Outcome, Span
 from praxis.domain.spans import verify_span
 from praxis.ingest.adapters import MARKDOWN_ADAPTER
 from praxis.ingest.pipeline import IngestionPipeline
 from praxis.llm.errors import ProviderRefusalError
 from praxis.llm.mock import MockProvider
 from praxis.llm.trace import MemoryTraceSink
+from praxis.monitor.facts import measured_in
+from praxis.monitor.run import monitor_store
 from praxis.store.connection import MEMORY, connect
 from praxis.store.migrations import migrate
 from praxis.store.repository import Repository
@@ -587,3 +590,147 @@ class TestOffline:
         for outcome in store.list_all(Outcome):
             assert outcome.created_at.tzinfo is not None
         assert AT.tzinfo is UTC
+
+
+class TestTheFusionChain:
+    """The two zeros the Phase 5 report had to explain, and whether they move.
+
+    Phase 5 shipped `measured_in` and could not exercise it: it binds an
+    identifier only where an assumption's `estimated_as` edge reaches an
+    estimate that an `Outcome` resolves, and nothing wrote an `Outcome`. The
+    handover called it "mechanism waiting, not mechanism failing". This is the
+    test that says which it was, with the outcome written by the real
+    `OutcomeMatcher` rather than by hand.
+    """
+
+    def test_a_matched_outcome_binds_the_quantity_a_predicate_names(
+        self, store: Repository, ingested: tuple[Document, tuple[Span, ...]]
+    ) -> None:
+        _, spans = ingested
+        estimate = _seed_fusion(store, spans)
+
+        EstimationPipeline(
+            store,
+            Answering(
+                [
+                    *[NOTHING] * len(windows_of(spans, DEFAULT_WINDOW_SPANS)),
+                    classified(),
+                    resolved(candidate_ordinal(spans, ACTUAL_QUOTE)),
+                ]
+            ),
+        ).run(at=AT)
+
+        assert measured_in(store) == {"search_index_weeks": Decimal(7)}
+        assert estimate.active_quantity == Decimal(4)
+
+    def test_and_the_monitor_then_breaches_the_assumption(
+        self, store: Repository, ingested: tuple[Document, tuple[Span, ...]]
+    ) -> None:
+        """The product's central claim, run end to end for the first time.
+
+        A missed estimate reaching forward through the edge Half A wrote to
+        breach the assumption a decision rests on. Only arithmetic can breach
+        (ADR 0019), and the arithmetic now has a measured number to work on
+        because Half B put one in the store.
+        """
+        _, spans = ingested
+        _seed_fusion(store, spans)
+        EstimationPipeline(
+            store,
+            Answering(
+                [
+                    *[NOTHING] * len(windows_of(spans, DEFAULT_WINDOW_SPANS)),
+                    classified(),
+                    resolved(candidate_ordinal(spans, ACTUAL_QUOTE)),
+                ]
+            ),
+        ).run(at=AT)
+
+        run = monitor_store(store, at=AT)
+
+        assert "A-0001" in {verdict.assumption.id for verdict in run.breached}
+
+    def test_an_unresolved_outcome_binds_nothing_and_breaches_nothing(
+        self, store: Repository, ingested: tuple[Document, tuple[Span, ...]]
+    ) -> None:
+        """The refusal is as important as the finding.
+
+        An `unresolved` outcome carries no quantity, so there is nothing to
+        bind and nothing to breach on. A row that made the chain fire without a
+        measurement would be the most convincing wrong answer this system could
+        give.
+        """
+        _, spans = ingested
+        _seed_fusion(store, spans)
+        EstimationPipeline(
+            store,
+            Answering(
+                [
+                    *[NOTHING] * len(windows_of(spans, DEFAULT_WINDOW_SPANS)),
+                    classified(),
+                    UNRESOLVED,
+                ]
+            ),
+        ).run(at=AT)
+
+        assert measured_in(store) == {}
+        assert not monitor_store(store, at=AT).breached
+
+
+def _seed_fusion(store: Repository, spans: tuple[Span, ...]) -> Estimate:
+    """What Half A leaves behind: an assumption, its estimate, and the edge.
+
+    Written by hand rather than extracted because offline the citation gate
+    refuses almost every extraction (ADR 0016), so a test that waited for Half A
+    to produce this would be testing the mock rather than the chain.
+    """
+    cited = next(span for span in spans if ESTIMATE_QUOTE in span.text)
+    store.add(
+        Assumption(
+            id=AssumptionId("A-0001"),
+            statement="the search index migration finishes inside four weeks",
+            predicate="search_index_weeks <= 4",
+            expiry_condition='on_event("the work ships")',
+            span_id=cited.id,
+            confidence=0.7,
+            created_by="AssumptionExtractor",
+            created_at=AT,
+        ),
+        actor="extraction",
+        reason="fixture",
+        at=AT,
+    )
+    estimate = store.add(
+        Estimate(
+            id=EstimateId("EST-0001"),
+            subject="the search index migration",
+            owner="Nadeesha",
+            work_class=UNCLASSIFIED,
+            active_quantity=Decimal(4),
+            blocked_quantity=Decimal(0),
+            unit=Unit.WEEKS,
+            confidence=0.7,
+            estimated_at=AT,
+            span_id=cited.id,
+            created_by="AssumptionExtractor",
+            created_at=AT,
+        ),
+        actor="extraction",
+        reason="fixture",
+        at=AT,
+    )
+    store.add(
+        Link.between(
+            LinkType.ESTIMATED_AS,
+            "A-0001",
+            estimate.id,
+            rationale="a quantified forward-looking claim about effort",
+            confidence=0.7,
+            created_by="AssumptionExtractor",
+            created_at=AT,
+        ),
+        actor="extraction",
+        reason="fixture",
+        at=AT,
+    )
+    return estimate

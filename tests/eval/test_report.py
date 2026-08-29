@@ -32,12 +32,15 @@ from praxis.agents.errors import Refusal
 from praxis.agents.results import ExtractionRun, Stage
 from praxis.corpus.groundtruth import GroundTruthItem, ItemKind
 from praxis.domain.enums import AssumptionStatus
+from praxis.eval.estimation import EstimationResult
 from praxis.eval.harness import EvalResult, KindResult
 from praxis.eval.matching import Pairing
 from praxis.eval.memory import MemoryResult
 from praxis.eval.metrics import (
     CitationIntegrity,
+    ClassificationScore,
     FormalizationScore,
+    MatchScore,
     MonitoringScore,
     PairScore,
     Score,
@@ -46,6 +49,8 @@ from praxis.eval.metrics import (
 )
 from praxis.eval.report import (
     AGED_NOTE,
+    CLASSIFICATION_NOTE,
+    MATCH_CEILING_NOTE,
     NOTHING_TO_GRADE,
     OFFLINE_CAVEAT,
     PAIR_HEADINGS,
@@ -484,3 +489,91 @@ def test_a_cost_is_a_string_in_the_json_and_never_a_float():
     payload = json.loads(as_json(a_result(memory=a_memory(), cost={"S": Decimal("0.000001")})))
 
     assert payload["cost_per_document"] == {"S": "0.000001"}
+
+
+# -- the estimation half ------------------------------------------------------
+
+
+def an_estimation(**kwargs) -> EstimationResult:
+    """A graded Half B run, with everything the renderer reads."""
+    kwargs.setdefault(
+        "classification",
+        ClassificationScore(
+            total=9, classified=7, identified=6, agreed=5, proposed=1, vocabulary=4
+        ),
+    )
+    kwargs.setdefault(
+        "matching",
+        MatchScore(asked=9, resolved=3, by_reason={"model_found_none": 5, "no_candidates": 1}),
+    )
+    kwargs.setdefault("resolution", PairScore(label="resolution", true_positives=3))
+    kwargs.setdefault("expected_resolutions", 3)
+    kwargs.setdefault("identified", 6)
+    return EstimationResult(**kwargs)
+
+
+def test_the_estimation_section_prints_both_rates_and_their_denominators():
+    rendered = as_markdown(a_result(memory=a_memory(), estimation=an_estimation()))
+
+    assert "## Estimation" in rendered
+    assert "**7** of 9" in rendered
+    assert "**5** of 6 estimates the key could name" in rendered
+
+
+def test_the_two_classification_rates_carry_the_note_that_orders_them():
+    """A reader comparing them without it will compare them the wrong way round."""
+    assert CLASSIFICATION_NOTE in as_markdown(
+        a_result(memory=a_memory(), estimation=an_estimation())
+    )
+
+
+def test_the_match_rate_carries_its_ceiling():
+    """So that a 0.33 is not read as a failure."""
+    rendered = as_markdown(a_result(memory=a_memory(), estimation=an_estimation()))
+
+    assert "match rate **0.3333**" in rendered
+    assert MATCH_CEILING_NOTE in rendered
+
+
+def test_the_causes_of_an_unmatched_pairing_are_listed_largest_first():
+    """A low match rate means four things and only two are about the model."""
+    rendered = as_markdown(a_result(memory=a_memory(), estimation=an_estimation()))
+
+    causes = [line for line in rendered.splitlines() if line.startswith("- `")]
+    assert causes == ["- `model_found_none` — 5", "- `no_candidates` — 1"]
+
+
+def test_a_run_that_matched_everything_says_so_rather_than_printing_a_table():
+    estimation = an_estimation(matching=MatchScore(asked=3, resolved=3))
+
+    assert "No estimate went unmatched." in as_markdown(
+        a_result(memory=a_memory(), estimation=estimation)
+    )
+
+
+def test_unreported_causes_are_said_to_be_unreported_rather_than_zero():
+    """ "The causes were not reported" and "nothing was lost" are different."""
+    estimation = an_estimation(matching=MatchScore(asked=9, resolved=3, by_reason={}))
+
+    rendered = as_markdown(a_result(memory=a_memory(), estimation=estimation))
+
+    assert "Unmatched: 6, causes not reported." in rendered
+    assert "- `" not in rendered
+
+
+def test_the_estimation_numbers_reach_the_json():
+    payload = json.loads(as_json(a_result(memory=a_memory(), estimation=an_estimation())))
+
+    assert payload["estimation"]["classification"]["accuracy"] == "0.8333"
+    assert payload["estimation"]["matching"]["match_rate"] == "0.3333"
+    assert payload["estimation"]["matching"]["unresolved"] == 6
+    assert payload["estimation"]["matching"]["by_reason"]["model_found_none"] == 5
+    assert payload["estimation"]["resolution"]["recall"] == "1.0000"
+
+
+def test_the_estimation_rates_are_strings_in_the_json_and_never_floats():
+    """The reason every rate here is a string: invariant 4, kept out of JSON too."""
+    payload = json.loads(as_json(a_result(memory=a_memory(), estimation=an_estimation())))
+
+    assert isinstance(payload["estimation"]["matching"]["match_rate"], str)
+    assert isinstance(payload["estimation"]["classification"]["classified_rate"], str)

@@ -430,7 +430,7 @@ def test_eval_writes_the_numbers_as_data_when_asked(tmp_path: Path) -> None:
     payload = json.loads(written.read_text(encoding="utf-8"))
     assert payload["documents"] == 3
     assert payload["provenance"]["provider"] == "mock"
-    assert set(payload["kinds"]) == {"decision", "assumption", "estimate"}
+    assert set(payload["kinds"]) == {"decision", "assumption", "estimate", "outcome"}
 
 
 def test_eval_writes_the_same_table_it_printed(tmp_path: Path) -> None:

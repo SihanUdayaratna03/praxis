@@ -450,6 +450,101 @@ this pipeline as free.
 """
 
 
+@dataclass(frozen=True, slots=True)
+class ClassificationScore:
+    """Whether the estimates in a store sit on the axis calibration groups by.
+
+    Two numbers that are easy to confuse and mean opposite things. `classified`
+    counts the estimates that carry any class at all; `agreed` counts those
+    whose class is the one the answer key names. An agent that classifies
+    everything wrongly scores 1.0 on the first and 0.0 on the second, and an
+    agent that refuses everything scores 0.0 on both -- which is worse for a
+    reader and better for `BiasDetective`, since an `unclassified` row is one it
+    can exclude and a wrongly classified one is one it silently averages.
+
+    `proposed` is the third number and it is about the *vocabulary* rather than
+    about any one row. A run that invents a new class for every estimate has
+    classified everything and grouped nothing, and that failure is invisible in
+    a per-row accuracy: every class would be plausible and no two estimates
+    would share one.
+
+    Attributes:
+        label: What this row is called in a report.
+        total: Estimates the store holds.
+        classified: How many carry something other than `unclassified`.
+        identified: How many the answer key could name at all. The denominator
+            under `agreed`, and reported because an accuracy over two estimates
+            and over twenty are not the same evidence.
+        agreed: Of those, how many carry the class the key names.
+        proposed: Classes this run introduced that the store did not hold.
+        vocabulary: Distinct classes across every stored estimate.
+    """
+
+    label: str = "classification"
+    total: int = 0
+    classified: int = 0
+    identified: int = 0
+    agreed: int = 0
+    proposed: int = 0
+    vocabulary: int = 0
+
+    @property
+    def classified_rate(self) -> Decimal:
+        """Of the estimates stored, how many are on the axis at all."""
+        return _ratio(self.classified, self.total, EMPTY)
+
+    @property
+    def accuracy(self) -> Decimal:
+        """Of the estimates the key names, how many carry the right class."""
+        return _ratio(self.agreed, self.identified, EMPTY)
+
+
+@dataclass(frozen=True, slots=True)
+class MatchScore:
+    """What happened to every estimate `OutcomeMatcher` was asked about.
+
+    The match rate is the number this agent is judged on, and it is reported
+    beside the reasons rather than alone, because a low one means four different
+    things and only two of them are about the model. A pair deterministic
+    selection never proposed was lost before any model saw it; a pair the model
+    read and declined is the ordinary case and usually correct; a citation that
+    failed the gate is a claim whose evidence did not survive; and an
+    incomparable unit is a refusal this agent is supposed to make.
+
+    `asked` is every estimate that reached the agent, which is also every
+    outcome row written -- one estimate always leaves with exactly one, resolved
+    or not. That identity is what makes the rate a rate rather than a count over
+    an unstated denominator.
+
+    Attributes:
+        label: What this row is called in a report.
+        asked: Estimates the matcher was given.
+        resolved: How many an outcome really answered.
+        by_reason: For the rest, how many were lost to each cause, keyed by the
+            `Unmatched` member's value.
+    """
+
+    label: str = "matching"
+    asked: int = 0
+    resolved: int = 0
+    by_reason: Mapping[str, int] = field(default_factory=dict)
+
+    @property
+    def unresolved(self) -> int:
+        """Estimates that left with an `unresolved` outcome. Rows, not silences."""
+        return self.asked - self.resolved
+
+    @property
+    def match_rate(self) -> Decimal:
+        """Of the estimates asked about, how many an actual answered.
+
+        Empty rather than perfect when nothing was asked. A store with no
+        estimates has not matched everything; it has matched nothing, and
+        reporting 1.0 there would put a starved pipeline at the top of the table.
+        """
+        return _ratio(self.resolved, self.asked, EMPTY)
+
+
 def cost_per_document(spent: Mapping[str, Decimal], documents: int) -> dict[str, Decimal]:
     """What each agent cost per document.
 
