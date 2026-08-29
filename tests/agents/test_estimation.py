@@ -501,7 +501,10 @@ class TestRunShape:
         assert run.estimates == 0
         assert run.outcomes == 0
         assert run.calls == 0
+        # Quantized even when empty: one number with two renderings is one a
+        # report cannot be pattern-matched against.
         assert run.match_rate == Decimal(0)
+        assert str(run.match_rate) == "0.0000"
         assert run.refused == ()
         assert run.blind_windows == 0
 

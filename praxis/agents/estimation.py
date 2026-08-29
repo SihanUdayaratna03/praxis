@@ -62,6 +62,10 @@ from praxis.store.repository import Repository
 
 _log = get_logger(__name__)
 
+RATE_PLACES: Final = Decimal("0.0001")
+"""How precisely a rate is reported. Four places, as `praxis.eval.metrics` uses,
+so the run's own number and the graded one cannot disagree by rounding."""
+
 ESTIMATION_ACTOR: Final = "estimation"
 """The actor on the audit rows this pass writes for a new record.
 
@@ -171,11 +175,16 @@ class EstimationRun:
         `Decimal` rather than `float`, matching `praxis.eval.metrics`: this
         number is printed beside the graded one and two rates that round
         differently would read as a disagreement between the run and its grader.
+
+        Quantized in the empty case too, so that a store with nothing to match
+        prints `0.0000` rather than `0`. One number with two renderings is a
+        number a report cannot be pattern-matched against, and this one is read
+        off a terminal.
         """
         asked = self.outcomes
         if not asked:
-            return Decimal(0)
-        return (Decimal(len(self.matched)) / Decimal(asked)).quantize(Decimal("0.0001"))
+            return Decimal(0).quantize(RATE_PLACES)
+        return (Decimal(len(self.matched)) / Decimal(asked)).quantize(RATE_PLACES)
 
 
 class EstimationPipeline:

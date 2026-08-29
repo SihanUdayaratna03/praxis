@@ -27,6 +27,7 @@ import typer
 from rich.console import Console
 
 from praxis import __version__
+from praxis.cli_estimate import estimates
 from praxis.cli_eval import eval_corpus, extract
 from praxis.cli_monitor import contradictions, formalize, monitor, why
 from praxis.cli_tables import configuration_table, links_table, records_table, routing_table
@@ -255,6 +256,14 @@ app.command(name="formalize")(formalize)
 app.command(name="monitor")(monitor)
 app.command(name="contradictions")(contradictions)
 app.command(name="why")(why)
+
+# The calibration half, from `praxis.cli_estimate`. One command rather than
+# three, because the three agents behind it are not independently useful: there
+# is nothing to classify until an estimate exists and nothing to match until it
+# has been classified. It is registered before `monitor` reads anything, which
+# is also the order the two are meant to be run in -- `measured_in` binds a
+# quantity only once something has written an `Outcome`.
+app.command(name="estimates")(estimates)
 
 
 @corpus_app.command(name="generate")
