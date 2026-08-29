@@ -314,7 +314,7 @@ The three OUT-0006 corrections all paid:
 ### Where it was not
 
 `OutcomeMatcher` was priced at ~420 production lines as one module and became
-two: `matcher.py` at 491 and `reconciliation.py` at 164. The split was the right
+two: `matcher.py` at 497 and `reconciliation.py` at 164. The split was the right
 call — it is what makes invariant 3 structural — but it was not foreseen, and it
 is the *same shape* of miss `OUT-0004` and `OUT-0006` both recorded: a component
 described as one thing having a subject of its own inside it. Three phases
