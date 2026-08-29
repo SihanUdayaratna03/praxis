@@ -190,16 +190,25 @@ class TestClassification:
 
         assert isinstance(result, Classification)
         assert result.estimate.model_dump(
-            exclude={"work_class", "created_by", "created_at"}
-        ) == estimate.model_dump(exclude={"work_class", "created_by", "created_at"})
+            exclude={"work_class", "created_at"}
+        ) == estimate.model_dump(exclude={"work_class", "created_at"})
 
-    def test_records_itself_as_the_author_of_the_new_version(self, evidence: Span) -> None:
+    def test_leaves_created_by_naming_the_agent_that_produced_the_record(
+        self, evidence: Span
+    ) -> None:
+        """The audit trail says who revised. `created_by` says who produced.
+
+        Not a nicety. `praxis.agents.estimation` asks the store "which documents
+        has EstimateExtractor already read" by looking at `created_by`, and a
+        classifier that stamped its own name over it would make every classified
+        document look unread and be re-extracted on the next run.
+        """
         provider = Answering([answer()])
 
         result = WorkClassifier(provider).classify(an_estimate(), evidence, KNOWN, at=AT)
 
         assert isinstance(result, Classification)
-        assert result.estimate.created_by == CLASSIFIER_NAME
+        assert result.estimate.created_by == "EstimateExtractor"
         assert result.estimate.created_at == AT
 
     def test_a_class_already_in_use_is_not_reported_as_proposed(self, evidence: Span) -> None:

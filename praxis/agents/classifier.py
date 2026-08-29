@@ -150,7 +150,14 @@ class Classification:
     Attributes:
         estimate: The record with `work_class` filled in, not yet written. Its
             `span_id` is untouched -- a classification is a judgement about a
-            record, not a new claim about a document.
+            record, not a new claim about a document -- and so is `created_by`,
+            which names the agent that *produced* the record rather than the one
+            that last revised it. `AssumptionFormalizer` leaves it alone for the
+            same reason, and the audit trail is where "who wrote this version"
+            is answered. Overwriting it here would break every question asked of
+            the store in the form "which agent's records are these", including
+            the one `praxis.agents.estimation` asks to know it has already read
+            a document.
         work_class: The class assigned, already normalised.
         proposed: Whether this class was new to the store rather than chosen
             from what it already held.
@@ -244,9 +251,7 @@ class WorkClassifier:
             )
         assigned = work_class_of(answer.work_class)
         return Classification(
-            estimate=estimate.model_copy(
-                update={"work_class": assigned, "created_by": self.name, "created_at": at}
-            ),
+            estimate=estimate.model_copy(update={"work_class": assigned, "created_at": at}),
             work_class=assigned,
             proposed=assigned != UNCLASSIFIED and assigned not in known,
             reason=_reason_for(assigned, answer),
