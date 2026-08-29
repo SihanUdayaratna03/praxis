@@ -5,9 +5,11 @@
 > model and the store, Phase 2 the model access layer, Phase 3 ingestion: the
 > first real agents, Phase 4 Half A's extraction and the eval harness, and
 > Phase 5 the memory that extraction feeds: a predicate language, the monitor
-> that evaluates it, contradiction detection and the archaeologist. Sections
-> marked *(built)* exist and are tested; everything else is the target, not the
-> present. Each phase updates this file when something structural lands.
+> that evaluates it, contradiction detection and the archaeologist, and Phase 6
+> Half B: the estimates a corpus states, what kind of work each covers, and
+> what actually happened to them. Sections marked *(built)* exist and are
+> tested; everything else is the target, not the present. Each phase updates
+> this file when something structural lands.
 
 ## The shape of the thing
 
@@ -294,6 +296,83 @@ does not cover is refused. See
 `praxis formalize`, `praxis monitor`, `praxis contradictions` and `praxis why`
 are the four commands, in the order they are meant to be run.
 
+## Half B calibration *(Phase 6, built)*
+
+The other pillar Phase 8's fusion stands on. Half A asks what was decided and
+what it rested on; this asks what was predicted and what actually happened.
+
+```
+  spans ──▶ EstimateExtractor ──▶ WorkClassifier ──▶ OutcomeMatcher ──▶ Outcome
+            scan tier              scan tier          extract tier
+            one call per           one call per       blocking, then one
+            window                 unclassified       call, then arithmetic
+                                   estimate
+```
+
+`AssumptionExtractor` already wrote an estimate wherever an assumption turned
+out to be a quantified claim (ADR 0016), but only ever *inside* an assumption it
+was paid to read. Most estimates in a corpus are nowhere near one: they are in a
+status update, a plan, a ticket, and nobody called them estimates when they
+wrote them. `EstimateExtractor` runs over spans for exactly those, on the scan
+tier, one call per window — `DecisionScout`'s economics for `DecisionScout`'s
+reason. It never guesses a unit, never invents an owner, and never sets
+`work_class`.
+
+`WorkClassifier` owns `work_class`, and it **revises** rather than writes: the
+field is the axis `BiasDetective` groups by, so it is a key rather than a label,
+and the failure worth preventing is not a wrong class but *two spellings of
+one*. `data-migration` and `database-migration` turn one estimator's ten
+migrations into two sets of five under a detective that refuses below `n = 5`,
+and nothing raises. So the store's existing vocabulary is offered to the model,
+whether a class was newly proposed is computed against the store rather than
+taken from the answer, and spelling is repaired while meaning is not. It also
+repairs the `unclassified` rows Phase 4 left behind. See
+[ADR 0023](docs/adr/0023-work-class-is-assigned-by-revision.md).
+
+`OutcomeMatcher` runs three stages and only the middle one is a model:
+deterministic selection proposes the passages worth reading, the model says
+which reports the actual for *this* estimate, and arithmetic does everything
+after. **`match_quality` is computed, never asked for** — the banding, the unit
+conversion and the candidate selection live in `praxis/agents/reconciliation.py`,
+which imports no provider and therefore cannot reach one. Invariant 3 made
+structural rather than remembered. Units are reconciled at write time against a
+stated convention, written into the outcome's notes; across incommensurable
+families the pairing is refused rather than converted at an invented rate. See
+[ADR 0021](docs/adr/0021-match-quality-is-arithmetic-not-a-judgement.md).
+
+**An estimate nothing resolves gets an `unresolved` `Outcome`, not a silence.**
+Phase 1 designed the record for it — an unresolved outcome exists so estimates
+that never resolved stay visible instead of dropping out of the sample, which is
+how a curve ends up flattering its estimator. Every estimate leaves the matcher
+with exactly one row, and the six causes of an unmatched pairing are reported
+apart, because a low match rate means six different things and only three are
+about the model. See
+[ADR 0022](docs/adr/0022-an-unmatched-estimate-is-an-unresolved-outcome.md).
+
+`praxis/agents/estimation.py` runs the three over a store, and `praxis estimates`
+is the command. A second pass costs nothing on the classify and match stages;
+extraction re-reads a document that produced no estimate, which is the same
+limitation `praxis extract` has and is in `BACKLOG.md` with its reason.
+
+**This is where the fusion chain first runs end to end.** `measured_in` binds an
+identifier only where an assumption's `estimated_as` edge reaches an estimate
+that an `Outcome` resolves, so the mechanism Phase 5 shipped had nothing to
+reach through. It does now: a matched outcome binds the quantity a predicate
+names, and `AssumptionMonitor` breaches the assumption on it by arithmetic — a
+missed estimate reaching forward to invalidate the decision that leaned on it.
+An `unresolved` outcome binds nothing and breaches nothing, which is what stops
+the chain firing without a measurement.
+
+**Phase 7's query is already written and run.** `calibration_history` in
+`praxis/store/reports.py` answers "for this person and this work class, what is
+the distribution of estimated against actual" as a single indexed join, and it
+was written against Half B's output while that output could still change — the
+discipline Phase 1 applied to the `Link` table for Phase 8. Four properties keep
+it to one join: the pairing is a column rather than an edge, an unmatched
+estimate is a row rather than an absence, units are reconciled before the write,
+and `work_class` sits on the estimate where `estimate_owner_work_class` already
+indexes it.
+
 ## Evaluation *(Phase 4, built)*
 
 `praxis/eval/` grades a run against `praxis/corpus/`'s answer key, in four
@@ -322,6 +401,18 @@ split by which stage settled them, under a blocking recall that is the ceiling
 the others sit under. Records join to the key through the assumption pairing,
 because the two sides allocate ids independently and nothing relates them but
 the passage both point at.
+
+Phase 6 added a sixth module and a third half to the table. `estimation` grades
+what the store learned about its own *estimates*: whether they sit on the axis
+calibration groups by and whether they sit on the right part of it, and which of
+them an actual answered. Two of those numbers are printed as a pair with a note
+ordering them, because the higher one is not the better one — an agent that
+classifies everything wrongly scores 1.0 on the classified rate and 0.0 on class
+accuracy, while one that classifies nothing scores 0.0 on both and that is the
+safer failure. The match rate is printed with its ceiling, which the corpus fixes
+below 1 by construction, and the unmatched rows are split by the stage that lost
+them. `ItemKind.OUTCOME` joined `GRADED_KINDS` here, which is what Phase 4's
+version of that line said would happen once something could write one.
 
 `praxis/eval/adrs.py` is the one metric that grades the *project* rather than a
 run: it recomputes ADR 0001's own first assumption from the files in
@@ -393,6 +484,7 @@ These never call a model:
 | `BiasDetective` | Bias, sample size and intervals are arithmetic |
 | `ScoringAgent` | Brier, log score and MAPE are arithmetic |
 | Predicate evaluator | A predicate whose truth depends on sampling is not a predicate |
+| `praxis/agents/reconciliation.py` | `match_quality`, unit conversion and candidate selection. The module imports no provider, so invariant 3 holds by construction rather than by rule — ADR 0021 |
 
 All of it is property-tested with `hypothesis`. `praxis doctor` fails if any of
 these acquires a model route.
@@ -405,6 +497,7 @@ praxis/
                        store stats, corpus generate
   cli_eval.py          praxis extract and praxis eval
   cli_monitor.py       praxis formalize, monitor, contradictions and why
+  cli_estimate.py      praxis estimates: Half B over a store, in one command
   cli_tables.py        what the CLI's output looks like
   config/settings.py   pydantic-settings; PRAXIS_* environment
   config/models.py     model ids, prices, roles, routing  ← the only place
@@ -420,7 +513,7 @@ praxis/
   store/repository.py  add / revise / retract, reads. No update, no delete
   store/audit.py       audit writes, always inside the caller's transaction
   store/graph.py       edge reads and the two recursive walks
-  store/reports.py     search and counting
+  store/reports.py     search, counting, and the calibration history
   store/errors.py      the store's exception vocabulary; where sqlite3 stops
   store/traces.py      the llm_trace table; append-only, exact decimal cost
   llm/types.py         request, response, usage, stop and outcome vocabulary
@@ -463,6 +556,11 @@ praxis/
   agents/detection.py  the detector over a store; edges written once
   agents/archaeologist.py why not X, answered out of the record only
   agents/results.py    what a run wrote, and everything it lost
+  agents/estimator.py  spans -> the estimates a document states, cited
+  agents/classifier.py which kind of work an estimate is about. Owns work_class
+  agents/matcher.py    an estimate -> what actually happened to it
+  agents/reconciliation.py the arithmetic half: selection, units, the band
+  agents/estimation.py extract -> classify -> match, over a whole store
   predicates/lexer.py  the tokens a predicate is made of
   predicates/parser.py recursive descent; a grammar small enough to read
   predicates/ast.py    the tree, its rendering, and the three-valued verdict
@@ -479,6 +577,7 @@ praxis/
   eval/metrics.py      arithmetic over the pairs. No model, ever
   eval/harness.py      a corpus end to end, graded from what SQLite holds
   eval/memory.py       grading what the store remembers, not what it copied
+  eval/estimation.py   grading what it learned about its own estimates
   eval/adrs.py         the one metric that grades the project, not a run
   eval/report.py       the table and the JSON. No arithmetic
   obs/logging.py       structured JSON logging
