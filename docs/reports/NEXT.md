@@ -275,3 +275,9 @@ mid-phase can be resumed from the last line rather than from a diff.
   `EstimateSightings`, `ClassAnswer` and `OutcomeAnswer` all validate against
   `synthesise_answer` — `Decimal`, the `Unit` enum, ordinals and quotes are
   already handled at `synthesis.py:328`. No extension written.
+- `a4793d8` **ADRs 0021–0023** — match quality is arithmetic (and lives in a
+  module that cannot reach a provider); an unmatched estimate is an
+  `unresolved` outcome; work class is assigned by revision against the store's
+  own vocabulary. ADR 0001's first assumption recomputes to **91 of 92,
+  0.9891** (was 0.9875) — all 12 new predicates and 12 expiry conditions parse.
+  ADR 0015's third assumption remains the one unreadable row, still a finding.
