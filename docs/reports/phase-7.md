@@ -369,6 +369,48 @@ backtested.
 `BiasDetective` can legitimately speak about.** Phase 7 builds the component;
 Phase 8 is the first phase it can price.
 
+### The outcome: `OUT-0008`, and the threshold crossing
+
+**5.5h predicted, ~2.1h spent. Over by 2.62x — a `miss`**, banded by
+`praxis.agents.reconciliation.quality_for`, which ends `partial` below 2.50. The
+author does not get a softer band than the corpus does. It is the largest
+over-estimate in this record and the first active-time `miss` since `OUT-0002`.
+
+Where the estimate was wrong is worth naming, because the direction is now five
+for five. Condition 2 priced the arithmetic/judgement boundary as its own
+module-sized subject, and that was right — `distribution.py` exists for exactly
+that reason. What it over-priced is everything else. Five deterministic modules
+with no prompts to iterate, no provider to wire, no citation gate to fight and
+no model behaviour to be surprised by is simply cheaper than the four phases
+that set this class's history. The estimate *saw* that and put it in
+**confidence** (0.45 → 0.50) while leaving the quantity alone. That was the
+wrong lever: the sub-population difference was real and it belonged in the
+number.
+
+**And the threshold is now crossed.** `agent-implementation` reaches `n = 5`.
+Run through the code this phase shipped, over this project's own history:
+
+> `agent-implementation work is 1.7999x over, n=5, confidence=0.3875`
+
+> `5.5 hours becomes 3.0558 hours. claude-opus-5's last 5 resolved estimates of
+> agent-implementation work ran 1.7999x over, so this is scaled by 0.5556x.
+> Ordinarily between 2.2858 and 4.0860 hours. n=5, confidence=0.3875, computed
+> from 5 resolved estimates with a log-space spread of 0.2905.`
+
+That is the product speaking about its own author for the first time, and it is
+worth reading carefully rather than triumphantly. The confidence is **0.3875**,
+and it is low by construction: `n/(n+5)` caps the sample term at exactly one
+half at the threshold, so a group that has only just cleared the bar reads as a
+coin-flip-grade signal. The band spans **1.35x to 2.41x** — nearly a factor of
+two wide. ADR 0024 exists precisely so that width is visible rather than hidden
+behind a point estimate, and applying the factor is not automatically the right
+call for `EST-0009`.
+
+Note also what the factor is fitted to: five phases that were four-fifths
+model-driven, offered to a phase that may not be. That is the sub-population
+question `n = 5` still cannot answer, and it is the same one this phase's own
+estimate got wrong.
+
 ### The dogfood backtest, as a curiosity and not a result
 
 Seven outcomes across four classes, with the only multi-point class at four.
@@ -384,18 +426,31 @@ meant to ingest those files through the ordinary path.
 
 ## For the session that writes `EST-0009`
 
-Three things that will matter.
+Four things that will matter.
 
-**The threshold will be crossed, for the first time.** `OUT-0008` takes
-`agent-implementation` to five. `EST-0009` is therefore the first estimate this
-project can legitimately apply a factor to — and applying it is not
-automatically the right call. The band and the confidence exist to be read: at
-`n = 5` the confidence caps at 0.5 by construction, which is the design saying
-"treat this as a coin-flip-grade signal". Whatever `EST-0009` does, it should
-run `praxis calibrate --owner claude-opus-5 --work-class agent-implementation
---quantity <raw>` and quote what came back, because that is the product
-speaking about its author for the first time and the Phase 12 demo is built out
+**The threshold is crossed. There is a factor now, and it says 1.80x over.**
+`OUT-0008` took `agent-implementation` to five, so `EST-0009` is the first
+estimate this project can legitimately apply a factor to. Run it rather than
+recall it — `praxis calibrate --owner claude-opus-5 --work-class
+agent-implementation --quantity <raw>` — and quote what comes back, because
+that is the product speaking about its author and the Phase 12 demo is built out
 of exactly these moments.
+
+**Applying it is a decision, not a formality.** The confidence is **0.3875** and
+the band spans **1.35x to 2.41x** — nearly a factor of two. `n/(n+5)` caps the
+sample term at one half at the threshold on purpose: a group that has only just
+cleared the bar is a coin-flip-grade signal, and ADR 0024 made the band
+inseparable from the factor precisely so this width cannot be dropped. Whichever
+way `EST-0009` goes, it should say which, and why, in the same shape the last
+eight refusals did. **The one thing that would waste eight phases of discipline
+is applying it silently because it finally exists.**
+
+There is also a real argument *against* applying it, and `OUT-0008` is where it
+came from: the factor is fitted across five phases that were four-fifths
+model-driven. Whether Phase 8 belongs to that population is the sub-population
+question `n = 5` still cannot answer — and it is the same question this phase's
+own estimate answered wrongly, by putting a real difference into confidence
+instead of into the quantity.
 
 **Price the arithmetic/judgement boundary again, and expect it somewhere new.**
 It has now moved four phases running. In Phases 3–6 it fell between a model call
@@ -407,8 +462,8 @@ to fall between *recognising* that an assumption is an estimate (judgement) and
 *evaluating* the calibrated value against the predicate (arithmetic, and ADR
 0019 already says only arithmetic can breach).
 
-**Blocked time is still not an engineering prediction.** Five attempts now, all
-missed, in both directions: 20.0/12.8, 16.0/72.3, 24.0/17.3, 18.0/0.9, and
-`OUT-0008` will make six. It measures when the author sleeps. Log it because the
-record has the field, and compare active against active — which is, not
-coincidentally, exactly what `ScoringAgent` was built this phase to do.
+**Blocked time is still not an engineering prediction.** Five attempts, five
+misses, in both directions: 20.0/12.8, 16.0/72.3, 24.0/17.3, 18.0/0.9 and now
+18.0/2.0. It measures when the author sleeps. Log it because the record has the
+field, and compare active against active — which is, not coincidentally, exactly
+what `ScoringAgent` was built this phase to do.
