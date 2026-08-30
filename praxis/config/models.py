@@ -132,11 +132,22 @@ _REGISTRY: Final[Mapping[ModelRole, ModelSpec]] = MappingProxyType(
 NON_LLM_AGENTS: Final[frozenset[str]] = frozenset(
     {
         "BiasDetective",
+        "CalibratorAgent",
         "ScoringAgent",
         "SourceAdapter",
         "VerifierAgent",
     }
 )
+"""`CalibratorAgent` joined this set in Phase 7 and did not start here.
+
+It was assigned to `extract` in Phase 2, on the reasonable-looking assumption
+that explaining a correction in plain language is a writing task. Building it
+showed the explanation is a template over numbers it was handed: the factor, the
+band, `n` and the confidence all exist before the sentence does, and asking a
+model to restate them adds nothing but the possibility of a restated number
+disagreeing with the number it came from. See ADR 0025; ADR 0006's assignment
+list carries the amendment.
+"""
 
 
 _ROUTING: Final[Mapping[str, ModelRole]] = MappingProxyType(
@@ -155,7 +166,6 @@ _ROUTING: Final[Mapping[str, ModelRole]] = MappingProxyType(
         "EstimateExtractor": ModelRole.SCAN,
         "WorkClassifier": ModelRole.SCAN,
         "OutcomeMatcher": ModelRole.EXTRACT,
-        "CalibratorAgent": ModelRole.EXTRACT,
         # Fusion
         "FusionBridge": ModelRole.REASON,
         "CollateralAgent": ModelRole.REASON,

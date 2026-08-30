@@ -252,3 +252,174 @@ mid-phase can be resumed from the last line rather than from a diff.
   own vocabulary. ADR 0001's first assumption recomputes to **91 of 92,
   0.9891** (was 0.9875) — all 12 new predicates and 12 expiry conditions parse.
   ADR 0015's third assumption remains the one unreadable row, still a finding.
+
+---
+
+## Phase 7 progress log
+
+One line per component, appended as it lands. Written so a session that dies
+mid-phase can be resumed from the last line rather than from a diff.
+
+- `877c6f9` **EST-0008 logged** — 5.5h active, 18.0h blocked, confidence 0.50,
+  uncorrected for the eighth time. `agent-implementation` recomputed from both
+  JSONL files at **n = 4**: 1.31× / 2.18× / 1.41× / 1.79×, all over, geomean
+  1.64×, σ 0.40, **CV 0.24**. The irony is explicit — this phase builds the
+  component that refuses below n = 5 while its own class sits at n = 4 — and it
+  changes nothing: the threshold is a fact about the sample, not the calendar;
+  the dispersion argues against correcting even at n = 5; the one real
+  sub-population question (these three components call no model, the prior four
+  phases' agents all did) is priced into confidence rather than quantity; and
+  `EST-0009` becomes the first estimate `BiasDetective` can legitimately speak
+  about. Branch `feat/phase-7-calibration-math` cut from `main` at `d91a864`.
+- `d2eeed4` **`calibration_history` narrows in SQL** — merged `--no-ff` as
+  `2c414bb`. Found by sketching Phase 8's fusion query against the Phase 6
+  shape, which is what that sketch is for. Phase 6 wrote both narrowings and
+  applied them in a generator over `fetchall()`: every answer right, every test
+  green, and `estimate_owner_work_class` never used — a full scan of both tables
+  per question, in the one read `BiasDetective` runs per group and
+  `FusionBridge` will run per assumption. Composed from literal fragments with
+  bound values rather than `(? IS NULL OR ...)`, which the planner cannot index.
+  `calibration_query` is public so the **plan** can be asserted rather than
+  described, with the unnarrowed case as the control that makes the assertion
+  mean something. 10 new tests, 27 in the file.
+- `6e04e96` **`distribution.py`** — merged `--no-ff` as `2740fa7`. The arithmetic
+  under every calibration number, in a module that knows nothing about
+  estimates, work classes or a store, so hypothesis hands it a distribution
+  directly and the properties are about arithmetic rather than about a fixture.
+  A ratio is multiplicative, so the centre is a **geometric mean**, the spread a
+  standard deviation of **logarithms**, and the band one you divide and multiply
+  by — 0.5 and 2.0 cancel to exactly 1.0, where an arithmetic mean would report
+  a 25% bias that does not exist. Three constants carry their reasoning and a
+  test each: one log sigma not two (a 95% band over five points is precision
+  about an unmeasured tail), a **prediction** band so the deviation is not
+  divided by √n, and `n-1` so a small sample is not flattered. Confidence
+  multiplies a sample term by an agreement term, hits exactly 0.5 at the
+  threshold, and can never return 1.0. `Decimal` throughout inside a **pinned**
+  `localcontext`, with a test that moves the ambient precision and asserts
+  nothing changes. 33 tests, module at **100%**.
+- `7c9b7ba` **`BiasDetective`** — `praxis/agents/bias.py`, 44 tests, module at
+  **100%**, merged `--no-ff` as `de8a5c1`. Most of it is about refusing, and
+  that is the product: against this repository's own history it declines on
+  every class. **The threshold takes no argument** — a test reads the signature
+  to say so. **Below it the factor is not computed, not withheld**: a property
+  test replaces `spread_of` with a function that raises and asserts every
+  sub-threshold sample still returns, so there is no hidden number for a later
+  refactor to print. Dispersion widens the band and never refuses. An
+  unclassified group is reported as its own row and never summarised, and
+  `factor_for` short-circuits **before** the read — checked by breaking the
+  store. Four verdicts, not a boolean. **Phase 8's fusion query is executed
+  here, not sketched**: `factor_for` is one indexed read plus O(n) arithmetic,
+  returns a populated object in every case so an absence is never an exception,
+  and a test renders ARCHITECTURE.md's own sentence off its fields. A property
+  found a real defect — `magnitude` keyed on the direction rather than the
+  factor printed below one inside the neutral band. Added to
+  `DETERMINISTIC_MODULES`, so invariant 3 is checked against the file.
+- `808bc84` **ADR 0024** — merged `--no-ff` as `064cd68`. Dispersion widens the
+  band and never refuses; `n` is the only threshold and takes no override. Nine
+  rejected options including the three genuinely tempting ones. **EST-0007's
+  objection is answered twice over and the ADR says which mechanism does the
+  work**: at n = 2 the *threshold* refuses, so the interval gets no credit for a
+  save it did not make — though at those two points it would have given a band
+  of 1.18x–2.43x, wide enough that nobody commits to 1.75x. Unclassified rows
+  are in no group and get their own row, because "fourteen estimates carry no
+  class" is an instruction and an empty table is not. **`README.md` corrected in
+  the same commit**: its "n=14, CI [1.4, 2.3], confidence 0.79" was half right —
+  the band is exactly one log sigma (σ 0.2513), the confidence is 0.59 under the
+  shipping formula. The document moved to the code's number, not the reverse.
+  ADR 0001's first assumption recomputes to **96 of 97, 0.9897** (was 0.9891).
+- `c642439` **`CalibratorAgent`** — `praxis/agents/calibrator.py`, 26 tests,
+  module at **100%**. **Pass-through designed as the primary path**, because it
+  is: six of this project's own seven estimates would take it, so a design
+  treating correction as normal has the frequencies backwards. It comes back
+  fully populated with the detective's verdict and a sentence saying in as many
+  words that it is correct rather than a stage that failed, and it gets as many
+  tests as the correction path. Traceability is held in its **strongest** form —
+  a property recomputes the corrected figure from the factor the result cites,
+  so an explanation quoting one number while the arithmetic used another would
+  fail rather than read plausibly. A correction is always positive: at four
+  places a small enough estimate times a small enough factor rounds to zero, and
+  a zero estimate predicts nothing, so it is held at the floor.
+- `9da7c82` **`CalibratorAgent` becomes deterministic** — merged `--no-ff` as
+  `98ad5b1`. ADR 0025. Out of ADR 0006's `extract` row, into `NON_LLM_AGENTS`.
+  **Phase 7 is now the first phase where no component calls a model at all.**
+  The explanation has no free variables — every value is read off a `Spread`
+  before the sentence exists — so a model adds nothing and one failure mode:
+  a fluent paragraph citing 1.7x beside a stored 0.61x reads *better* than the
+  correct one and no test separates them. Fourth time this codebase has drawn
+  this boundary, fourth time it moved a component to the arithmetic side. ADR
+  0006 **amended, not superseded** — its real decision is untouched, so the
+  Phase 2 list stays with a pointer and `praxis doctor` is the live answer.
+  `doctor` passes. ADR 0001's first assumption: **100 of 101, 0.9901**.
+- `c3ac70d` **`ScoringAgent`** — `praxis/agents/scoring.py`, 26 tests, module at
+  **100%**, merged `--no-ff` as `5cf1a00`. **The backtest is prequential**: each
+  row is scored using only the rows before it, because a factor fitted over a
+  whole history and applied inside it has already seen the answer it is graded
+  on. Error in log space, so 2x over and 2x under are the same miss. **`graded`
+  is a field**, because a backtest that scored nothing and one that scored badly
+  both print 0.0 and only one is a grade. Three known-answer histories keep it
+  honest: a consistent 1.8x under-estimator is corrected on every scored row
+  (mean log error 0.58 → 0.03), a well-calibrated estimator is never "improved"
+  — the control that stops the first test measuring its own arithmetic — and
+  undirected scatter scores no better than chance. **Against this project's own
+  seven outcomes it scores exactly nothing**, and that is the finding: walking
+  forward no group ever reaches n = 5, so no correction is ever formed to grade.
+  A test makes the next phase concrete — with OUT-0008 the class reaches five,
+  and the estimate *after* that is the first this project will ever have
+  backtested. `grouped` and `precise()` promoted out of `bias`/`distribution`
+  rather than copied. A hypothesis run found a real precision floor (a factor of
+  0.0001 has nothing underneath it, so its band rounds to a point); recorded
+  with its own test rather than papered over.
+- `979a5d2` **`calibrate_store`** — `praxis/agents/calibration.py`, 32 tests,
+  module at **100%**, merged `--no-ff` as `22867a2`. **A store pass, not a
+  per-document step**: calibration runs over accumulated history, so a store
+  that has ingested nothing since the last run can still answer differently
+  because an outcome landed. **Zero model calls, reported as zero** rather than
+  omitted. Writes only on a change, compared on the prosecution text — a second
+  pass writes no version and no audit row, a moved factor writes version 2 with
+  version 1 still readable, and the third pass is quiet again.
+  **Scope item 4 answered**: no migration, and `Finding` is *not* the carrier of
+  the factor. `subject_id` is one graph node and a factor belongs to a *group*,
+  so a finding is filed against an **anchor** — the group's lowest estimate id,
+  stable as the group grows — with the prosecution naming the group first so the
+  anchor is never read as the biased row. What `Finding` cannot hold is the
+  *query*: `prosecution` is prose, so Phase 8 recomputes through
+  `BiasDetective` instead, which also means the factor can never go stale.
+  A calibrated estimator raises nothing: "nothing is wrong" in the same queue as
+  a breach is how a queue stops being read. Severity is graded on `magnitude`,
+  so over- and under-estimation are symmetric.
+- `de41689` **`praxis calibrate`** — `praxis/cli_calibrate.py`, 22 tests, module
+  at **100%**, merged `--no-ff` as `e98aff7`. Priced as a line item for the
+  third phase running. **One command, two modes**: no arguments calibrates the
+  *store* (and writes findings); `--owner/--work-class/--quantity` calibrates
+  *that estimate* and writes nothing — asserted against the store, not the
+  output. **It leads with the refusals**, named with the sample they wait on and
+  sorted closest-first, because against this project's history every group
+  refuses and a measured-only table would look broken. Unclassified estimates
+  get their own line: a different fix from "one more outcome". A backtest score
+  never prints without its denominator, and the zero model calls are printed
+  rather than omitted. Tests found three real defects: `open_repository` is in
+  `store.repository` not `store.location`; `get_settings` is `lru_cache`d so a
+  CLI test that skips `cache_clear()` seeds the *previous* test's directory; and
+  rich wraps at terminal width, so asserting on a sentence was pinning where the
+  wrap fell rather than what was said.
+- `6fa5777` **Eval extension** — `praxis/eval/calibration.py` plus edits to
+  `harness` and `report`; 15 tests; module at **100%**; merged `--no-ff` as
+  `961d368`. Priced as a module plus four edits, not four edits alone.
+  **No answer key, and that is not an omission**: a calibration factor is not
+  something a document can state, so approximating a ground truth would mean
+  computing it with the same code being graded. Internal consistency is what is
+  checkable, so that is what is checked. The threshold is verified in **both**
+  directions — "no factor below five" is satisfied by a detective that never
+  speaks — and the pass-through set is compared for **equality** with the
+  refusing set, because firing one group early silently ignores a factor and
+  firing late applies one that does not exist. The backtest travels with its
+  denominator. Every number recomputed from SQLite, with a test grading a store
+  no pass ever ran over. The report **leads** the section with its caveat, since
+  every number is a zero against this corpus. Verified end to end: 1 group,
+  `no_resolved_outcomes`, threshold held, pass-through exact, backtest ungraded.
+- `7a13513` **`ARCHITECTURE.md`** — a *Calibration maths (Phase 7, built)*
+  section, the four new modules in the layout, `CalibratorAgent` and
+  `distribution.py` added to the deterministic table, and the fusion
+  mechanism's step 4 corrected to say the factor is *not computed* below the
+  threshold rather than withheld. Phase 6's "Phase 7's query is already written
+  and run" paragraph now also records what writing it early actually caught.

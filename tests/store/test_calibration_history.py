@@ -37,6 +37,7 @@ from praxis.llm.mock import MockProvider
 from praxis.llm.trace import MemoryTraceSink
 from praxis.store.connection import MEMORY, connect
 from praxis.store.migrations import migrate
+from praxis.store.reports import calibration_query
 from praxis.store.repository import Repository
 
 from tests.store.conftest import ACTOR, WRITTEN_AT, World, build_world
@@ -338,3 +339,140 @@ class TestAgainstThePipelinesOwnOutput:
 
         estimate = store.require(Estimate, row.estimate_id)
         assert store.get(Span, estimate.span_id) is not None
+
+
+def _plan(store: Repository, **narrowing: str) -> str:
+    """What SQLite decided to do with the real statement, as one readable line."""
+    sql, parameters = calibration_query(**narrowing)
+    rows = store.connection.execute(f"EXPLAIN QUERY PLAN {sql}", parameters).fetchall()
+    return " | ".join(str(row["detail"]) for row in rows)
+
+
+class TestTheNarrowingReachesTheDatabase:
+    """Where the `owner` and `work_class` arguments are applied, not just that they are.
+
+    Phase 6 wrote both narrowings and applied them in Python after `fetchall`.
+    The answers were right and every behavioural test above passed, which is
+    exactly why this class exists as a separate one: correctness and cost are
+    different claims and only one of them was being held.
+
+    Phase 7 is what turned the cost into a real number. `BiasDetective` asks this
+    question once per `(owner, work_class)` group, and `FusionBridge` will ask it
+    once per assumption it prices -- so a read that fetches every estimate and
+    outcome in the store to answer a question about one person's migrations is a
+    full scan per question, and it gets worse exactly as the store gets useful.
+    """
+
+    def test_the_narrowed_query_binds_values_rather_than_interpolating_them(self) -> None:
+        """A composed statement is only safe while the values stay parameters."""
+        sql, parameters = calibration_query(owner="Nadeesha", work_class="migration")
+
+        assert parameters == ("Nadeesha", "migration")
+        assert "Nadeesha" not in sql
+        assert sql.count("?") == len(parameters)
+
+    def test_an_unnarrowed_query_binds_nothing(self) -> None:
+        """No filter is no clause, rather than a clause that always matches."""
+        sql, parameters = calibration_query()
+
+        assert parameters == ()
+        assert "?" not in sql
+
+    @pytest.mark.parametrize(
+        ("owner", "work_class", "expected"),
+        [
+            ("Nadeesha", None, ("Nadeesha",)),
+            (None, "migration", ("migration",)),
+            ("Nadeesha", "migration", ("Nadeesha", "migration")),
+        ],
+        ids=["owner", "work-class", "both"],
+    )
+    def test_each_narrowing_contributes_its_own_parameter(
+        self, owner: str | None, work_class: str | None, expected: tuple[str, ...]
+    ) -> None:
+        """One argument, one clause, one bound value -- in the order given."""
+        sql, parameters = calibration_query(owner=owner, work_class=work_class)
+
+        assert parameters == expected
+        assert sql.count("?") == len(expected)
+
+    def test_the_ordering_survives_every_narrowing(self) -> None:
+        """Grouping is a walk because the rows arrive sorted, and that is load-bearing.
+
+        The `ORDER BY` has to come after the appended clauses rather than inside
+        the base statement, which is the one way composing a query like this can
+        produce something that parses everywhere except in production.
+        """
+        for owner in (None, "Nadeesha"):
+            for work_class in (None, "migration"):
+                sql, _ = calibration_query(owner=owner, work_class=work_class)
+                assert sql.rstrip().endswith("ORDER BY e.owner, e.work_class, e.id")
+
+    def test_narrowing_by_the_two_grouping_keys_uses_their_index(
+        self, store: Repository, world: World
+    ) -> None:
+        """The claim the fix was made for, asked of the planner rather than asserted.
+
+        `estimate_owner_work_class` has existed since Phase 1 and was not being
+        used, because a filter applied after `fetchall` is invisible to SQLite.
+        Reading the plan back is the only honest way to hold this: it is a claim
+        about what the database decided, not about what this module intended.
+        """
+        assert "estimate_owner_work_class" in _plan(store, owner="Nadeesha", work_class="migration")
+
+    def test_the_unnarrowed_query_uses_no_such_index(self, store: Repository, world: World) -> None:
+        """The control the test above needs to mean anything.
+
+        A plan assertion that would pass either way proves nothing about the
+        change that was made. Asking for every group cannot use a per-group
+        index, so this is the shape of the read before the fix -- and if it ever
+        starts using one, the test above has stopped being evidence.
+        """
+        assert "estimate_owner_work_class" not in _plan(store)
+
+    def test_narrowing_by_work_class_alone_does_not_reach_the_index(
+        self, store: Repository, world: World
+    ) -> None:
+        """Recorded rather than repaired, because the callers never ask this way.
+
+        `estimate_owner_work_class` is `(owner, work_class)` and SQLite can only
+        use a leading prefix of it, so a class without an estimator falls back to
+        a scan. Both of the readers this index exists for -- `BiasDetective`
+        asking about one group, `FusionBridge` pricing one assumption -- always
+        carry the owner, and `BiasDetective` reads every group in one unnarrowed
+        pass rather than one query per class. A second index to serve a CLI
+        convenience would cost every estimate write for a read nothing hot does.
+        """
+        assert "estimate_owner_work_class" not in _plan(store, work_class="migration")
+
+    def test_the_unnarrowed_query_still_answers(self, store: Repository, world: World) -> None:
+        """Composition must not break the case that appends no clause at all."""
+        an_outcome(store, an_estimate(store, world.span.id, owner="Nadeesha", work_class="a-class"))
+
+        assert len(store.calibration_history()) > 1
+
+    def test_a_narrowing_that_matches_nothing_returns_nothing(
+        self, store: Repository, world: World
+    ) -> None:
+        """Pushed into SQL, an unmatched narrowing is an empty result and not an error."""
+        assert store.calibration_history(owner="nobody at all") == ()
+
+    def test_the_database_returns_only_the_narrowed_rows(
+        self, store: Repository, world: World
+    ) -> None:
+        """What the fix actually changes: how many rows cross the boundary.
+
+        Counted through the statement itself rather than through
+        `calibration_history`, because the function's return value was already
+        correct before the fix and would not have caught the regression this
+        test exists to catch.
+        """
+        for owner in ("Nadeesha", "Ruwan", "Tharindu"):
+            an_outcome(store, an_estimate(store, world.span.id, owner=owner, work_class="a-class"))
+
+        everything = len(store.calibration_history())
+        sql, parameters = calibration_query(owner="Nadeesha", work_class="a-class")
+        fetched = len(store.connection.execute(sql, parameters).fetchall())
+
+        assert fetched == 1
+        assert everything > fetched
