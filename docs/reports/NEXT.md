@@ -378,6 +378,23 @@ One line per component, appended as it landed. Branch
   settled store spends none. Any later component that builds a batch of records
   before storing them will hit this.
 
+- `d3c2e54` **`praxis fuse`** (`praxis/cli_fuse.py`). The demo surface, and
+  against a seeded store it prints the sentence the project exists to produce:
+  *"A-0002 assumed migration_weeks = 4; migration work is 1.8000x under, n=5,
+  confidence=0.5000 implies 7.2000 — flipped"*. A projection is printed under
+  *"nothing has been measured yet"* and a measurement under *"this already
+  happened"* — ADR 0028 in the schema, and this so a reader cannot misread one
+  as the other. Leads with the refusals, each explained in a reader's words
+  rather than the enum's. `--dry-run` computes through the same two agents the
+  pass uses, so it cannot disagree with what a real run would write. 13 tests,
+  **100%**.
+
+  **The empty-store message was rewritten after running the real pipeline end
+  to end**, which is the reason to run it. The first version said "run `praxis
+  extract` first" — wrong in exactly the case a judge will hit: extract *has*
+  run, the mock's citations were refused, and few assumptions survived to carry
+  an edge. It now names the citation gate and says this is the gate working.
+
 **Still to build in this phase**, in the order `EST-0009` prices them:
 `CollateralAgent` (the reverse walk, priced as its own component and *not* as a
 direction flag on `FusionBridge`), the cross-document half of `OutcomeMatcher`
