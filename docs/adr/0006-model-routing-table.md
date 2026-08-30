@@ -37,6 +37,14 @@ Assignments:
 deterministic and appear in `NON_LLM_AGENTS`. Asking for a route on one raises;
 `praxis doctor` asserts the two sets never overlap.
 
+> **Amended by [ADR 0025](0025-the-calibrator-explains-rather-than-generates.md),
+> Phase 7.** `CalibratorAgent` moved from `extract` to `NON_LLM_AGENTS` once it
+> was built: its explanation turned out to be a template over numbers it was
+> handed, not a generation. The lists above are the Phase 2 assignment as
+> reasoned before any agent existed, kept because rewriting them would destroy
+> the provenance this directory exists for.
+> `praxis/config/models.py` and `praxis doctor` are the live answer.
+
 Model IDs, context windows and prices were read from the Anthropic model
 reference on 2026-08-09 and are cited in the module, not recalled.
 
