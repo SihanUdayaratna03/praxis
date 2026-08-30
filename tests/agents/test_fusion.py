@@ -53,7 +53,14 @@ WORK_CLASS = "migration"
 
 RUNS_LONG = [("4", "7.2")] * MINIMUM_SAMPLE
 """Five estimates that each ran 1.8x long. `ARCHITECTURE.md`'s example, and an
-under-estimator, so the factor is above one and shrinks nothing."""
+under-estimator, so the factor is above one and shrinks nothing.
+
+Identical on purpose, so the factor is exactly 1.8 and the arithmetic in these
+tests can be read without a calculator. The consequence is that the sample has
+**zero dispersion**, so the band collapses onto the centre -- `low`, `high` and
+the factor are all 1.8. That is ADR 0024 working, not a defect: a perfectly
+consistent estimator gets no width. A varied sample is what `tests/agents/
+test_distribution.py` exercises the band with."""
 
 RUNS_SHORT = [("6", "3")] * MINIMUM_SAMPLE
 """Five estimates that each came in at half. An over-estimator -- the direction
