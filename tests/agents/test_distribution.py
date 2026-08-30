@@ -50,6 +50,17 @@ and a rounding surprise there would silently disarm every property below.
 samples = st.lists(ratios, min_size=1, max_size=40)
 """Samples from one up to comfortably past the refusal threshold."""
 
+reportable_samples = st.lists(
+    ratios.filter(lambda value: value >= Decimal("0.1")), min_size=1, max_size=40
+)
+"""Samples whose factor is far enough from the precision floor to carry a band.
+
+Only for the one property that asserts a band separates. `REPORTED_PLACES` is
+four decimals, so a factor near 0.0001 has nothing underneath it and its low end
+rounds up onto the centre however wide the sample really is. That floor is
+pinned by its own test rather than hidden here.
+"""
+
 DOGFOOD = [Decimal("0.7636"), Decimal("0.4583"), Decimal("0.7077"), Decimal("0.56")]
 """This project's own `agent-implementation` ratios at the close of Phase 6.
 
@@ -197,19 +208,47 @@ class TestTheSpread:
         assert spread.low <= spread.central <= spread.high
         assert spread.band == (spread.low, spread.high)
 
-    @given(sample=samples)
+    @given(sample=reportable_samples)
     def test_the_band_is_only_a_point_when_the_sample_agrees(self, sample: list[Decimal]) -> None:
         """The property that stops the interval being decorative.
 
         If a scattered sample could report `low == high`, the whole dispersion
         design would be a field nobody reads. `assume` here narrows to samples
         that really do scatter, and the assertion is that the band responds.
+
+        Narrowed to `reportable_samples` because of the floor the test below
+        pins: at four reported places a factor of 0.0001 has no room underneath
+        it, so its band rounds to a point no matter how the sample scatters.
+        That is a limit of the reported precision rather than of the arithmetic,
+        and it is stated once, there, rather than smuggled into this `assume`.
         """
         spread = spread_of(sample)
         assert spread is not None
         assume(spread.dispersion > Decimal("0.01"))
 
         assert spread.low < spread.central < spread.high
+
+    def test_a_factor_at_the_precision_floor_cannot_carry_a_band(self) -> None:
+        """A real limit, found by hypothesis and recorded rather than papered over.
+
+        `REPORTED_PLACES` is four decimals, so the smallest expressible factor is
+        0.0001 and there is nothing below it to put a band's low end in. A
+        sample scattered by half a log sigma around that value still reports a
+        band that has collapsed upward.
+
+        It is left as it is, because the alternative is worse in both
+        directions: reporting more places would print precision the sample does
+        not have, and refusing to report a factor this small would be a second
+        threshold on magnitude with no story behind it. A calibration factor of
+        one ten-thousandth means the work took a ten-thousandth of the estimate,
+        which is a data problem rather than a bias.
+        """
+        spread = spread_of([Decimal("0.0001"), Decimal("0.0002")])
+
+        assert spread is not None
+        assert spread.dispersion > Decimal("0.01")
+        assert spread.low == spread.central == Decimal("0.0001")
+        assert spread.high > spread.central
 
     def test_reaches_the_scattered_case_on_a_sample_a_person_can_check(self) -> None:
         """The control for the `assume` above: a hand-written scattered sample.

@@ -39,6 +39,7 @@ computation here runs inside an explicit `localcontext` at `CALIBRATION_PRECISIO
 from __future__ import annotations
 
 from collections.abc import Sequence
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from decimal import ROUND_HALF_EVEN, Context, Decimal, localcontext
 from typing import Final
@@ -55,7 +56,25 @@ else tomorrow.
 """
 
 _CONTEXT: Final = Context(prec=CALIBRATION_PRECISION, rounding=ROUND_HALF_EVEN)
-"""The one context every computation in this module runs inside."""
+"""The one context every calibration computation runs inside. Reached through
+`precise`, never exported directly -- a `Context` is mutable, and a shared
+mutable settings object handed out to callers is the global this pin exists to
+escape."""
+
+
+def precise() -> AbstractContextManager[Context]:
+    """Enter the pinned decimal context.
+
+    Public because `praxis.agents.scoring` computes log errors that have to
+    agree with the factors computed here to the last place. Two modules using
+    two precisions would put a rounding difference underneath a backtest and
+    call it a result.
+
+    Returns:
+        A context manager for the pinned precision.
+    """
+    return localcontext(_CONTEXT)
+
 
 REPORTED_PLACES: Final = Decimal("0.0001")
 """How precisely a summarised quantity is reported.
@@ -162,7 +181,7 @@ def ratio_of(estimated: Decimal, actual: Decimal) -> Decimal | None:
     """
     if estimated <= 0 or actual <= 0:
         return None
-    with localcontext(_CONTEXT):
+    with precise():
         return +(actual / estimated)
 
 
@@ -201,7 +220,7 @@ def spread_of(ratios: Sequence[Decimal]) -> Spread | None:
         message = "a ratio must be positive; use ratio_of, which refuses to invent one"
         raise ValueError(message)
 
-    with localcontext(_CONTEXT):
+    with precise():
         logs = [ratio.ln() for ratio in ratios]
         mean = sum(logs, start=Decimal(0)) / len(logs)
         dispersion = _sample_deviation(logs, mean)
@@ -246,7 +265,7 @@ def confidence_from(n: int, dispersion: Decimal) -> Decimal:
     if dispersion < 0:
         message = "a standard deviation cannot be negative"
         raise ValueError(message)
-    with localcontext(_CONTEXT):
+    with precise():
         sample = Decimal(n) / (Decimal(n) + CONFIDENCE_HALF_AT)
         agreement = Decimal(1) / (Decimal(1) + dispersion)
         return +(sample * agreement)

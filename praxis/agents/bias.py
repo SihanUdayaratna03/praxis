@@ -301,7 +301,7 @@ class BiasDetective:
             thing a person can act on: the classes that are one outcome short.
         """
         history = self._repository.calibration_history()
-        return tuple(summarise(group, rows) for group, rows in _grouped(history))
+        return tuple(summarise(group, rows) for group, rows in grouped(history))
 
 
 def summarise(group: CalibrationGroup, rows: Sequence[CalibrationRow]) -> CalibrationFactor:
@@ -409,7 +409,7 @@ def _ratios(rows: Iterable[CalibrationRow]) -> list[Decimal]:
     return ratios
 
 
-def _grouped(
+def grouped(
     rows: Sequence[CalibrationRow],
 ) -> Iterable[tuple[CalibrationGroup, list[CalibrationRow]]]:
     """Walk pre-ordered rows into groups, without sorting them again.
@@ -418,6 +418,18 @@ def _grouped(
     single pass is enough and re-sorting would throw away a property the query
     was written to have. A row whose key differs from the last one starts a new
     group; nothing is buffered but the group in hand.
+
+    Public because `praxis.agents.scoring` walks the same rows into the same
+    groups. Two copies of this loop would be two chances to split a group
+    differently, and a backtest grouped differently from the factor it grades
+    would be measuring something nobody asked for.
+
+    Args:
+        rows: History ordered by owner, then work class -- as the store returns
+            it. Unordered input silently produces repeated groups.
+
+    Yields:
+        Each group and its rows, in the order they arrived.
     """
     current: list[CalibrationRow] = []
     key: CalibrationGroup | None = None
