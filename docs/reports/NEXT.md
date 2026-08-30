@@ -358,6 +358,26 @@ One line per component, appended as it landed. Branch
   `ChallengerAgent` and `ReviewTriageAgent`, whose input is prose nobody has
   reduced to a record, should keep their routes.
 
+- `b77b7d8` **`fuse_store`** (`praxis/agents/fusion_pass.py`) + **ADR 0028**.
+  Both directions over a store, zero model calls, and a second pass over an
+  unchanged store writes **nothing** — not the same thing again. **ADR 0028
+  changed `ARCHITECTURE.md`**: step 5 had said the forward direction emits an
+  `AssumptionBreach`, and it must not. A breach is a predicate false against
+  facts a run was *given*; a fusion flip is a predicate false against a number
+  **nobody has observed yet**. So forwards files `STALE_DECISION` against the
+  assumption and opens with *"Nothing has been measured yet"*, backwards files
+  `COLLATERAL_IMPACT` against the estimate. Both kinds, and
+  `LinkType.COLLATERAL_OF`, have existed since Phase 1 with nothing writing
+  them. 14 tests, **100%**.
+
+  **A third finding for the carry-forward list**, and it is the store's, not
+  this phase's: building every finding before writing any hands them all the
+  same id, because `Repository.next_id` reads the highest ordinal *in the
+  store*. That is exactly what `StoreAllocator`'s docstring describes and it was
+  walked into anyway. Ids are now allocated at write time, so a pass over a
+  settled store spends none. Any later component that builds a batch of records
+  before storing them will hit this.
+
 **Still to build in this phase**, in the order `EST-0009` prices them:
 `CollateralAgent` (the reverse walk, priced as its own component and *not* as a
 direction flag on `FusionBridge`), the cross-document half of `OutcomeMatcher`
