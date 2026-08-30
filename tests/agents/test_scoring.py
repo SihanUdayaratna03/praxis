@@ -295,13 +295,28 @@ class TestOverAStore:
 
 
 class TestThisProjectsOwnHistory:
-    """A curiosity at n = 7, reported as one. Never a result.
+    """A curiosity at n = 8, reported as one. Never a result.
 
-    Seven outcomes across four classes, with the only multi-point class at four.
+    Eight outcomes across four classes, with the largest class at exactly five.
     A backtest showing a correction "would have helped" on that is noise with a
     decimal point on it -- so what matters is that the honest answer here is a
     refusal to score anything at all, and that the code produces it without
     being told to.
+
+    **These assertions are pinned to the real log on purpose, and they are
+    supposed to fail when it grows.** They did, at the close of Phase 7:
+    `OUT-0008` took `agent-implementation` from four to five and broke four
+    tests in this class, which is the failure mode they exist for. A change to
+    `docs/dogfood/` is a change to fixture data, and the pin is what makes that
+    visible rather than silent.
+
+    The state they now record is sharper than the one they replaced. The
+    threshold is **reached** -- `BiasDetective` will speak about this project for
+    the first time -- and the backtest still scores nothing, because those are
+    different thresholds. A prequential walk needs one point *more* than
+    `MINIMUM_SAMPLE` to score its first row: the fifth outcome is graded against
+    a prefix of four, which cannot speak. The sixth is the first row this
+    project will ever have backtested.
     """
 
     @staticmethod
@@ -336,29 +351,41 @@ class TestThisProjectsOwnHistory:
             )
         return rows
 
-    def test_the_log_holds_seven_outcomes_across_four_classes(self) -> None:
+    def test_the_log_holds_eight_outcomes_across_four_classes(self) -> None:
         """The premise, checked rather than recalled, so the conclusion is real."""
         rows = self.dogfood_rows()
 
-        assert len(rows) == 7
+        assert len(rows) == 8
         assert len({row.work_class for row in rows}) == 4
 
-    def test_the_only_multi_point_class_is_one_short_of_the_threshold(self) -> None:
-        """Which is why nothing below can be scored, and why that is correct."""
+    def test_the_largest_class_has_just_reached_the_threshold(self) -> None:
+        """`OUT-0008` crossed it, and this is where that becomes a checked fact.
+
+        Exactly at `MINIMUM_SAMPLE` rather than above it: this is the first
+        moment in the project's history that any group can be spoken about at
+        all, and the confidence the design reports there is capped at one half by
+        construction.
+        """
         rows = self.dogfood_rows()
         by_class: dict[str, int] = {}
         for row in rows:
             by_class[row.work_class] = by_class.get(row.work_class, 0) + 1
 
-        assert max(by_class.values()) == MINIMUM_SAMPLE - 1
-        assert by_class["agent-implementation"] == MINIMUM_SAMPLE - 1
+        assert max(by_class.values()) == MINIMUM_SAMPLE
+        assert by_class["agent-implementation"] == MINIMUM_SAMPLE
 
     def test_backtesting_this_projects_history_scores_exactly_nothing(self) -> None:
-        """The honest zero, and the clearest statement of why n = 7 is not evidence.
+        """The honest zero, and the clearest statement of why n = 8 is not evidence.
 
-        Not "the correction did not help". Walking forward, no group ever
+        Not "the correction did not help". Walking forward, no *prefix* ever
         reaches the threshold, so no correction is ever formed to grade -- and
         the field that says so is `graded`, which is why it exists.
+
+        Worth separating from the test above, because the two thresholds are
+        different and it would be easy to read the crossing as meaning this
+        moved. `BiasDetective` needs five resolved estimates to speak; a
+        prequential backtest needs five *before* the row it is grading, so it
+        needs six. The class has five.
         """
         rows = sorted(self.dogfood_rows(), key=lambda row: row.estimate_id)
         results = [
@@ -371,31 +398,25 @@ class TestThisProjectsOwnHistory:
 
         summed = total(results)
 
-        assert summed.considered == 7
+        assert summed.considered == 8
         assert summed.scored == 0
         assert not summed.graded
 
-    def test_one_more_agent_implementation_outcome_would_score_exactly_one_row(self) -> None:
+    def test_the_next_outcome_is_the_first_this_project_will_ever_backtest(self) -> None:
         """What Phase 8's own outcome buys, stated as arithmetic rather than a hope.
 
-        When `OUT-0008` closes, `agent-implementation` reaches five and the
-        *next* estimate after that becomes the first this project has ever
-        backtested. This is that sentence, executable.
+        `OUT-0008` took the class to five, which is what lets `BiasDetective`
+        speak. `OUT-0009` takes it to six, which is what lets `ScoringAgent`
+        grade -- the first row in this project's history to be backtested
+        against a factor formed without it. This is that sentence, executable.
         """
         rows = [row for row in self.dogfood_rows() if row.work_class == "agent-implementation"]
         group = CalibrationGroup(rows[0].owner, "agent-implementation")
 
-        with_eighth = walk(group, [*rows, a_row("5.5", "3.4", index=8, owner=rows[0].owner)])
-        with_ninth = walk(
-            group,
-            [
-                *rows,
-                a_row("5.5", "3.4", index=8, owner=rows[0].owner),
-                a_row("5.5", "3.4", index=9, owner=rows[0].owner),
-            ],
-        )
+        assert walk(group, rows).scored == 0
 
-        assert with_eighth.scored == 0
+        with_ninth = walk(group, [*rows, a_row("5.5", "3.4", index=9, owner=rows[0].owner)])
+
         assert with_ninth.scored == 1
 
 

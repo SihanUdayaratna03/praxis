@@ -214,13 +214,23 @@ compare active against active.
 - Progress explanations to the product owner are in **Sinhala**; everything in
   the repository is in English.
 
-Two things to carry forward from Phase 7's own defects. **Both real bugs this
+Three things to carry forward from Phase 7's own defects. **Both real bugs this
 phase found were found by property tests, not by review** — `magnitude` keyed on
 the direction rather than the factor, and a precision floor where a band
-collapses. And **every property needs a control**: a refusal property passes
-against an agent that refuses everything, and an `assume`-guarded property proves
-nothing if the assumption is never satisfiable. Every property in
-`tests/agents/` now carries its paired control; keep that up.
+collapses. **Every property needs a control**: a refusal property passes against
+an agent that refuses everything, and an `assume`-guarded property proves nothing
+if the assumption is never satisfiable. Every property in `tests/agents/` now
+carries its paired control; keep that up.
+
+And: **`docs/dogfood/` is test fixture data.** `tests/agents/test_scoring.py::TestThisProjectsOwnHistory`
+pins the real log — how many outcomes, how many classes, where the largest class
+sits — and closing `OUT-0008` broke four of those tests, in CI, on a
+documentation-only PR. That is the failure mode the pins exist for and they
+worked. What did not work was the check before pushing: after editing the log,
+run the **full** suite, not just `test_adrs.py` and `tests/corpus`. `EST-0009`
+and `OUT-0009` will both trip these same tests, and `OUT-0009` in particular
+takes `agent-implementation` to six, which is where the backtest starts scoring
+for the first time.
 
 ---
 

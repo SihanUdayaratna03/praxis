@@ -358,12 +358,24 @@ said no, in four parts:
 4. **The arrival is worth more than the correction.** When `OUT-0008` closes,
    `agent-implementation` reaches `n = 5`.
 
-That fourth point is now executable rather than rhetorical. A test in
-`tests/agents/test_scoring.py` walks this project's own history forward and
-asserts that it scores **exactly nothing** — no group ever reaches the
-threshold, so no correction is ever formed to grade — and a second test adds the
-eighth and ninth outcomes and shows the ninth is the first row that gets
-backtested.
+That fourth point is now executable rather than rhetorical. Tests in
+`tests/agents/test_scoring.py` walk this project's own history forward and pin
+what it produces, against the real log rather than a fixture.
+
+**Those pins are supposed to fail when the log grows, and they did.** Closing
+`OUT-0008` broke four of them in the same commit that wrote it, which is the
+failure mode they exist for — a change to `docs/dogfood/` is a change to fixture
+data, and the pin is what makes that visible rather than silent. (The mistake
+that let it reach CI was mine: after editing the log I ran `test_adrs.py` and
+`tests/corpus` rather than the full suite.)
+
+The state they now record is sharper than the one they replaced, because it
+separates two thresholds that are easy to conflate. `BiasDetective` needs five
+resolved estimates to *speak*, and `agent-implementation` now has exactly five.
+A prequential backtest needs five *before* the row it grades, so it needs six —
+which means the class has crossed one threshold and not the other, and the
+backtest still scores nothing. `OUT-0009` will be the first row this project has
+ever backtested against a factor formed without it.
 
 **`EST-0009` is the first estimate in this project's history that
 `BiasDetective` can legitimately speak about.** Phase 7 builds the component;
