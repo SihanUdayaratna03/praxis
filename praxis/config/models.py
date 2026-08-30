@@ -133,20 +133,33 @@ NON_LLM_AGENTS: Final[frozenset[str]] = frozenset(
     {
         "BiasDetective",
         "CalibratorAgent",
+        "FusionBridge",
         "ScoringAgent",
         "SourceAdapter",
         "VerifierAgent",
     }
 )
-"""`CalibratorAgent` joined this set in Phase 7 and did not start here.
+"""`FusionBridge` joined this set in Phase 8 and `CalibratorAgent` in Phase 7;
+neither started here.
 
-It was assigned to `extract` in Phase 2, on the reasonable-looking assumption
-that explaining a correction in plain language is a writing task. Building it
-showed the explanation is a template over numbers it was handed: the factor, the
-band, `n` and the confidence all exist before the sentence does, and asking a
-model to restate them adds nothing but the possibility of a restated number
-disagreeing with the number it came from. See ADR 0025; ADR 0006's assignment
-list carries the amendment.
+`FusionBridge` is the more surprising of the two, because `ARCHITECTURE.md`
+describes its job as *recognising* that a predicate's subject is an estimate in
+disguise -- which sounds like judgement, and is. The judgement is real and it is
+already paid for: `AssumptionExtractor` makes it in Phase 4, in a `reason`-tier
+call that is already holding the assumption and its quantity, and writes the
+`estimated_as` edge recording the answer (ADR 0016). What is left for Phase 8 is
+a graph walk over those edges, one indexed read per group, a multiplication and
+two predicate evaluations -- and ADR 0019 already forbids a model the second of
+those, since only arithmetic can reach `BREACHED`. See ADR 0026; ADR 0006's
+assignment list carries the amendment.
+
+`CalibratorAgent` was assigned to `extract` in Phase 2, on the reasonable-looking
+assumption that explaining a correction in plain language is a writing task.
+Building it showed the explanation is a template over numbers it was handed: the
+factor, the band, `n` and the confidence all exist before the sentence does, and
+asking a model to restate them adds nothing but the possibility of a restated
+number disagreeing with the number it came from. See ADR 0025; ADR 0006's
+assignment list carries the amendment.
 """
 
 
@@ -166,8 +179,9 @@ _ROUTING: Final[Mapping[str, ModelRole]] = MappingProxyType(
         "EstimateExtractor": ModelRole.SCAN,
         "WorkClassifier": ModelRole.SCAN,
         "OutcomeMatcher": ModelRole.EXTRACT,
-        # Fusion
-        "FusionBridge": ModelRole.REASON,
+        # Fusion. `FusionBridge` was assigned `reason` here in Phase 0 and left
+        # this table in Phase 8, once building it showed the judgement its route
+        # was paying for had already been made in Phase 4. See ADR 0026.
         "CollateralAgent": ModelRole.REASON,
         "ReviewTriageAgent": ModelRole.EXTRACT,
         # Cross-cutting
