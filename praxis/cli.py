@@ -27,6 +27,7 @@ import typer
 from rich.console import Console
 
 from praxis import __version__
+from praxis.cli_calibrate import calibrate
 from praxis.cli_estimate import estimates
 from praxis.cli_eval import eval_corpus, extract
 from praxis.cli_monitor import contradictions, formalize, monitor, why
@@ -264,6 +265,13 @@ app.command(name="why")(why)
 # is also the order the two are meant to be run in -- `measured_in` binds a
 # quantity only once something has written an `Outcome`.
 app.command(name="estimates")(estimates)
+
+# `praxis calibrate`, from `praxis.cli_calibrate`, registered after `estimates`
+# because that is the order they are meant to be run in: calibration reads the
+# `Outcome` rows Half B writes, and a store nothing has matched yet has nothing
+# for it to group. Unlike every command above it, this one makes no model call
+# at all -- ADR 0025.
+app.command(name="calibrate")(calibrate)
 
 
 @corpus_app.command(name="generate")
