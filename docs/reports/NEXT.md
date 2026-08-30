@@ -276,3 +276,61 @@ One line per component, appended as it landed.
   document can state. 15 tests, **100%**.
 - `7a13513` **`ARCHITECTURE.md`**, `8aded79` **`BACKLOG.md`** (five deferrals),
   `f51ee1a` **the phase 7 report**.
+
+---
+
+## Phase 8 progress log
+
+One line per component, appended as it landed. Branch
+`feat/phase-8-fusion-layer`, cut from `main` at `8797d1f`.
+
+- `db3eec0` **EST-0009 logged** — 3.6h active, 12.0h blocked, confidence 0.45,
+  and **the first bias correction this project has ever applied**. Eight
+  estimates refused at `n < 5`; `OUT-0008` took `agent-implementation` to
+  exactly five, so refusing a ninth time would have made `MINIMUM_SAMPLE`
+  decorative. The factor was recomputed by running `bias.summarise` over the
+  real log rather than read off this file: **1.7999x over, n=5, band 1.35x to
+  2.41x, confidence 0.3875**. A raw 6.5h built bottom-up by the same procedure
+  the five fitted estimates used becomes **6.5 x 0.5556 = 3.6h**, band 2.7h to
+  4.8h. `OUT-0008`'s "wrong lever" lesson is corrected rather than repeated:
+  the whole adjustment is in the **quantity**, and confidence moves **down**
+  0.50 → 0.45. The sub-population objection is filed as a *condition*, and
+  splitting the work class is refused in writing — every sub-class would fall
+  below the threshold, which is ADR 0024's override arriving through a side
+  door.
+- `57c9bdb` **`FusionBridge`** + **ADR 0026**. Walks the `estimated_as` edges
+  Phase 4 already writes, resolves each estimate's `(owner, work_class)`, asks
+  `BiasDetective.factor_for` once per group, and evaluates the same predicate
+  twice — raw and calibrated. **A finding fires on a flip, not on a
+  correction.** The bridge makes **no model call** and leaves ADR 0006's
+  `reason` row for `NON_LLM_AGENTS`: the judgement is real and
+  `AssumptionExtractor` already pays for it (ADR 0016), while ADR 0019 had
+  already closed the other end. Fifth consecutive phase in which the
+  arithmetic/judgement boundary moved a component to the arithmetic side, and
+  the **first in which the estimate called it in advance**. 25 tests, **100%**.
+
+**Two things the tests found rather than confirmed**, both worth carrying:
+
+1. **`Repository.get` returns a retracted record, not `None`.** Retraction is a
+   statement *about* a record rather than the disappearance of one, so a
+   component testing only for `None` will price a withdrawn record as though it
+   still stood. `list_all` excludes them by default and `get` does not — the
+   asymmetry is easy to miss and every later Phase 8 component walks edges the
+   same way. The store's foreign key is what makes retraction the *only*
+   reachable form of "the target is gone", asserted as the control.
+2. **`FusionVerdict.UNDECIDED` cannot currently be reached through the bridge.**
+   `subject_of` accepts a predicate only when `constraints_of` yields exactly
+   one name, and `constraints_of` yields names only for simple `name OP literal`
+   comparisons — a division, a string comparison or a second identifier makes it
+   yield *nothing*, which is `NO_SUBJECT` several steps earlier. The guard is
+   kept, `moved` is public so it can be tested directly, and ADR 0026 assumption
+   4 expires the day the predicate language grows.
+
+**Still to build in this phase**, in the order `EST-0009` prices them:
+`CollateralAgent` (the reverse walk, priced as its own component and *not* as a
+direction flag on `FusionBridge`), the cross-document half of `OutcomeMatcher`
+deferred from Phase 6 (the riskiest item — ADR 0015's single-document offering
+must not be spent to buy it; cut it to the backlog rather than spend it), the
+store pass, the CLI, and `praxis/eval/fusion.py` plus its four edits.
+`ReviewTriageAgent` is **not** in this phase — `BACKLOG.md` places its first
+consumer in Phase 9.
