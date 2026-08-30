@@ -30,6 +30,7 @@ from typing import Any, Final
 
 from praxis.eval.calibration import CalibrationScore
 from praxis.eval.estimation import EstimationResult
+from praxis.eval.fusion import FusionScore
 from praxis.eval.harness import EvalResult, KindResult
 from praxis.eval.memory import MemoryResult
 from praxis.eval.metrics import CitationIntegrity, MatchScore, PairScore
@@ -76,6 +77,17 @@ MATCH_CEILING_NOTE: Final = (
     "invented the other six pairings."
 )
 """Printed beneath the match rate so that a 0.33 is not read as a failure."""
+
+FUSION_NOTE = (
+    "A flip needs a calibration factor, and a factor needs five resolved "
+    "estimates in one group. On a corpus this size no group reaches that, so a "
+    "flip count of zero here is the threshold holding rather than the layer "
+    "failing. The two booleans below are what carry a claim."
+)
+"""Printed above the fusion numbers, for the reason `REFUSAL_NOTE` is printed
+above the calibration ones: a reader who meets a column of zeros before the
+sentence explaining them has already formed the wrong conclusion."""
+
 
 REFUSAL_NOTE: Final = (
     "Zeros here are the correct answer rather than a missing measurement. "
@@ -158,6 +170,7 @@ def as_markdown(
         *_memory_lines(result.memory),
         *_estimation_lines(result.estimation),
         *_calibration_lines(result.calibration),
+        *_fusion_lines(result.fusion),
         *_cost_lines(result.cost),
     ]
     if offline:
@@ -188,10 +201,15 @@ def as_json(result: EvalResult, *, provenance: Mapping[str, str] | None = None) 
             },
             "by_stage": {stage.value: count for stage, count in result.citations.by_stage.items()},
         },
+        # One "fusion" object rather than two keys. Edge recall (graded against
+        # the corpus) and the layer's own numbers (which have no answer key) are
+        # the same subject, and splitting them would let a reader find one and
+        # conclude the other was not measured.
         "fusion": {
             "found": result.fusion_found,
             "expected": result.fusion_expected,
             "recall": str(result.fusion_recall),
+            **_fusion_data(result.fusion),
         },
         "memory": _memory_data(result.memory),
         "estimation": _estimation_data(result.estimation),
@@ -203,6 +221,59 @@ def as_json(result: EvalResult, *, provenance: Mapping[str, str] | None = None) 
     if provenance:
         payload["provenance"] = dict(provenance)
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def _fusion_lines(fusion: FusionScore) -> list[str]:
+    """What the fusion layer concluded, rendered.
+
+    Two booleans carry the claim and everything else is context. `refusals_hold`
+    says no edge reported a factor for a group `BiasDetective` refuses -- the
+    threshold surviving one more caller. `flips_hold` says every finding really
+    came from a predicate that moved, which is the phase's central claim and the
+    one output that would make the layer noise if it were false.
+
+    `cross_document` is printed as a count with no rate beside it, deliberately.
+    The corpus plants no cross-document `estimated_as` edges as ground truth --
+    doing so would fix the answer before anyone asked the question -- so there is
+    nothing to score it against and a percentage would imply otherwise.
+    """
+    return [
+        "## Fusion layer",
+        "",
+        f"> {FUSION_NOTE}",
+        "",
+        f"Edges priced: **{fusion.priced}**, flips: **{fusion.flips}** "
+        f"(**{fusion.flip_rate}**). Cross-document edges priced: "
+        f"**{fusion.cross_document}** (count only -- the corpus plants none).",
+        "",
+        *_verdict_lines(fusion.by_verdict, "priced edges"),
+        f"Refusals held: **{_yes(fusion.refusals_hold)}**. "
+        f"Every flip moved a verdict: **{_yes(fusion.flips_hold)}**.",
+        "",
+        f"Misses surveyed: **{fusion.misses}**, of which something rested on "
+        f"**{fusion.damaging}** (**{fusion.damaging_rate}**). Findings standing: "
+        f"**{fusion.stale_findings}** stale-decision, "
+        f"**{fusion.collateral_findings}** collateral-impact.",
+        "",
+    ]
+
+
+def _fusion_data(fusion: FusionScore) -> dict[str, Any]:
+    """The same numbers as data, for Phase 10's ablation table."""
+    return {
+        "priced": fusion.priced,
+        "flips": fusion.flips,
+        "flip_rate": str(fusion.flip_rate),
+        "by_verdict": dict(fusion.by_verdict),
+        "refusals_hold": fusion.refusals_hold,
+        "flips_hold": fusion.flips_hold,
+        "cross_document": fusion.cross_document,
+        "misses": fusion.misses,
+        "damaging": fusion.damaging,
+        "damaging_rate": str(fusion.damaging_rate),
+        "stale_findings": fusion.stale_findings,
+        "collateral_findings": fusion.collateral_findings,
+    }
 
 
 def _calibration_lines(calibration: CalibrationScore) -> list[str]:
@@ -246,10 +317,16 @@ def _calibration_lines(calibration: CalibrationScore) -> list[str]:
     ]
 
 
-def _verdict_lines(by_verdict: Mapping[str, int]) -> list[str]:
-    """How the groups split across the four verdicts, or that none were read."""
+def _verdict_lines(by_verdict: Mapping[str, int], subject: str = "groups") -> list[str]:
+    """How a set of things split across their verdicts, or that none were read.
+
+    `subject` names what was counted, because this renders both the calibration
+    quarter (groups) and the fusion one (edges), and an empty-state sentence
+    saying "no groups" under a heading about edges sends a reader looking for a
+    grouping step that does not exist there.
+    """
     if not by_verdict:
-        return ["No groups in the store, so no verdict was reached.", ""]
+        return [f"No {subject} in the store, so no verdict was reached.", ""]
     named = ", ".join(f"**{count}** {verdict}" for verdict, count in sorted(by_verdict.items()))
     return [f"By verdict: {named}.", ""]
 
