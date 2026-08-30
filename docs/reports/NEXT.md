@@ -282,3 +282,18 @@ mid-phase can be resumed from the last line rather than from a diff.
   `calibration_query` is public so the **plan** can be asserted rather than
   described, with the unnarrowed case as the control that makes the assertion
   mean something. 10 new tests, 27 in the file.
+- `6e04e96` **`distribution.py`** — merged `--no-ff` as `2740fa7`. The arithmetic
+  under every calibration number, in a module that knows nothing about
+  estimates, work classes or a store, so hypothesis hands it a distribution
+  directly and the properties are about arithmetic rather than about a fixture.
+  A ratio is multiplicative, so the centre is a **geometric mean**, the spread a
+  standard deviation of **logarithms**, and the band one you divide and multiply
+  by — 0.5 and 2.0 cancel to exactly 1.0, where an arithmetic mean would report
+  a 25% bias that does not exist. Three constants carry their reasoning and a
+  test each: one log sigma not two (a 95% band over five points is precision
+  about an unmeasured tail), a **prediction** band so the deviation is not
+  divided by √n, and `n-1` so a small sample is not flattered. Confidence
+  multiplies a sample term by an agreement term, hits exactly 0.5 at the
+  threshold, and can never return 1.0. `Decimal` throughout inside a **pinned**
+  `localcontext`, with a test that moves the ambient precision and asserts
+  nothing changes. 33 tests, module at **100%**.
