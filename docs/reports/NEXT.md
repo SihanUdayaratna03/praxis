@@ -402,3 +402,18 @@ mid-phase can be resumed from the last line rather than from a diff.
   CLI test that skips `cache_clear()` seeds the *previous* test's directory; and
   rich wraps at terminal width, so asserting on a sentence was pinning where the
   wrap fell rather than what was said.
+- `6fa5777` **Eval extension** — `praxis/eval/calibration.py` plus edits to
+  `harness` and `report`; 15 tests; module at **100%**; merged `--no-ff` as
+  `961d368`. Priced as a module plus four edits, not four edits alone.
+  **No answer key, and that is not an omission**: a calibration factor is not
+  something a document can state, so approximating a ground truth would mean
+  computing it with the same code being graded. Internal consistency is what is
+  checkable, so that is what is checked. The threshold is verified in **both**
+  directions — "no factor below five" is satisfied by a detective that never
+  speaks — and the pass-through set is compared for **equality** with the
+  refusing set, because firing one group early silently ignores a factor and
+  firing late applies one that does not exist. The backtest travels with its
+  denominator. Every number recomputed from SQLite, with a test grading a store
+  no pass ever ran over. The report **leads** the section with its caveat, since
+  every number is a zero against this corpus. Verified end to end: 1 group,
+  `no_resolved_outcomes`, threshold held, pass-through exact, backtest ungraded.
