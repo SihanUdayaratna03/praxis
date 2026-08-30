@@ -179,6 +179,7 @@ def test_the_predicate_language_never_reaches_a_model(path: Path):
 
 
 DETERMINISTIC_MODULES = {
+    "BiasDetective": "praxis/agents/bias.py",
     "SourceAdapter": "praxis/ingest/adapters.py",
     "VerifierAgent": "praxis/ingest/verifier.py",
 }
