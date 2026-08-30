@@ -8,7 +8,8 @@ correcting would have helped.
 
 Three components, a store pass, a CLI command, an eval extension, two ADRs and a
 store fix. 25 commits, 9 merges, **199 new tests in seven new files** plus 10
-added to an existing one, every new module at **100%**.
+added to an existing one — **228 new overall**, 2431 to **2659**. Coverage 98.80%
+to **98.86%**, and every new module at **100%**.
 
 **This is the first phase in this project where no component calls a model at
 all**, and one of the two ADRs is about how it got that way.
@@ -222,7 +223,11 @@ cost column with a missing row reads as unmeasured, not as free.
 
 ## The metrics
 
-From `praxis eval` against a freshly generated corpus, pasted rather than typed.
+Suite: **2659 passed**, coverage **98.86%** (gate 85%). Schema stays at version 4 —
+Phase 7 needed no migration, and checked rather than assumed.
+
+The rest is from `praxis eval` against a freshly generated corpus, pasted rather
+than typed.
 
 ### Calibration
 
