@@ -340,7 +340,7 @@ mid-phase can be resumed from the last line rather than from a diff.
   places a small enough estimate times a small enough factor rounds to zero, and
   a zero estimate predicts nothing, so it is held at the floor.
 - `9da7c82` **`CalibratorAgent` becomes deterministic** — merged `--no-ff` as
-  `1d5eb1a`. ADR 0025. Out of ADR 0006's `extract` row, into `NON_LLM_AGENTS`.
+  `98ad5b1`. ADR 0025. Out of ADR 0006's `extract` row, into `NON_LLM_AGENTS`.
   **Phase 7 is now the first phase where no component calls a model at all.**
   The explanation has no free variables — every value is read off a `Spread`
   before the sentence exists — so a model adds nothing and one failure mode:
