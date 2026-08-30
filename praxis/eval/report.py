@@ -28,6 +28,7 @@ from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any, Final
 
+from praxis.eval.calibration import CalibrationScore
 from praxis.eval.estimation import EstimationResult
 from praxis.eval.harness import EvalResult, KindResult
 from praxis.eval.memory import MemoryResult
@@ -75,6 +76,19 @@ MATCH_CEILING_NOTE: Final = (
     "invented the other six pairings."
 )
 """Printed beneath the match rate so that a 0.33 is not read as a failure."""
+
+REFUSAL_NOTE: Final = (
+    "Zeros here are the correct answer rather than a missing measurement. "
+    "BiasDetective refuses below five resolved estimates in a group, with no "
+    "override, and no group in a corpus this size reaches that -- so nothing is "
+    "measured, nothing is corrected and nothing is backtested. A run reporting "
+    "a factor against this corpus would have broken the threshold, not beaten "
+    "it. What is graded is that the threshold held and that the pass-through "
+    "fired on exactly the groups that refused."
+)
+"""Printed above the calibration numbers, because every one of them is a zero
+against this corpus and a reader who meets them without this will read the whole
+section as a failed stage."""
 
 AGED_NOTE: Final = (
     "Should be zero by construction: the monitor reaches a breach only through "
@@ -143,6 +157,7 @@ def as_markdown(
         "",
         *_memory_lines(result.memory),
         *_estimation_lines(result.estimation),
+        *_calibration_lines(result.calibration),
         *_cost_lines(result.cost),
     ]
     if offline:
@@ -180,6 +195,7 @@ def as_json(result: EvalResult, *, provenance: Mapping[str, str] | None = None) 
         },
         "memory": _memory_data(result.memory),
         "estimation": _estimation_data(result.estimation),
+        "calibration": _calibration_data(result.calibration),
         # Strings for the reason the rates are strings: these are `Decimal` and
         # JSON floats would put back the representation invariant 4 excludes.
         "cost_per_document": {agent: str(spent) for agent, spent in sorted(result.cost.items())},
@@ -187,6 +203,87 @@ def as_json(result: EvalResult, *, provenance: Mapping[str, str] | None = None) 
     if provenance:
         payload["provenance"] = dict(provenance)
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def _calibration_lines(calibration: CalibrationScore) -> list[str]:
+    """What the calibration half concluded about itself, rendered.
+
+    Led by the caveat rather than followed by it. Every number below is zero
+    against this corpus, and a reader who meets a column of zeros before the
+    sentence explaining them has already formed the wrong conclusion.
+
+    The two booleans are the row that actually carries a claim. `threshold_holds`
+    is checked in both directions -- no factor below the sample size, and one
+    above it -- because "never speaks" satisfies the first half on its own.
+    """
+    backtest = calibration.backtest
+    scored = (
+        f"**{backtest.score}** of {backtest.scored} corrections landed closer "
+        f"(mean log error **{backtest.raw_error}** to **{backtest.corrected_error}**)."
+        if backtest.graded
+        else (
+            f"Nothing to score: {backtest.considered} resolved estimates, none in a "
+            f"group that reached the threshold."
+        )
+    )
+    return [
+        "## Calibration",
+        "",
+        f"> {REFUSAL_NOTE}",
+        "",
+        f"Groups: **{calibration.groups}**, with enough history to speak: "
+        f"**{calibration.measured}** (**{calibration.measured_rate}**). "
+        f"Calibration findings standing: **{calibration.findings}**.",
+        "",
+        *_verdict_lines(calibration.by_verdict),
+        f"Refusal threshold held: **{_yes(calibration.threshold_holds)}**. "
+        f"Pass-through fired on exactly the groups that refused: "
+        f"**{_yes(calibration.pass_through_exact)}** "
+        f"({calibration.pass_through} passed through, {calibration.corrected} corrected).",
+        "",
+        f"Backtest: {scored}",
+        "",
+    ]
+
+
+def _verdict_lines(by_verdict: Mapping[str, int]) -> list[str]:
+    """How the groups split across the four verdicts, or that none were read."""
+    if not by_verdict:
+        return ["No groups in the store, so no verdict was reached.", ""]
+    named = ", ".join(f"**{count}** {verdict}" for verdict, count in sorted(by_verdict.items()))
+    return [f"By verdict: {named}.", ""]
+
+
+def _yes(held: bool) -> str:
+    """A boolean as a word, because `True` in a metrics table reads as a value."""
+    return "yes" if held else "NO"
+
+
+def _calibration_data(calibration: CalibrationScore) -> dict[str, Any]:
+    """The same numbers as data, for Phase 10's ablation table."""
+    return {
+        "groups": calibration.groups,
+        "measured": calibration.measured,
+        "measured_rate": str(calibration.measured_rate),
+        "refused": calibration.refused,
+        "by_verdict": dict(sorted(calibration.by_verdict.items())),
+        "threshold_holds": calibration.threshold_holds,
+        "pass_through": calibration.pass_through,
+        "corrected": calibration.corrected,
+        "pass_through_exact": calibration.pass_through_exact,
+        "findings": calibration.findings,
+        "backtest": {
+            "considered": calibration.backtest.considered,
+            "scored": calibration.backtest.scored,
+            "graded": calibration.backtest.graded,
+            "improved": calibration.backtest.improved,
+            "worsened": calibration.backtest.worsened,
+            "unchanged": calibration.backtest.unchanged,
+            "score": str(calibration.backtest.score),
+            "raw_error": str(calibration.backtest.raw_error),
+            "corrected_error": str(calibration.backtest.corrected_error),
+        },
+    }
 
 
 def _estimation_lines(estimation: EstimationResult) -> list[str]:
