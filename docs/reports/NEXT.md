@@ -369,3 +369,21 @@ mid-phase can be resumed from the last line rather than from a diff.
   rather than copied. A hypothesis run found a real precision floor (a factor of
   0.0001 has nothing underneath it, so its band rounds to a point); recorded
   with its own test rather than papered over.
+- `979a5d2` **`calibrate_store`** — `praxis/agents/calibration.py`, 32 tests,
+  module at **100%**, merged `--no-ff` as `22867a2`. **A store pass, not a
+  per-document step**: calibration runs over accumulated history, so a store
+  that has ingested nothing since the last run can still answer differently
+  because an outcome landed. **Zero model calls, reported as zero** rather than
+  omitted. Writes only on a change, compared on the prosecution text — a second
+  pass writes no version and no audit row, a moved factor writes version 2 with
+  version 1 still readable, and the third pass is quiet again.
+  **Scope item 4 answered**: no migration, and `Finding` is *not* the carrier of
+  the factor. `subject_id` is one graph node and a factor belongs to a *group*,
+  so a finding is filed against an **anchor** — the group's lowest estimate id,
+  stable as the group grows — with the prosecution naming the group first so the
+  anchor is never read as the biased row. What `Finding` cannot hold is the
+  *query*: `prosecution` is prose, so Phase 8 recomputes through
+  `BiasDetective` instead, which also means the factor can never go stale.
+  A calibrated estimator raises nothing: "nothing is wrong" in the same queue as
+  a breach is how a queue stops being read. Severity is graded on `magnitude`,
+  so over- and under-estimation are symmetric.
