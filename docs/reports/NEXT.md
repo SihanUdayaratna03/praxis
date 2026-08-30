@@ -297,3 +297,20 @@ mid-phase can be resumed from the last line rather than from a diff.
   threshold, and can never return 1.0. `Decimal` throughout inside a **pinned**
   `localcontext`, with a test that moves the ambient precision and asserts
   nothing changes. 33 tests, module at **100%**.
+- `7c9b7ba` **`BiasDetective`** — `praxis/agents/bias.py`, 44 tests, module at
+  **100%**, merged `--no-ff` as `de8a5c1`. Most of it is about refusing, and
+  that is the product: against this repository's own history it declines on
+  every class. **The threshold takes no argument** — a test reads the signature
+  to say so. **Below it the factor is not computed, not withheld**: a property
+  test replaces `spread_of` with a function that raises and asserts every
+  sub-threshold sample still returns, so there is no hidden number for a later
+  refactor to print. Dispersion widens the band and never refuses. An
+  unclassified group is reported as its own row and never summarised, and
+  `factor_for` short-circuits **before** the read — checked by breaking the
+  store. Four verdicts, not a boolean. **Phase 8's fusion query is executed
+  here, not sketched**: `factor_for` is one indexed read plus O(n) arithmetic,
+  returns a populated object in every case so an absence is never an exception,
+  and a test renders ARCHITECTURE.md's own sentence off its fields. A property
+  found a real defect — `magnitude` keyed on the direction rather than the
+  factor printed below one inside the neutral band. Added to
+  `DETERMINISTIC_MODULES`, so invariant 3 is checked against the file.
