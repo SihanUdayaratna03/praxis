@@ -388,7 +388,7 @@ mid-phase can be resumed from the last line rather than from a diff.
   a breach is how a queue stops being read. Severity is graded on `magnitude`,
   so over- and under-estimation are symmetric.
 - `de41689` **`praxis calibrate`** — `praxis/cli_calibrate.py`, 22 tests, module
-  at **100%**, merged `--no-ff` as `4dbd52e`. Priced as a line item for the
+  at **100%**, merged `--no-ff` as `e98aff7`. Priced as a line item for the
   third phase running. **One command, two modes**: no arguments calibrates the
   *store* (and writes findings); `--owner/--work-class/--quantity` calibrates
   *that estimate* and writes nothing — asserted against the store, not the
