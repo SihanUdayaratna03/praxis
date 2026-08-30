@@ -314,3 +314,16 @@ mid-phase can be resumed from the last line rather than from a diff.
   found a real defect — `magnitude` keyed on the direction rather than the
   factor printed below one inside the neutral band. Added to
   `DETERMINISTIC_MODULES`, so invariant 3 is checked against the file.
+- `808bc84` **ADR 0024** — merged `--no-ff` as `064cd68`. Dispersion widens the
+  band and never refuses; `n` is the only threshold and takes no override. Nine
+  rejected options including the three genuinely tempting ones. **EST-0007's
+  objection is answered twice over and the ADR says which mechanism does the
+  work**: at n = 2 the *threshold* refuses, so the interval gets no credit for a
+  save it did not make — though at those two points it would have given a band
+  of 1.18x–2.43x, wide enough that nobody commits to 1.75x. Unclassified rows
+  are in no group and get their own row, because "fourteen estimates carry no
+  class" is an instruction and an empty table is not. **`README.md` corrected in
+  the same commit**: its "n=14, CI [1.4, 2.3], confidence 0.79" was half right —
+  the band is exactly one log sigma (σ 0.2513), the confidence is 0.59 under the
+  shipping formula. The document moved to the code's number, not the reverse.
+  ADR 0001's first assumption recomputes to **96 of 97, 0.9897** (was 0.9891).
