@@ -338,6 +338,26 @@ One line per component, appended as it landed. Branch
   `OutcomeMatcher` alone still cannot make the pairing. 16 tests, **100%**.
   `BACKLOG.md`'s row is marked done with the reasoning rather than deleted.
 
+- `6a52559` **`CollateralAgent`** + **ADR 0027**. The reverse direction, and
+  almost none of it is new: Phase 1 built the walk (`impacted_by` over
+  `DEPENDENCY_LINK_TYPES`, whose own docstring calls itself *the fusion query*),
+  ADR 0021 made the threshold arithmetic, and `severity_for` is imported from
+  `praxis.monitor.breach` rather than reimplemented. So it makes **no model
+  call** either, and `FindingKind.COLLATERAL_IMPACT` finally has something
+  writing it. Using the existing walk is load-bearing rather than tidy — a
+  hand-rolled traversal would have followed the two-hop route through the
+  assumption and missed `justified_by` entirely, which is the special-case-per-hop
+  the edge directions exist to prevent. 23 tests, **100%**.
+
+  **Sixth consecutive component to move to the arithmetic side**, and ADR 0027
+  stops calling that a run of good corrections. Six is evidence about
+  `ARCHITECTURE.md`, and the reading it takes is that the judgement is real and
+  is being pushed steadily *earlier* — into extraction, paid for once and written
+  down as an edge. The honest cost of a fusion finding therefore includes the
+  `reason`-tier call Phase 4 made. That also predicts where it stops:
+  `ChallengerAgent` and `ReviewTriageAgent`, whose input is prose nobody has
+  reduced to a record, should keep their routes.
+
 **Still to build in this phase**, in the order `EST-0009` prices them:
 `CollateralAgent` (the reverse walk, priced as its own component and *not* as a
 direction flag on `FusionBridge`), the cross-document half of `OutcomeMatcher`
