@@ -136,7 +136,7 @@ def document_with_content(connection: sqlite3.Connection, content_hash: str) -> 
     return None if row is None else DocumentId(str(row["id"]))
 
 
-_CALIBRATION_SQL: Final = """
+_CALIBRATION_SELECT: Final = """
     SELECT e.id               AS estimate_id,
            e.owner            AS owner,
            e.work_class       AS work_class,
@@ -155,7 +155,6 @@ _CALIBRATION_SQL: Final = """
     JOIN record_head    AS oh  ON oh.id = o.id AND oh.version = o.version
     JOIN record_version AS orv ON orv.id = o.id AND orv.version = o.version
     WHERE erv.retracted = 0 AND orv.retracted = 0
-    ORDER BY e.owner, e.work_class, e.id
 """
 """Phase 7's question, written in Phase 6 so its shape can be checked now.
 
@@ -178,6 +177,26 @@ Both sides are narrowed to the current, unretracted version. That matters more
 here than anywhere else in this module: `WorkClassifier` revises an estimate to
 put it on this axis, so an unfiltered read would return the row under its old
 class as well and count one estimate twice, in two different groups.
+"""
+
+_CALIBRATION_BY_OWNER: Final = " AND e.owner = ?"
+_CALIBRATION_BY_WORK_CLASS: Final = " AND e.work_class = ?"
+_CALIBRATION_ORDER: Final = " ORDER BY e.owner, e.work_class, e.id"
+"""The two narrowings and the ordering, as fragments the query is built from.
+
+Fragments rather than one statement with `(? IS NULL OR e.owner = ?)`, and
+composed rather than interpolated. The composition is safe by construction --
+these three are literals in this module and the *values* are always bound
+parameters -- and it is what lets SQLite choose `estimate_owner_work_class`
+rather than scan, because a comparison against a placeholder that might be null
+is not one the planner can use an index for.
+
+Phase 7 is what made this worth fixing. `BiasDetective` asks this question once
+per `(owner, work_class)` group and `FusionBridge` will ask it once per
+assumption it prices, so an unnarrowed read here is a full scan of every
+estimate and outcome the store holds, per question. The narrowing existed as an
+argument from Phase 6 and was applied in Python after `fetchall`, which answered
+correctly and read everything to do it.
 """
 
 
@@ -242,6 +261,12 @@ def calibration_history(
     "eleven estimates, four of them never answered" and "seven estimates" are
     different facts and only one of them is honest.
 
+    **Both narrowings are applied by the database**, not by this function. That
+    is the difference between one indexed lookup and a full read of every
+    estimate and outcome the store holds, and it is the shape `BiasDetective`
+    and `FusionBridge` ask this question in: once per group, once per assumption
+    being priced.
+
     Args:
         connection: An open store.
         owner: Restrict to one estimator. `None` for every estimator.
@@ -251,14 +276,39 @@ def calibration_history(
         Rows ordered by owner, then work class, then estimate id -- so the
         grouping a caller does is a walk rather than a sort.
     """
+    sql, parameters = calibration_query(owner=owner, work_class=work_class)
     with translating_sqlite_errors():
-        rows = connection.execute(_CALIBRATION_SQL).fetchall()
-    return tuple(
-        _calibration_row(row)
-        for row in rows
-        if (owner is None or row["owner"] == owner)
-        and (work_class is None or row["work_class"] == work_class)
-    )
+        rows = connection.execute(sql, parameters).fetchall()
+    return tuple(_calibration_row(row) for row in rows)
+
+
+def calibration_query(
+    *, owner: str | None = None, work_class: str | None = None
+) -> tuple[str, tuple[str, ...]]:
+    """The statement and bound values `calibration_history` would run.
+
+    Public so the query *plan* can be asserted on rather than described. "This
+    narrowing uses `estimate_owner_work_class`" is a claim about SQLite's
+    planner, and the only honest way to hold it is to hand the planner the real
+    statement and read back what it decided -- which a test cannot do if the
+    statement is assembled inside a function that also executes it.
+
+    Args:
+        owner: Restrict to one estimator, or `None`.
+        work_class: Restrict to one class of work, or `None`.
+
+    Returns:
+        The SQL, and the values to bind to it in order.
+    """
+    sql = _CALIBRATION_SELECT
+    values: list[str] = []
+    if owner is not None:
+        sql += _CALIBRATION_BY_OWNER
+        values.append(owner)
+    if work_class is not None:
+        sql += _CALIBRATION_BY_WORK_CLASS
+        values.append(work_class)
+    return sql + _CALIBRATION_ORDER, tuple(values)
 
 
 def _calibration_row(row: sqlite3.Row) -> CalibrationRow:
