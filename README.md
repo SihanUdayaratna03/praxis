@@ -47,7 +47,7 @@ Most decision assumptions are estimates in disguise.
 > factor for `data-migration` work?"*
 >
 > `CalibrationEngine` → :
-> *"1.8x under-estimation, n=14, CI [1.4, 2.3], confidence 0.79."*
+> *"1.8x under-estimation, n=14, band [1.4, 2.3], confidence 0.59."*
 >
 > Praxis emits:
 > *"D-0042 is probably built on a 40% under-estimate. Re-examine it."*
