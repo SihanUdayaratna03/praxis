@@ -252,3 +252,33 @@ mid-phase can be resumed from the last line rather than from a diff.
   own vocabulary. ADR 0001's first assumption recomputes to **91 of 92,
   0.9891** (was 0.9875) — all 12 new predicates and 12 expiry conditions parse.
   ADR 0015's third assumption remains the one unreadable row, still a finding.
+
+---
+
+## Phase 7 progress log
+
+One line per component, appended as it lands. Written so a session that dies
+mid-phase can be resumed from the last line rather than from a diff.
+
+- `877c6f9` **EST-0008 logged** — 5.5h active, 18.0h blocked, confidence 0.50,
+  uncorrected for the eighth time. `agent-implementation` recomputed from both
+  JSONL files at **n = 4**: 1.31× / 2.18× / 1.41× / 1.79×, all over, geomean
+  1.64×, σ 0.40, **CV 0.24**. The irony is explicit — this phase builds the
+  component that refuses below n = 5 while its own class sits at n = 4 — and it
+  changes nothing: the threshold is a fact about the sample, not the calendar;
+  the dispersion argues against correcting even at n = 5; the one real
+  sub-population question (these three components call no model, the prior four
+  phases' agents all did) is priced into confidence rather than quantity; and
+  `EST-0009` becomes the first estimate `BiasDetective` can legitimately speak
+  about. Branch `feat/phase-7-calibration-math` cut from `main` at `d91a864`.
+- `d2eeed4` **`calibration_history` narrows in SQL** — merged `--no-ff` as
+  `2c414bb`. Found by sketching Phase 8's fusion query against the Phase 6
+  shape, which is what that sketch is for. Phase 6 wrote both narrowings and
+  applied them in a generator over `fetchall()`: every answer right, every test
+  green, and `estimate_owner_work_class` never used — a full scan of both tables
+  per question, in the one read `BiasDetective` runs per group and
+  `FusionBridge` will run per assumption. Composed from literal fragments with
+  bound values rather than `(? IS NULL OR ...)`, which the planner cannot index.
+  `calibration_query` is public so the **plan** can be asserted rather than
+  described, with the unnarrowed case as the control that makes the assertion
+  mean something. 10 new tests, 27 in the file.
