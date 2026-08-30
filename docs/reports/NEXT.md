@@ -350,3 +350,22 @@ mid-phase can be resumed from the last line rather than from a diff.
   0006 **amended, not superseded** — its real decision is untouched, so the
   Phase 2 list stays with a pointer and `praxis doctor` is the live answer.
   `doctor` passes. ADR 0001's first assumption: **100 of 101, 0.9901**.
+- `c3ac70d` **`ScoringAgent`** — `praxis/agents/scoring.py`, 26 tests, module at
+  **100%**, merged `--no-ff` as `5cf1a00`. **The backtest is prequential**: each
+  row is scored using only the rows before it, because a factor fitted over a
+  whole history and applied inside it has already seen the answer it is graded
+  on. Error in log space, so 2x over and 2x under are the same miss. **`graded`
+  is a field**, because a backtest that scored nothing and one that scored badly
+  both print 0.0 and only one is a grade. Three known-answer histories keep it
+  honest: a consistent 1.8x under-estimator is corrected on every scored row
+  (mean log error 0.58 → 0.03), a well-calibrated estimator is never "improved"
+  — the control that stops the first test measuring its own arithmetic — and
+  undirected scatter scores no better than chance. **Against this project's own
+  seven outcomes it scores exactly nothing**, and that is the finding: walking
+  forward no group ever reaches n = 5, so no correction is ever formed to grade.
+  A test makes the next phase concrete — with OUT-0008 the class reaches five,
+  and the estimate *after* that is the first this project will ever have
+  backtested. `grouped` and `precise()` promoted out of `bias`/`distribution`
+  rather than copied. A hypothesis run found a real precision floor (a factor of
+  0.0001 has nothing underneath it, so its band rounds to a point); recorded
+  with its own test rather than papered over.
