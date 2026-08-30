@@ -327,3 +327,26 @@ mid-phase can be resumed from the last line rather than from a diff.
   the band is exactly one log sigma (σ 0.2513), the confidence is 0.59 under the
   shipping formula. The document moved to the code's number, not the reverse.
   ADR 0001's first assumption recomputes to **96 of 97, 0.9897** (was 0.9891).
+- `c642439` **`CalibratorAgent`** — `praxis/agents/calibrator.py`, 26 tests,
+  module at **100%**. **Pass-through designed as the primary path**, because it
+  is: six of this project's own seven estimates would take it, so a design
+  treating correction as normal has the frequencies backwards. It comes back
+  fully populated with the detective's verdict and a sentence saying in as many
+  words that it is correct rather than a stage that failed, and it gets as many
+  tests as the correction path. Traceability is held in its **strongest** form —
+  a property recomputes the corrected figure from the factor the result cites,
+  so an explanation quoting one number while the arithmetic used another would
+  fail rather than read plausibly. A correction is always positive: at four
+  places a small enough estimate times a small enough factor rounds to zero, and
+  a zero estimate predicts nothing, so it is held at the floor.
+- `9da7c82` **`CalibratorAgent` becomes deterministic** — merged `--no-ff` as
+  `1d5eb1a`. ADR 0025. Out of ADR 0006's `extract` row, into `NON_LLM_AGENTS`.
+  **Phase 7 is now the first phase where no component calls a model at all.**
+  The explanation has no free variables — every value is read off a `Spread`
+  before the sentence exists — so a model adds nothing and one failure mode:
+  a fluent paragraph citing 1.7x beside a stored 0.61x reads *better* than the
+  correct one and no test separates them. Fourth time this codebase has drawn
+  this boundary, fourth time it moved a component to the arithmetic side. ADR
+  0006 **amended, not superseded** — its real decision is untouched, so the
+  Phase 2 list stays with a pointer and `praxis doctor` is the live answer.
+  `doctor` passes. ADR 0001's first assumption: **100 of 101, 0.9901**.
