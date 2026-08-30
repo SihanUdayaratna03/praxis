@@ -133,14 +133,15 @@ NON_LLM_AGENTS: Final[frozenset[str]] = frozenset(
     {
         "BiasDetective",
         "CalibratorAgent",
+        "CollateralAgent",
         "FusionBridge",
         "ScoringAgent",
         "SourceAdapter",
         "VerifierAgent",
     }
 )
-"""`FusionBridge` joined this set in Phase 8 and `CalibratorAgent` in Phase 7;
-neither started here.
+"""`FusionBridge` and `CollateralAgent` joined this set in Phase 8 and
+`CalibratorAgent` in Phase 7; none of the three started here.
 
 `FusionBridge` is the more surprising of the two, because `ARCHITECTURE.md`
 describes its job as *recognising* that a predicate's subject is an estimate in
@@ -152,6 +153,13 @@ a graph walk over those edges, one indexed read per group, a multiplication and
 two predicate evaluations -- and ADR 0019 already forbids a model the second of
 those, since only arithmetic can reach `BREACHED`. See ADR 0026; ADR 0006's
 assignment list carries the amendment.
+
+`CollateralAgent` is the plainest of the three. "An estimate missed -- which
+decisions rested on it?" is reverse reachability over `DEPENDENCY_LINK_TYPES`,
+which Phase 1 built as `Repository.impacted_by` and documented as *the fusion
+query*; which misses count is `MatchQuality`, arithmetic since ADR 0021; and the
+severity is `praxis.monitor.breach.severity_for`, imported rather than
+reimplemented. See ADR 0027.
 
 `CalibratorAgent` was assigned to `extract` in Phase 2, on the reasonable-looking
 assumption that explaining a correction in plain language is a writing task.
@@ -179,10 +187,11 @@ _ROUTING: Final[Mapping[str, ModelRole]] = MappingProxyType(
         "EstimateExtractor": ModelRole.SCAN,
         "WorkClassifier": ModelRole.SCAN,
         "OutcomeMatcher": ModelRole.EXTRACT,
-        # Fusion. `FusionBridge` was assigned `reason` here in Phase 0 and left
-        # this table in Phase 8, once building it showed the judgement its route
-        # was paying for had already been made in Phase 4. See ADR 0026.
-        "CollateralAgent": ModelRole.REASON,
+        # Fusion. `FusionBridge` and `CollateralAgent` were both assigned
+        # `reason` here in Phase 0 and both left this table in Phase 8: the
+        # judgement the first was paying for had already been made in Phase 4,
+        # and the second turned out to be a graph walk Phase 1 had already
+        # written. See ADR 0026 and ADR 0027.
         "ReviewTriageAgent": ModelRole.EXTRACT,
         # Cross-cutting
         "ChallengerAgent": ModelRole.REASON,

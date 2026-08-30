@@ -108,10 +108,11 @@ def test_the_expensive_model_is_reserved_for_judgement_calls() -> None:
     reasoning = {a for a in routed_agents() if role_for_agent(a) is ModelRole.REASON}
 
     assert "AssumptionExtractor" in reasoning
-    assert "CollateralAgent" in reasoning
+    assert "ContradictionDetector" in reasoning
     assert "ChallengerAgent" in reasoning
     assert "SegmenterAgent" not in reasoning
     assert "FusionBridge" not in reasoning
+    assert "CollateralAgent" not in reasoning
 
 
 def test_the_mock_model_id_is_not_a_real_model() -> None:
