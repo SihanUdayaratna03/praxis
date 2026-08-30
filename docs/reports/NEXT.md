@@ -417,3 +417,9 @@ mid-phase can be resumed from the last line rather than from a diff.
   no pass ever ran over. The report **leads** the section with its caveat, since
   every number is a zero against this corpus. Verified end to end: 1 group,
   `no_resolved_outcomes`, threshold held, pass-through exact, backtest ungraded.
+- `7a13513` **`ARCHITECTURE.md`** — a *Calibration maths (Phase 7, built)*
+  section, the four new modules in the layout, `CalibratorAgent` and
+  `distribution.py` added to the deterministic table, and the fusion
+  mechanism's step 4 corrected to say the factor is *not computed* below the
+  threshold rather than withheld. Phase 6's "Phase 7's query is already written
+  and run" paragraph now also records what writing it early actually caught.
