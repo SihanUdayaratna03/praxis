@@ -74,11 +74,26 @@ This is the part that justifies the project, so it is worth stating precisely.
    threshold the factor is not computed rather than computed and withheld. The
    interval is multiplicative and one log sigma wide, because a scattered
    estimator gets a wider band rather than a second refusal — ADR 0024.
-5. If the calibrated value violates the predicate, an `AssumptionBreach` is
-   emitted against every `Decision` linked by an `assumes` edge.
+5. If the calibrated value violates a predicate the **raw** estimate satisfied
+   — a flip, not merely a correction — a `StaleDecision` finding is filed
+   against the `Assumption`, naming every `Decision` linked by an `assumes`
+   edge. *(Phase 8, built)*
+
+**Not an `AssumptionBreach`, and the difference is load-bearing.** A breach is a
+predicate evaluated false against facts a monitoring run was *given*: something
+happened. A fusion flip is a predicate evaluated false against a number nobody
+has observed yet, projected from the estimator's track record: nothing has
+happened, and the work may still land on time. The two are different
+`FindingKind`s so a triage queue cannot rank a projection above a measurement,
+and the prosecution opens by saying so. This supersedes the earlier wording of
+this step — see [ADR 0028](docs/adr/0028-a-projection-is-not-a-breach.md).
 
 And in reverse: when an `Outcome` misses its `Estimate` badly, `CollateralAgent`
-walks `justified_by` edges to find every decision that leaned on it.
+walks the impact DAG to find every decision that leaned on it and files a
+`CollateralImpact` against the estimate. That direction *is* a measurement, and
+the walk is `Repository.impacted_by`, which Phase 1 built and called the fusion
+query — see [ADR 0027](docs/adr/0027-collateral-damage-is-a-walk-phase-1-already-wrote.md).
+*(Phase 8, built)*
 
 Neither half can do this alone. Provenance without calibration cannot tell a
 stale assumption from a live one that was always optimistic. Calibration
