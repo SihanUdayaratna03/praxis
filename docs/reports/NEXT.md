@@ -395,6 +395,22 @@ One line per component, appended as it landed. Branch
   run, the mock's citations were refused, and few assumptions survived to carry
   an edge. It now names the citation gate and says this is the gate working.
 
+- `6b24c98` **`praxis/eval/fusion.py`** — the fifth quarter of the metrics
+  table, as a module plus four edits and not four edits alone (OUT-0006's
+  lesson, third application). Most of it has **no answer key**, and for a
+  sharper reason than Phase 7's: a corpus *can* state that an assumption is an
+  estimate in disguise, and does, but no corpus can state whether a *calibrated*
+  number violates a predicate. So two booleans carry the claim —
+  `refusals_hold` (no edge reported a factor for a group `BiasDetective`
+  refuses) and `flips_hold` (every finding came from a predicate that really
+  moved). Both tested in **both** directions. `cross_document` is a count and
+  never a rate, because `BACKLOG.md` refuses to plant the ground truth that
+  would score it. 12 tests, **100%**.
+
+  **Two defects found by running the harness rather than reading it**: the
+  report had two sections headed `## Fusion`, and the shared verdict renderer
+  said "no groups in the store" under a heading about edges.
+
 **Still to build in this phase**, in the order `EST-0009` prices them:
 `CollateralAgent` (the reverse walk, priced as its own component and *not* as a
 direction flag on `FusionBridge`), the cross-document half of `OutcomeMatcher`
