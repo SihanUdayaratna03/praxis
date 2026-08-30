@@ -133,20 +133,41 @@ NON_LLM_AGENTS: Final[frozenset[str]] = frozenset(
     {
         "BiasDetective",
         "CalibratorAgent",
+        "CollateralAgent",
+        "FusionBridge",
         "ScoringAgent",
         "SourceAdapter",
         "VerifierAgent",
     }
 )
-"""`CalibratorAgent` joined this set in Phase 7 and did not start here.
+"""`FusionBridge` and `CollateralAgent` joined this set in Phase 8 and
+`CalibratorAgent` in Phase 7; none of the three started here.
 
-It was assigned to `extract` in Phase 2, on the reasonable-looking assumption
-that explaining a correction in plain language is a writing task. Building it
-showed the explanation is a template over numbers it was handed: the factor, the
-band, `n` and the confidence all exist before the sentence does, and asking a
-model to restate them adds nothing but the possibility of a restated number
-disagreeing with the number it came from. See ADR 0025; ADR 0006's assignment
-list carries the amendment.
+`FusionBridge` is the more surprising of the two, because `ARCHITECTURE.md`
+describes its job as *recognising* that a predicate's subject is an estimate in
+disguise -- which sounds like judgement, and is. The judgement is real and it is
+already paid for: `AssumptionExtractor` makes it in Phase 4, in a `reason`-tier
+call that is already holding the assumption and its quantity, and writes the
+`estimated_as` edge recording the answer (ADR 0016). What is left for Phase 8 is
+a graph walk over those edges, one indexed read per group, a multiplication and
+two predicate evaluations -- and ADR 0019 already forbids a model the second of
+those, since only arithmetic can reach `BREACHED`. See ADR 0026; ADR 0006's
+assignment list carries the amendment.
+
+`CollateralAgent` is the plainest of the three. "An estimate missed -- which
+decisions rested on it?" is reverse reachability over `DEPENDENCY_LINK_TYPES`,
+which Phase 1 built as `Repository.impacted_by` and documented as *the fusion
+query*; which misses count is `MatchQuality`, arithmetic since ADR 0021; and the
+severity is `praxis.monitor.breach.severity_for`, imported rather than
+reimplemented. See ADR 0027.
+
+`CalibratorAgent` was assigned to `extract` in Phase 2, on the reasonable-looking
+assumption that explaining a correction in plain language is a writing task.
+Building it showed the explanation is a template over numbers it was handed: the
+factor, the band, `n` and the confidence all exist before the sentence does, and
+asking a model to restate them adds nothing but the possibility of a restated
+number disagreeing with the number it came from. See ADR 0025; ADR 0006's
+assignment list carries the amendment.
 """
 
 
@@ -166,9 +187,11 @@ _ROUTING: Final[Mapping[str, ModelRole]] = MappingProxyType(
         "EstimateExtractor": ModelRole.SCAN,
         "WorkClassifier": ModelRole.SCAN,
         "OutcomeMatcher": ModelRole.EXTRACT,
-        # Fusion
-        "FusionBridge": ModelRole.REASON,
-        "CollateralAgent": ModelRole.REASON,
+        # Fusion. `FusionBridge` and `CollateralAgent` were both assigned
+        # `reason` here in Phase 0 and both left this table in Phase 8: the
+        # judgement the first was paying for had already been made in Phase 4,
+        # and the second turned out to be a graph walk Phase 1 had already
+        # written. See ADR 0026 and ADR 0027.
         "ReviewTriageAgent": ModelRole.EXTRACT,
         # Cross-cutting
         "ChallengerAgent": ModelRole.REASON,

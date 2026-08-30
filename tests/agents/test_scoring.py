@@ -295,28 +295,31 @@ class TestOverAStore:
 
 
 class TestThisProjectsOwnHistory:
-    """A curiosity at n = 8, reported as one. Never a result.
+    """A curiosity at n = 9, reported as one. Still never a result.
 
-    Eight outcomes across four classes, with the largest class at exactly five.
-    A backtest showing a correction "would have helped" on that is noise with a
-    decimal point on it -- so what matters is that the honest answer here is a
-    refusal to score anything at all, and that the code produces it without
-    being told to.
+    Nine outcomes across four classes, with the largest -- `agent-implementation`
+    -- at six. Six is where this project's own history becomes *scoreable* for
+    the first time: `BiasDetective` needs five resolved estimates to speak, and a
+    prequential walk needs five *before* the row it is grading, so it needs six.
 
     **These assertions are pinned to the real log on purpose, and they are
-    supposed to fail when it grows.** They did, at the close of Phase 7:
-    `OUT-0008` took `agent-implementation` from four to five and broke four
-    tests in this class, which is the failure mode they exist for. A change to
-    `docs/dogfood/` is a change to fixture data, and the pin is what makes that
-    visible rather than silent.
+    supposed to fail when it grows.** They did at the close of Phase 7, when
+    `OUT-0008` took the class from four to five, and again at the close of Phase
+    8, when `OUT-0009` took it to six. That is the failure mode they exist for: a
+    change to `docs/dogfood/` is a change to fixture data, and the pin is what
+    makes it visible rather than silent.
 
-    The state they now record is sharper than the one they replaced. The
-    threshold is **reached** -- `BiasDetective` will speak about this project for
-    the first time -- and the backtest still scores nothing, because those are
-    different thresholds. A prequential walk needs one point *more* than
-    `MINIMUM_SAMPLE` to score its first row: the fifth outcome is graded against
-    a prefix of four, which cannot speak. The sixth is the first row this
-    project will ever have backtested.
+    **`OUT-0009` also broke something the pins were not designed to catch, and
+    that is the more useful thing recorded here.** `EST-0009` is the first
+    estimate in this log to have had a bias correction applied before it was
+    logged, so its `active_quantity` is *already* corrected. A prequential
+    backtest asks whether applying the correction would have helped, which means
+    it must be handed the **uncorrected** figure -- and handed the corrected one
+    it applied the factor a second time and reported the correction as harmful
+    (`improved=0, worsened=1`). The raw number was never lost, but it lived only
+    in `calibration_note` prose where nothing could read it. It is now
+    `raw_active_quantity`, `dogfood_rows` prefers it, and the walk answers the
+    question it was actually asking.
     """
 
     @staticmethod
@@ -339,8 +342,19 @@ class TestThisProjectsOwnHistory:
                     work_class=estimate["work_class"],
                     unit=Unit(estimate["unit"]),
                     subject=estimate["subject"][:80],
+                    # `raw_active_quantity` first, and this is the whole point
+                    # of that field. A backtest asks whether applying the
+                    # correction would have helped, so it has to be handed the
+                    # *uncorrected* number. EST-0009 is the first row in this
+                    # log whose `active_quantity` is already corrected; reading
+                    # that as raw makes the walk apply the factor twice and
+                    # report the correction as harmful. Rows with no such field
+                    # were never corrected, so their `active_quantity` is raw.
                     estimated_active=Decimal(
-                        str(estimate.get("active_quantity", estimate.get("quantity")))
+                        str(
+                            estimate.get("raw_active_quantity")
+                            or estimate.get("active_quantity", estimate.get("quantity"))
+                        )
                     ),
                     estimated_blocked=Decimal(str(estimate.get("blocked_quantity", 0))),
                     outcome_id=outcome["id"],
@@ -351,41 +365,35 @@ class TestThisProjectsOwnHistory:
             )
         return rows
 
-    def test_the_log_holds_eight_outcomes_across_four_classes(self) -> None:
+    def test_the_log_holds_nine_outcomes_across_four_classes(self) -> None:
         """The premise, checked rather than recalled, so the conclusion is real."""
         rows = self.dogfood_rows()
 
-        assert len(rows) == 8
+        assert len(rows) == 9
         assert len({row.work_class for row in rows}) == 4
 
-    def test_the_largest_class_has_just_reached_the_threshold(self) -> None:
-        """`OUT-0008` crossed it, and this is where that becomes a checked fact.
+    def test_the_largest_class_is_one_past_the_threshold(self) -> None:
+        """`OUT-0009` took it to six, which is where a backtest can score.
 
-        Exactly at `MINIMUM_SAMPLE` rather than above it: this is the first
-        moment in the project's history that any group can be spoken about at
-        all, and the confidence the design reports there is capped at one half by
-        construction.
+        One *past* `MINIMUM_SAMPLE` rather than at it, and the difference is the
+        whole of what this outcome bought: at five the detective can speak, at
+        six the scorer can grade.
         """
         rows = self.dogfood_rows()
         by_class: dict[str, int] = {}
         for row in rows:
             by_class[row.work_class] = by_class.get(row.work_class, 0) + 1
 
-        assert max(by_class.values()) == MINIMUM_SAMPLE
-        assert by_class["agent-implementation"] == MINIMUM_SAMPLE
+        assert max(by_class.values()) == MINIMUM_SAMPLE + 1
+        assert by_class["agent-implementation"] == MINIMUM_SAMPLE + 1
 
-    def test_backtesting_this_projects_history_scores_exactly_nothing(self) -> None:
-        """The honest zero, and the clearest statement of why n = 8 is not evidence.
+    def test_backtesting_this_projects_history_now_scores_exactly_one_row(self) -> None:
+        """The first row this project has ever had backtested. n = 1.
 
-        Not "the correction did not help". Walking forward, no *prefix* ever
-        reaches the threshold, so no correction is ever formed to grade -- and
-        the field that says so is `graded`, which is why it exists.
-
-        Worth separating from the test above, because the two thresholds are
-        different and it would be easy to read the crossing as meaning this
-        moved. `BiasDetective` needs five resolved estimates to speak; a
-        prequential backtest needs five *before* the row it is grading, so it
-        needs six. The class has five.
+        Worth stating precisely, because the number is easy to over-read. One
+        scored row is not evidence that the correction works; it is the first
+        data point that could ever have been evidence either way. The class that
+        used to assert "scores exactly nothing" is this one, repinned.
         """
         rows = sorted(self.dogfood_rows(), key=lambda row: row.estimate_id)
         results = [
@@ -398,26 +406,47 @@ class TestThisProjectsOwnHistory:
 
         summed = total(results)
 
-        assert summed.considered == 8
-        assert summed.scored == 0
-        assert not summed.graded
+        assert summed.considered == 9
+        assert summed.scored == 1
+        assert summed.graded
 
-    def test_the_next_outcome_is_the_first_this_project_will_ever_backtest(self) -> None:
-        """What Phase 8's own outcome buys, stated as arithmetic rather than a hope.
+    def test_the_first_backtested_row_says_the_correction_helped(self) -> None:
+        """What `OUT-0009` actually bought, as arithmetic rather than a hope.
 
-        `OUT-0008` took the class to five, which is what lets `BiasDetective`
-        speak. `OUT-0009` takes it to six, which is what lets `ScoringAgent`
-        grade -- the first row in this project's history to be backtested
-        against a factor formed without it. This is that sentence, executable.
+        `EST-0009` predicted 3.6h by correcting a raw 6.5h with the factor its
+        own five predecessors had fitted, and the phase came in at 3.5h. Walked
+        forward, the uncorrected estimate carries a log error of 0.6190 and the
+        corrected one 0.0313 -- so on the single row that can be graded, the
+        correction helped by roughly twentyfold.
+
+        **Pinned as `improved` and not as the numbers**, deliberately. The exact
+        errors move whenever the log grows and pinning them would make this test
+        a tripwire for arithmetic that is already property-tested elsewhere. What
+        is worth holding is the direction and the fact that anything was graded
+        at all.
         """
         rows = [row for row in self.dogfood_rows() if row.work_class == "agent-implementation"]
         group = CalibrationGroup(rows[0].owner, "agent-implementation")
 
-        assert walk(group, rows).scored == 0
+        result = walk(group, rows)
 
-        with_ninth = walk(group, [*rows, a_row("5.5", "3.4", index=9, owner=rows[0].owner)])
+        assert result.scored == 1
+        assert result.improved == 1
+        assert result.worsened == 0
+        assert result.corrected_error < result.raw_error
 
-        assert with_ninth.scored == 1
+    def test_the_corrected_estimate_is_not_what_the_backtest_is_handed(self) -> None:
+        """The trap `OUT-0009` sprang, held open so nobody falls in it twice.
+
+        `EST-0009` carries both figures: `active_quantity` is the 3.6h that was
+        actually predicted, and `raw_active_quantity` is the 6.5h the correction
+        was applied to. The backtest must read the second. If this ever reads the
+        first again, the walk will double-correct and report a working correction
+        as a harmful one.
+        """
+        rows = {row.estimate_id: row for row in self.dogfood_rows()}
+
+        assert rows["EST-0009"].estimated_active == Decimal("6.5")
 
 
 def _jsonl(path: Path) -> list[dict[str, object]]:

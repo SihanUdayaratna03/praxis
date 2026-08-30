@@ -30,6 +30,7 @@ from praxis import __version__
 from praxis.cli_calibrate import calibrate
 from praxis.cli_estimate import estimates
 from praxis.cli_eval import eval_corpus, extract
+from praxis.cli_fuse import fuse
 from praxis.cli_monitor import contradictions, formalize, monitor, why
 from praxis.cli_tables import configuration_table, links_table, records_table, routing_table
 from praxis.config.models import (
@@ -272,6 +273,13 @@ app.command(name="estimates")(estimates)
 # for it to group. Unlike every command above it, this one makes no model call
 # at all -- ADR 0025.
 app.command(name="calibrate")(calibrate)
+
+# `praxis fuse`, from `praxis.cli_fuse`, registered last because it is the
+# only command that needs both halves already populated: it reads the
+# `estimated_as` edges extraction wrote, the `Outcome` rows Half B matched
+# and the calibration history Phase 7 grades. It also makes no model call --
+# ADR 0026 and ADR 0027 -- so the whole fusion layer is free to run.
+app.command(name="fuse")(fuse)
 
 
 @corpus_app.command(name="generate")

@@ -34,6 +34,7 @@ from praxis.agents.detection import DetectionRun, detect_in_store
 from praxis.agents.estimation import EstimationRun, estimate_store
 from praxis.agents.extraction import ExtractionPipeline
 from praxis.agents.formalization import formalize_store
+from praxis.agents.fusion_pass import fuse_store
 from praxis.agents.results import ExtractionRun
 from praxis.corpus.groundtruth import (
     DOCUMENTS_DIRNAME,
@@ -54,6 +55,7 @@ from praxis.domain.records import (
 )
 from praxis.eval.calibration import CalibrationScore, grade_calibration
 from praxis.eval.estimation import EstimationResult, grade_estimation
+from praxis.eval.fusion import FusionScore, grade_fusion
 from praxis.eval.matching import SET_SEPARATOR, Claim, Pairing, fusion_pairs, pair
 from praxis.eval.memory import MemoryResult, grade_memory
 from praxis.eval.metrics import (
@@ -127,6 +129,9 @@ class EvalResult:
         estimation: What Half B concluded -- whether the store's estimates are
             on the calibration axis, and which of them an actual answered.
             Present on the same terms and for the same reason.
+        fusion: What the fusion layer concluded, and the two internal claims
+            that can be checked without an answer key: that no refusal was
+            bypassed and that every flip really moved a verdict.
         calibration: What the calibration half concluded about itself -- whether
             the refusal threshold held, whether the pass-through fired exactly
             where it should, and what the backtest scored. Its headline numbers
@@ -144,6 +149,7 @@ class EvalResult:
     memory: MemoryResult = field(default_factory=MemoryResult)
     estimation: EstimationResult = field(default_factory=EstimationResult)
     calibration: CalibrationScore = field(default_factory=CalibrationScore)
+    fusion: FusionScore = field(default_factory=FusionScore)
     cost: Mapping[str, Decimal] = field(default_factory=dict)
 
     @property
@@ -209,6 +215,13 @@ def grade(  # noqa: PLR0913 -- one argument per source the table reads from
         # compare against -- what is checkable is internal consistency, and it
         # is recomputed from the store rather than taken from a pass's return.
         calibration=grade_calibration(repository),
+        # Also no answer key, and for a sharper reason: whether a *calibrated*
+        # number violates a predicate depends on accumulated history rather
+        # than on anything a document says, so no corpus could state it. What
+        # is checkable is that no refusal was bypassed and that every flip
+        # really moved a verdict. `fusion_recall` above still grades the edges
+        # the corpus *does* plant; this does not recompute it.
+        fusion=grade_fusion(repository),
         cost=_cost(repository, documents, run_id),
     )
 
@@ -250,6 +263,10 @@ def evaluate(
     # what makes it a store pass rather than a stage. It costs no model call, so
     # its position cannot move the cost column either.
     calibrate_store(repository, at=at, run_id=run_id)
+    # After calibration, and this one genuinely cannot move: the fusion pass
+    # asks `BiasDetective` for a factor per group, so it has to run once the
+    # outcomes calibration reads are in place. It costs no model call either.
+    fuse_store(repository, at=at, run_id=run_id)
     _log.info(
         "eval_run",
         documents=len(ingestion.ingested),

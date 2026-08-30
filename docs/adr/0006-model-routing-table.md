@@ -45,6 +45,23 @@ deterministic and appear in `NON_LLM_AGENTS`. Asking for a route on one raises;
 > the provenance this directory exists for.
 > `praxis/config/models.py` and `praxis doctor` are the live answer.
 
+> **Amended again by
+> [ADR 0026](0026-the-bridge-prices-a-judgement-phase-4-already-made.md),
+> Phase 8.** `FusionBridge` moved from `reason` — the most expensive tier here —
+> to `NON_LLM_AGENTS`. The judgement its route was paying for is real, and
+> `AssumptionExtractor` makes it one phase earlier and writes the answer down as
+> an `estimated_as` edge (ADR 0016); ADR 0019 had already closed the other end,
+> since only arithmetic can breach. What was left in between is a graph walk, an
+> indexed read, a multiplication and two predicate evaluations.
+
+> **And again by
+> [ADR 0027](0027-collateral-damage-is-a-walk-phase-1-already-wrote.md),
+> Phase 8.** `CollateralAgent` moved from `reason` to `NON_LLM_AGENTS` as
+> well. Every part of its question was already answered: which misses count
+> is `MatchQuality` (ADR 0021), which decisions rest on an estimate is
+> `Repository.impacted_by` over the impact DAG (Phase 1), and the severity is
+> `praxis.monitor.breach.severity_for` (Phase 5).
+
 Model IDs, context windows and prices were read from the Anthropic model
 reference on 2026-08-09 and are cited in the module, not recalled.
 

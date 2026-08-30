@@ -10,8 +10,11 @@
 > what actually happened to them, and Phase 7 the calibration maths those
 > numbers turn into a verdict: a bias detective that refuses below `n = 5`, a
 > calibrator that mostly passes an estimate through and says why, and a
-> backtest that walks a history forward. Sections marked *(built)* exist and are
-> tested; everything else is the target, not the present. Each phase updates
+> backtest that walks a history forward, and Phase 8 **the fusion layer**: the
+> two halves arguing with each other, which is the claim the whole project
+> exists to make. See [`docs/FUSION.md`](docs/FUSION.md). Sections marked
+> *(built)* exist and are tested; everything else is the target, not the
+> present. Each phase updates
 > this file when something structural lands.
 
 ## The shape of the thing
@@ -38,9 +41,9 @@
               │                                                    │
               │         ┌────────────────────────────────┐         │
               └────────▶│ FUSION                         │◀────────┘
-                        │  FusionBridge                  │
-                        │  CollateralAgent               │
-                        │  ReviewTriageAgent             │
+                        │  FusionBridge       (no LLM)   │
+                        │  CollateralAgent    (no LLM)   │
+                        │  ReviewTriageAgent  (phase 9)  │
                         └───────────────┬────────────────┘
                                         ▼
                         ┌────────────────────────────────┐
@@ -62,23 +65,42 @@ This is the part that justifies the project, so it is worth stating precisely.
 
 1. `AssumptionFormalizer` compiles an assumption into a predicate:
    `migration_weeks <= 6`.
-2. `FusionBridge` recognises that the predicate's subject is a **quantified
+2. Something recognises that the predicate's subject is a **quantified
    forward-looking claim** — that is, an estimate wearing an assumption's
    clothes — and writes an `estimated_as` edge between the `Assumption` and the
-   `Estimate`.
-3. `AssumptionMonitor`, evaluating that predicate, now has a second source of
-   evidence beyond current facts: the estimator's calibration history for that
-   *work class*.
+   `Estimate`. **That something is `AssumptionExtractor`, in Phase 4**, inside a
+   `reason`-tier call already holding the assumption and its quantity — not
+   `FusionBridge`, as this step used to say. It is the only judgement in the
+   whole mechanism and it is paid for once. See
+   [ADR 0016](docs/adr/0016-the-extractor-writes-the-first-estimated-as-edge.md).
+3. `FusionBridge` walks the edges that already exist and resolves each linked
+   estimate's `(owner, work_class)`, which is a second source of evidence beyond
+   current facts: the estimator's calibration history for that *work class*.
 4. `BiasDetective` answers with a factor, an `n`, an interval and a confidence
    — and refuses to answer at all when `n < 5`, with no override. Below the
    threshold the factor is not computed rather than computed and withheld. The
    interval is multiplicative and one log sigma wide, because a scattered
    estimator gets a wider band rather than a second refusal — ADR 0024.
-5. If the calibrated value violates the predicate, an `AssumptionBreach` is
-   emitted against every `Decision` linked by an `assumes` edge.
+5. If the calibrated value violates a predicate the **raw** estimate satisfied
+   — a flip, not merely a correction — a `StaleDecision` finding is filed
+   against the `Assumption`, naming every `Decision` linked by an `assumes`
+   edge. *(Phase 8, built)*
+
+**Not an `AssumptionBreach`, and the difference is load-bearing.** A breach is a
+predicate evaluated false against facts a monitoring run was *given*: something
+happened. A fusion flip is a predicate evaluated false against a number nobody
+has observed yet, projected from the estimator's track record: nothing has
+happened, and the work may still land on time. The two are different
+`FindingKind`s so a triage queue cannot rank a projection above a measurement,
+and the prosecution opens by saying so. This supersedes the earlier wording of
+this step — see [ADR 0028](docs/adr/0028-a-projection-is-not-a-breach.md).
 
 And in reverse: when an `Outcome` misses its `Estimate` badly, `CollateralAgent`
-walks `justified_by` edges to find every decision that leaned on it.
+walks the impact DAG to find every decision that leaned on it and files a
+`CollateralImpact` against the estimate. That direction *is* a measurement, and
+the walk is `Repository.impacted_by`, which Phase 1 built and called the fusion
+query — see [ADR 0027](docs/adr/0027-collateral-damage-is-a-walk-phase-1-already-wrote.md).
+*(Phase 8, built)*
 
 Neither half can do this alone. Provenance without calibration cannot tell a
 stale assumption from a live one that was always optimistic. Calibration
@@ -684,6 +706,10 @@ praxis/
   agents/calibrator.py a raw estimate -> a calibrated one, explained
   agents/scoring.py    would the correction have helped? Walked forward
   agents/calibration.py the three over a store; writes only on a change
+  agents/fusion.py     an assumption, priced against its estimator's history
+  agents/collateral.py an estimate missed -- what rested on it? Phase 1's walk
+  agents/crossdoc.py   an actual in another document, one call per document
+  agents/fusion_pass.py both directions over a store; writes only on a change
   predicates/lexer.py  the tokens a predicate is made of
   predicates/parser.py recursive descent; a grammar small enough to read
   predicates/ast.py    the tree, its rendering, and the three-valued verdict
@@ -702,6 +728,7 @@ praxis/
   eval/memory.py       grading what the store remembers, not what it copied
   eval/estimation.py   grading what it learned about its own estimates
   eval/calibration.py  grading the threshold, the pass-through and the backtest
+  eval/fusion.py       grading the fusion layer, mostly its refusals
   eval/adrs.py         the one metric that grades the project, not a run
   eval/report.py       the table and the JSON. No arithmetic
   obs/logging.py       structured JSON logging

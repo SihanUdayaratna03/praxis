@@ -94,12 +94,25 @@ def test_an_unknown_agent_raises_rather_than_defaulting() -> None:
 
 
 def test_the_expensive_model_is_reserved_for_judgement_calls() -> None:
+    """The strongest tier carries judgement, and only judgement.
+
+    `FusionBridge` was named here until Phase 8 and is deliberately not any
+    more. It sat on the `reason` tier from Phase 0 on the strength of
+    `ARCHITECTURE.md`'s description -- recognising that a predicate's subject is
+    an estimate in disguise -- and building it showed that recognition is made
+    once, in Phase 4, by `AssumptionExtractor`, which is on this tier and pays
+    for it. What Phase 8 does with the answer is a graph walk and two predicate
+    evaluations. See ADR 0026, and `test_boundaries.py` for the check that it
+    cannot reach a provider at all.
+    """
     reasoning = {a for a in routed_agents() if role_for_agent(a) is ModelRole.REASON}
 
     assert "AssumptionExtractor" in reasoning
-    assert "FusionBridge" in reasoning
+    assert "ContradictionDetector" in reasoning
     assert "ChallengerAgent" in reasoning
     assert "SegmenterAgent" not in reasoning
+    assert "FusionBridge" not in reasoning
+    assert "CollateralAgent" not in reasoning
 
 
 def test_the_mock_model_id_is_not_a_real_model() -> None:
