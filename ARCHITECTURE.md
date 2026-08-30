@@ -7,7 +7,10 @@
 > Phase 5 the memory that extraction feeds: a predicate language, the monitor
 > that evaluates it, contradiction detection and the archaeologist, and Phase 6
 > Half B: the estimates a corpus states, what kind of work each covers, and
-> what actually happened to them. Sections marked *(built)* exist and are
+> what actually happened to them, and Phase 7 the calibration maths those
+> numbers turn into a verdict: a bias detective that refuses below `n = 5`, a
+> calibrator that mostly passes an estimate through and says why, and a
+> backtest that walks a history forward. Sections marked *(built)* exist and are
 > tested; everything else is the target, not the present. Each phase updates
 > this file when something structural lands.
 
@@ -66,8 +69,11 @@ This is the part that justifies the project, so it is worth stating precisely.
 3. `AssumptionMonitor`, evaluating that predicate, now has a second source of
    evidence beyond current facts: the estimator's calibration history for that
    *work class*.
-4. `BiasDetective` answers with a factor, an `n`, and an interval — and refuses
-   to answer at all when `n < 5`.
+4. `BiasDetective` answers with a factor, an `n`, an interval and a confidence
+   — and refuses to answer at all when `n < 5`, with no override. Below the
+   threshold the factor is not computed rather than computed and withheld. The
+   interval is multiplicative and one log sigma wide, because a scattered
+   estimator gets a wider band rather than a second refusal — ADR 0024.
 5. If the calibrated value violates the predicate, an `AssumptionBreach` is
    emitted against every `Decision` linked by an `assumes` edge.
 
@@ -363,15 +369,114 @@ missed estimate reaching forward to invalidate the decision that leaned on it.
 An `unresolved` outcome binds nothing and breaches nothing, which is what stops
 the chain firing without a measurement.
 
-**Phase 7's query is already written and run.** `calibration_history` in
-`praxis/store/reports.py` answers "for this person and this work class, what is
-the distribution of estimated against actual" as a single indexed join, and it
-was written against Half B's output while that output could still change — the
-discipline Phase 1 applied to the `Link` table for Phase 8. Four properties keep
-it to one join: the pairing is a column rather than an edge, an unmatched
-estimate is a row rather than an absence, units are reconciled before the write,
-and `work_class` sits on the estimate where `estimate_owner_work_class` already
-indexes it.
+**Phase 7's query was written here and corrected there.**
+`calibration_history` in `praxis/store/reports.py` answers "for this person and
+this work class, what is the distribution of estimated against actual" as a
+single indexed join, and it was written against Half B's output while that
+output could still change — the discipline Phase 1 applied to the `Link` table
+for Phase 8. Four properties keep it to one join: the pairing is a column rather
+than an edge, an unmatched estimate is a row rather than an absence, units are
+reconciled before the write, and `work_class` sits on the estimate where
+`estimate_owner_work_class` already indexes it.
+
+Writing it early is also what caught the thing writing it early is for. Phase 6
+applied both narrowings in Python after `fetchall`, so every answer was right
+and the index was never used — a full scan of both tables per question, in the
+one read `BiasDetective` runs per group and `FusionBridge` will run per
+assumption. Phase 7 pushed them into the statement and made the *query plan* the
+thing asserted on, with the unnarrowed case as the control.
+
+## Calibration maths *(Phase 7, built)*
+
+Where Half B's numbers become a verdict. Three components, and **none of them
+calls a model** — the first phase in this project where that is true of every
+component. There is no text to interpret here: the input is `Estimate` and
+`Outcome` rows the store already holds, and everything out is arithmetic over
+them, property-tested with `hypothesis` the way Phase 1 tested the store's
+invariants.
+
+```
+  calibration_history ──▶ BiasDetective ──▶ CalibratorAgent ──▶ a calibrated estimate
+   (one indexed join)      groups, refuses     applies or         with n, the band and
+                           or measures         passes through     the confidence cited
+                                │
+                                └──────────▶ ScoringAgent ──▶ would it have helped?
+                                             walked forward       (prequential)
+```
+
+**`BiasDetective` is mostly a refusal, and that is the product.** A group is one
+`(owner, work_class)` pair, and below **five** resolved estimates with a usable
+ratio it says nothing — no override, no keyword argument, no default to lower.
+Below the threshold the factor is **not computed**, not computed and withheld,
+so there is no number on the returned object for a later change to start
+printing. Run against this repository's own history it declines on every class:
+`agent-implementation` at four, three others at one.
+
+**A ratio is multiplicative, so everything is computed in log space.** The
+centre is a geometric mean, the spread a standard deviation of logarithms, and
+the band one you divide and multiply by. An estimator twice over on one job and
+twice under on the next is on average exactly right, and an arithmetic mean of
+`0.5` and `2.0` would report a 25% bias that does not exist. It is `Decimal`
+throughout — `ln`, `exp` and `sqrt` inside a pinned context — which is what makes
+"re-running over an unchanged store gives an identical answer" a testable
+property rather than a hope.
+
+**Dispersion widens the band; only `n` refuses.** Sample size is a fact about
+how much evidence exists, and too little means silence. Scatter is a fact about
+the *estimator*, and an erratic estimator is precisely who needs telling — so a
+wide sample gets a wide interval and a low confidence, never a second refusal on
+a second magic number. The factor cannot travel without its band, because they
+are one frozen object. See
+[ADR 0024](docs/adr/0024-dispersion-widens-the-band-and-only-n-refuses.md).
+
+**An unclassified estimate is in no group.** `work_class` is a grouping key, so
+`unclassified` is the absence of one; pooling those rows would compute a factor
+across migrations, refactors and incident response and call it a person's bias.
+They are reported as their own row — "fourteen estimates in no class" is what
+somebody can fix this afternoon — and never summarised.
+
+**`CalibratorAgent`'s pass-through is the primary path, not the fallback.** Six
+of this project's own seven estimates would take it, and in any real corpus most
+groups sit below the threshold most of the time. It comes back fully populated,
+carrying the detective's verdict and a sentence saying in as many words that an
+unchanged estimate is the correct answer rather than a stage that failed. Its
+explanation is a **template over numbers it was handed** — every value exists
+before the sentence does — which is why it moved out of ADR 0006's routing table
+and into `NON_LLM_AGENTS`. See
+[ADR 0025](docs/adr/0025-the-calibrator-explains-rather-than-generates.md).
+
+**`ScoringAgent`'s backtest is prequential.** Each row is scored using only the
+rows before it. A factor fitted over a whole history and applied to a row inside
+it has already seen the answer it is being graded on, and would report an
+improvement rate meaning only that a mean sits close to the points it came from.
+`graded` travels beside `score`, because a backtest that scored nothing and one
+that scored badly both print `0.0` and only one is a grade.
+
+**Calibration is a store pass, not an ingestion stage.** It operates over
+accumulated history rather than over one document, so there is nothing
+per-document to iterate — a store that has ingested nothing since the last run
+can still answer differently, because an outcome may have landed. It writes only
+on a change: a second pass over an unchanged store produces no version and no
+audit row.
+
+**A calibration finding is filed against an anchor, not a subject.**
+`Finding.subject_id` is one graph node and a factor belongs to a *group*, which
+has none — so the finding is filed against the group's **earliest** estimate,
+stable as the group grows, with the prosecution naming the group in its first
+clause. No migration was needed; `FindingKind.CALIBRATION_BIAS` and an empty
+`evidence_span_ids` were designed for this in Phase 1. What `Finding` cannot
+hold is the *query*: `prosecution` is prose, so `FusionBridge` recomputes
+through `BiasDetective` instead — which also means a factor can never go stale,
+and a stale calibration factor is exactly the failure this product exists to
+catch.
+
+**Phase 8's fusion query was executed here, not sketched.** `factor_for(owner=,
+work_class=)` is one indexed read plus `O(n)` arithmetic, returns a populated
+object in every case so an absence is never an exception, and a test renders the
+sentence this document promises — *"migration work is 1.8x under, n=6,
+confidence 0.5129"* — straight off its fields. Sketching it is also what found
+the Phase 6 read narrowing its two arguments in Python after `fetchall`, which
+made every per-group question a full scan of both tables.
 
 ## Evaluation *(Phase 4, built)*
 
@@ -392,6 +497,16 @@ without labelled negatives only recall is measurable. Reported once for the
 run: citation integrity and how it failed, and the recall over the
 `estimated_as` edges the corpus labels, which is the only number that is a
 claim about the thesis rather than about extraction.
+
+Phase 7 added a sixth module and a fourth quarter. `calibration` grades what
+the store's calibration says about itself, and it is the only part of the table
+with **no answer key** — a calibration factor is not something a document can
+state, so there is nothing to compare against and a ground truth would have to
+be computed by the code being graded. What it checks instead is internal
+consistency: that the refusal threshold held in both directions, that the
+pass-through fired on exactly the groups that refused, and that the backtest is
+reported with its denominator. Every number in it is a zero against a corpus
+this size, and the section leads with the sentence saying why.
 
 Phase 5 added a fifth module and a second half to the table. `memory` grades
 what the store *remembers*: how much of what was extracted compiled into a
@@ -482,7 +597,9 @@ These never call a model:
 | The block grid | Where a document *may* be cut is not a judgement call, and it is what makes the segmenter's answer checkable |
 | `VerifierAgent` | A hallucination check that could hallucinate is not a check |
 | `BiasDetective` | Bias, sample size and intervals are arithmetic |
-| `ScoringAgent` | Brier, log score and MAPE are arithmetic |
+| `ScoringAgent` | A backtest is a comparison of two log errors |
+| `CalibratorAgent` | Its explanation is a template over numbers it was handed, not a generation — ADR 0025. Moved here in Phase 7 from ADR 0006's `extract` row |
+| `praxis/agents/distribution.py` | The geometric mean, the log-space spread and the band. Takes a list of `Decimal` and knows nothing else |
 | Predicate evaluator | A predicate whose truth depends on sampling is not a predicate |
 | `praxis/agents/reconciliation.py` | `match_quality`, unit conversion and candidate selection. The module imports no provider, so invariant 3 holds by construction rather than by rule — ADR 0021 |
 
@@ -498,6 +615,7 @@ praxis/
   cli_eval.py          praxis extract and praxis eval
   cli_monitor.py       praxis formalize, monitor, contradictions and why
   cli_estimate.py      praxis estimates: Half B over a store, in one command
+  cli_calibrate.py     praxis calibrate: the store, or one new estimate
   cli_tables.py        what the CLI's output looks like
   config/settings.py   pydantic-settings; PRAXIS_* environment
   config/models.py     model ids, prices, roles, routing  ← the only place
@@ -561,6 +679,11 @@ praxis/
   agents/matcher.py    an estimate -> what actually happened to it
   agents/reconciliation.py the arithmetic half: selection, units, the band
   agents/estimation.py extract -> classify -> match, over a whole store
+  agents/distribution.py a sample of ratios, summarised in log space
+  agents/bias.py       a factor per group, or the reason there is none
+  agents/calibrator.py a raw estimate -> a calibrated one, explained
+  agents/scoring.py    would the correction have helped? Walked forward
+  agents/calibration.py the three over a store; writes only on a change
   predicates/lexer.py  the tokens a predicate is made of
   predicates/parser.py recursive descent; a grammar small enough to read
   predicates/ast.py    the tree, its rendering, and the three-valued verdict
@@ -578,6 +701,7 @@ praxis/
   eval/harness.py      a corpus end to end, graded from what SQLite holds
   eval/memory.py       grading what the store remembers, not what it copied
   eval/estimation.py   grading what it learned about its own estimates
+  eval/calibration.py  grading the threshold, the pass-through and the backtest
   eval/adrs.py         the one metric that grades the project, not a run
   eval/report.py       the table and the JSON. No arithmetic
   obs/logging.py       structured JSON logging
