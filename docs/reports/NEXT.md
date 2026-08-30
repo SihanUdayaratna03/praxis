@@ -387,3 +387,18 @@ mid-phase can be resumed from the last line rather than from a diff.
   A calibrated estimator raises nothing: "nothing is wrong" in the same queue as
   a breach is how a queue stops being read. Severity is graded on `magnitude`,
   so over- and under-estimation are symmetric.
+- `de41689` **`praxis calibrate`** — `praxis/cli_calibrate.py`, 22 tests, module
+  at **100%**, merged `--no-ff` as `4dbd52e`. Priced as a line item for the
+  third phase running. **One command, two modes**: no arguments calibrates the
+  *store* (and writes findings); `--owner/--work-class/--quantity` calibrates
+  *that estimate* and writes nothing — asserted against the store, not the
+  output. **It leads with the refusals**, named with the sample they wait on and
+  sorted closest-first, because against this project's history every group
+  refuses and a measured-only table would look broken. Unclassified estimates
+  get their own line: a different fix from "one more outcome". A backtest score
+  never prints without its denominator, and the zero model calls are printed
+  rather than omitted. Tests found three real defects: `open_repository` is in
+  `store.repository` not `store.location`; `get_settings` is `lru_cache`d so a
+  CLI test that skips `cache_clear()` seeds the *previous* test's directory; and
+  rich wraps at terminal width, so asserting on a sentence was pinning where the
+  wrap fell rather than what was said.
