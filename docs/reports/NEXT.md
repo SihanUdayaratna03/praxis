@@ -326,6 +326,18 @@ One line per component, appended as it landed. Branch
    kept, `moved` is public so it can be tested directly, and ADR 0026 assumption
    4 expires the day the predicate language grows.
 
+- `0f493b0` **`CrossDocumentMatcher`** (`praxis/agents/crossdoc.py`). Phase 6's
+  deferral, and **ADR 0015 was not spent to buy it**. The invariant is about one
+  *call*, not one estimate: this runs the existing single-document matcher once
+  per candidate document, so every listing is still one document's spans and
+  `offering_of` still raises on anything else. Cost is bounded by a
+  deterministic document selector and a budget of three documents per estimate;
+  home is read first and the walk stops at the first resolution, so the common
+  case still costs one call. The fixtures had held this case since Phase 4 — the
+  ADR says 4 weeks, the status update says 7 — and a control test asserts
+  `OutcomeMatcher` alone still cannot make the pairing. 16 tests, **100%**.
+  `BACKLOG.md`'s row is marked done with the reasoning rather than deleted.
+
 **Still to build in this phase**, in the order `EST-0009` prices them:
 `CollateralAgent` (the reverse walk, priced as its own component and *not* as a
 direction flag on `FusionBridge`), the cross-document half of `OutcomeMatcher`
