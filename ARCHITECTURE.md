@@ -12,7 +12,13 @@
 > calibrator that mostly passes an estimate through and says why, and a
 > backtest that walks a history forward, and Phase 8 **the fusion layer**: the
 > two halves arguing with each other, which is the claim the whole project
-> exists to make. See [`docs/FUSION.md`](docs/FUSION.md). Sections marked
+> exists to make. See [`docs/FUSION.md`](docs/FUSION.md), and Phase 9
+> **adversarial and governance**: the first layer that adds no extraction
+> surface and only judgement about what the system has already produced --
+> a challenger that argues against a finding before a person sees it, a
+> curator that collapses duplicated beliefs and withdraws abandoned ones,
+> and a gate that refuses to conclude when the evidence is thin. Sections
+> marked
 > *(built)* exist and are tested; everything else is the target, not the
 > present. Each phase updates
 > this file when something structural lands.
@@ -49,9 +55,9 @@
                         ┌────────────────────────────────┐
                         │ GOVERNANCE                     │
                         │  VerifierAgent      (no LLM)   │
-                        │  ChallengerAgent               │
-                        │  CuratorAgent                  │
-                        │  AbstentionGate                │
+                        │  ChallengerAgent    (built)    │
+                        │  CuratorAgent       (no LLM)   │
+                        │  AbstentionGate     (no LLM)   │
                         │  ReporterAgent                 │
                         └────────────────────────────────┘
 ```
@@ -500,6 +506,71 @@ confidence 0.5129"* — straight off its fields. Sketching it is also what found
 the Phase 6 read narrowing its two arguments in Python after `fetchall`, which
 made every per-group question a full scan of both tables.
 
+## Adversarial and governance *(Phase 9, built)*
+
+The first layer that adds no extraction surface. Everything above it produces
+records; this decides what the records are worth, and it is the only place in
+the system whose headline output is a count of things it refused to say.
+
+```
+  findings ──▶ ChallengerAgent ──▶ CuratorAgent ──▶ AbstentionGate
+               one reason call     no model call    no model call
+               per batch           writes edges     writes nothing
+                                   and retractions
+```
+
+**`ChallengerAgent` argues against a finding and records what survived.** Onto
+`Finding.challenge` and `Finding.verdict`, which Phase 1 built for it -- so the
+phase costs no storage. It is the **first component in seven to make a model
+call**, and ADR 0027 called that in advance: its input is a `prosecution` in
+prose that nobody reduced to a record, and no arithmetic decides whether a case
+is sound. ADR 0019 is untouched, because a verdict is not a status: only
+arithmetic can still reach `BREACHED`. See
+[ADR 0030](docs/adr/0030-the-challenger-keeps-its-model-route.md).
+
+An unconfident verdict is recorded as **no verdict**, and an empty rebuttal
+forfeits the verdict with it -- `Finding`'s own validator refuses a verdict with
+no challenge behind it, and this refuses to build one.
+
+**`CuratorAgent` collapses and withdraws, and deletes nothing.** Merging is a
+`LinkType.SUPERSEDES` edge pointing newer to older; retiring is
+`Repository.retract`, a new version carrying a flag plus an
+`AuditAction.RETRACTED` row. Both mechanisms are Phase 1's and both were
+documented as doing exactly this, so there is no migration and
+`AssumptionStatus` gains no member. See
+[ADR 0031](docs/adr/0031-curation-is-supersedes-and-retraction.md).
+
+*Never fires* is defined precisely and read off Phase 5's audit trail with no
+parallel bookkeeping: status still `UNVERIFIED`, no event by
+`AssumptionMonitor`, and `IDLE_DAYS` since the **first** version -- read from
+the trail rather than the record, because `revise` overwrites `created_at` and
+any unrelated write would otherwise reset the clock.
+
+**The refusal that matters most:** an idle assumption a live `Decision` assumes
+is *not* retired. It is an unverifiable belief under a live decision, which is a
+finding for a person rather than dead weight for a curator.
+
+**`AbstentionGate` refuses to conclude, and the refusal is the output.** Four
+arithmetic checks -- never challenged, below the confidence floor, a quoting
+finding kind citing no span, a withdrawn subject -- and **all four run**, so a
+person is told every defect rather than sent back once per fix. `NEEDS_HUMAN`
+is a feature and the number is reported plainly, the stance this project has
+taken on every refusal since `BiasDetective` declined to speak below `n = 5`.
+
+**Nothing about the routing is stored.** A disposition is recomputed every time
+it is asked for, exactly as `praxis.agents.calibration` argues a calibration
+factor must be: a stored disposition is stale the moment a challenge lands or a
+subject is withdrawn, and a stale refusal reads as a decision somebody made.
+That is also what keeps the whole phase migration-free. See
+[ADR 0032](docs/adr/0032-abstention-is-arithmetic-and-is-never-stored.md).
+
+**The concede rate cannot be earned offline, and the code says so rather than
+working around it.** `MockProvider` answers a bare boolean true seven times in
+ten, so an offline rate measures schema synthesis. `GovernanceScore` carries
+`mock_provider` *inside* the score and `praxis govern` prints the caveat on the
+same line as the number, so neither can be reported bare. No response schema was
+reshaped to move it: `Judgement.upheld` mirrors `Verdict`'s own polarity.
+
 ## Evaluation *(Phase 4, built)*
 
 `praxis/eval/` grades a run against `praxis/corpus/`'s answer key, in four
@@ -624,6 +695,10 @@ These never call a model:
 | `praxis/agents/distribution.py` | The geometric mean, the log-space spread and the band. Takes a list of `Decimal` and knows nothing else |
 | Predicate evaluator | A predicate whose truth depends on sampling is not a predicate |
 | `praxis/agents/reconciliation.py` | `match_quality`, unit conversion and candidate selection. The module imports no provider, so invariant 3 holds by construction rather than by rule — ADR 0021 |
+| `FusionBridge` | The judgement was made in Phase 4 and written down as an `estimated_as` edge; what is left is a walk, a multiplication and two predicate evaluations — ADR 0026. Moved here in Phase 8 |
+| `CollateralAgent` | "An estimate missed — what rested on it?" is `Repository.impacted_by`, which Phase 1 built and called the fusion query — ADR 0027. Moved here in Phase 8 |
+| `CuratorAgent` | A `CONTRADICTS` edge Phase 5 already paid a `reason` call for, two parsed predicates, two timestamps and an audit trail — ADR 0031. Moved here in Phase 9 |
+| `AbstentionGate` | A confidence, a span count, two enums and a boolean. Asking a model whether one number is below another is what invariant 3 forbids — ADR 0032. Moved here in Phase 9 |
 
 All of it is property-tested with `hypothesis`. `praxis doctor` fails if any of
 these acquires a model route.
@@ -638,6 +713,8 @@ praxis/
   cli_monitor.py       praxis formalize, monitor, contradictions and why
   cli_estimate.py      praxis estimates: Half B over a store, in one command
   cli_calibrate.py     praxis calibrate: the store, or one new estimate
+  cli_fuse.py          praxis fuse: where the two halves argue
+  cli_govern.py        praxis govern: what the system refused to conclude
   cli_tables.py        what the CLI's output looks like
   config/settings.py   pydantic-settings; PRAXIS_* environment
   config/models.py     model ids, prices, roles, routing  ← the only place
@@ -710,6 +787,10 @@ praxis/
   agents/collateral.py an estimate missed -- what rested on it? Phase 1's walk
   agents/crossdoc.py   an actual in another document, one call per document
   agents/fusion_pass.py both directions over a store; writes only on a change
+  agents/challenger.py the case against a finding, before a person sees it
+  agents/curator.py    what the memory should stop carrying, and how
+  agents/abstention.py refusing to conclude, and which evidence was missing
+  agents/governance.py the three over a store; writes only on a change
   predicates/lexer.py  the tokens a predicate is made of
   predicates/parser.py recursive descent; a grammar small enough to read
   predicates/ast.py    the tree, its rendering, and the three-valued verdict
