@@ -443,3 +443,14 @@ than assumed.
   record. An unconfident verdict is recorded as **no verdict**, and an empty
   rebuttal forfeits the verdict with it, because `Finding`'s own validator
   refuses a verdict with no challenge behind it. 29 tests, **100%**.
+- **`CuratorAgent`** + **ADR 0031** (`praxis/agents/curator.py`). Merging is
+  `LinkType.SUPERSEDES`, retiring is `Repository.retract` — both Phase 1's, both
+  already documented as doing exactly this, so **no migration and no new
+  `AssumptionStatus` member**. **No model call**: what it decides is a
+  `CONTRADICTS` edge Phase 5 paid a `reason` call for, two parsed predicates,
+  two timestamps and an audit trail. Eighth consecutive component on the
+  arithmetic side. *Never fires* is defined precisely — `UNVERIFIED`, no
+  `AssumptionMonitor` event in the trail, and `IDLE_DAYS` since the **first**
+  version, read off `audit_for` because `revise` overwrites `created_at`. The
+  refusal that matters: an idle assumption a live decision rests on is a finding
+  for a person, not dead weight. 38 tests, **100%**.
