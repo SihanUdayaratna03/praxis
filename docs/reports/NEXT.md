@@ -454,3 +454,13 @@ than assumed.
   version, read off `audit_for` because `revise` overwrites `created_at`. The
   refusal that matters: an idle assumption a live decision rests on is a finding
   for a person, not dead weight. 38 tests, **100%**.
+- **`AbstentionGate`** + **ADR 0032** (`praxis/agents/abstention.py`). Sits
+  immediately downstream of the challenger and asks the other question: the
+  challenger tests whether the *argument* holds, this tests whether the
+  *evidence* does. Four checks — never challenged, below the confidence floor, a
+  quoting kind that cites nothing, a withdrawn subject — and **all four run**, so
+  a person is told every defect rather than sent back once per fix. **No model
+  call and nothing stored**: a disposition is recomputed, the same argument
+  `praxis.agents.calibration` makes about a factor, and it is what keeps this
+  phase migration-free on the third axis. Ninth consecutive component on the
+  arithmetic side. 25 tests, **100%**.
