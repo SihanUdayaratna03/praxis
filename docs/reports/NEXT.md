@@ -524,3 +524,89 @@ than assumed.
   correctly, since no span could ever address it. A property about *re-reading*
   was failing on an input that never gets read once. The filter now asks
   normalisation directly instead of guessing.
+
+---
+
+## Where Phase 9 stopped
+
+Phase 9 is merged, tagged and green. Nothing is in flight.
+
+| | |
+| --- | --- |
+| `main` | `2c9f56b`, local and remote identical |
+| Tag | `v0.9-phase-9` → `2c9f56b`, dereferenced through `git ls-remote`, not assumed |
+| CI | 5/5 green on [#19](https://github.com/SihanUdayaratna03/praxis/pull/19) |
+| Open PRs | none |
+| Working tree | clean apart from four untracked paths, below |
+| Suite | **2948 passed**, coverage **98.97%** (gate 85%) |
+| Schema | version 4 — no migration, fourth phase running |
+
+**Untracked and deliberately left alone:** `.codex/`, `AGENTS.md`,
+`docs/assets/`, and now `docs/design/` (which appeared during the phase and was
+treated the same way). None is committed, moved or deleted; the ruff `T201`
+exemption was not widened for any of them; and none can affect CI, because
+`actions/checkout` materialises committed files only.
+
+## What `OUT-0010` says, and the mistake it invites
+
+**2.0h active against 3.6h predicted — 1.8000x over.** That is, to four figures,
+the very factor that was applied to the estimate. The raw 6.5h would have been
+3.25x over, so the correction removed a little over half the error rather than
+all of it.
+
+**This is the first row where a corrected estimate missed in the same direction
+by the same magnitude as the uncorrected ones, and it invites correcting twice.
+Do not.** `EST-0009` established the rule — correct once, in the bottom-up
+procedure — and one row is not a trend. The prequential walk is what answers the
+question, and `OUT-0010` is what made it answerable: `agent-implementation` is
+now at **n = 7**, so `ScoringAgent` grades **two** rows for the first time. It
+says the correction **helped on both** and worsened neither.
+
+If corrected figures keep landing near 1.8x over, the honest response is that
+the **factor** is too small, not that the procedure needs two applications — and
+the factor moves on its own as the sample grows. It already has:
+
+| | at `n = 6` | at `n = 7` |
+| --- | --- | --- |
+| Factor | 0.5527 | **0.5084** |
+| Read as | 1.8093x over | **1.9670x over** |
+| Band | 1.39x – 2.35x | **1.42x – 2.72x** |
+| Confidence | 0.4329 | **0.4404** |
+
+**Recompute it rather than copy this table.**
+
+## The new observation `EST-0011` should act on
+
+The procedure was wrong in **both directions at once**. It over-estimated the
+hours and *under*-estimated the volume: 6 modules at 2249 production lines
+against a predicted ~1600, about 40% low. So hours-per-line is what the fitted
+factor is really correcting, and the line-count line item is not carrying its
+weight. Price components by **refusal count and integration points** rather than
+by predicted lines, and see whether that procedure needs a smaller correction.
+
+## Carry-forward, in the order it will cost you
+
+1. **Run the CLI against the real pipeline, not just its tests.** Third phase
+   running that this finds defects reading does not — two in Phase 8, three
+   here.
+2. **Price each component's refusal vocabulary inside the component.** Fifth
+   phase running, still the most reliable correction in this record.
+3. **Price the CLI.** Fifth phase running.
+4. **Price the arithmetic/judgement boundary as its own line item.** Sixth phase
+   running, and the second in which the estimate called the direction in
+   advance. Phase 9 was the first in which it called a component moving *back*
+   to the model side.
+5. **Blocked time is not an engineering prediction.** Seven attempts, seven
+   misses. Log it because the record has the field; compare active against
+   active.
+
+## Rules that have not changed
+
+- **Log `EST-0011` before writing any Phase 10 file**, on the phase branch.
+- **`main` only moves through a reviewed, CI-green merge commit.** Never squash.
+- **Long text goes to a file**, never inline: `--body-file`, `-F`.
+- **Commit after every component**, then push, then append here. Never batch.
+- **Commit messages are short from now on** — ADR 0029. Phases 0–8 are never
+  rewritten.
+- Progress explanations to the product owner are in **Sinhala**; everything in
+  the repository is in English.
