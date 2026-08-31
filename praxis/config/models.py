@@ -134,14 +134,27 @@ NON_LLM_AGENTS: Final[frozenset[str]] = frozenset(
         "BiasDetective",
         "CalibratorAgent",
         "CollateralAgent",
+        "CuratorAgent",
         "FusionBridge",
         "ScoringAgent",
         "SourceAdapter",
         "VerifierAgent",
     }
 )
-"""`FusionBridge` and `CollateralAgent` joined this set in Phase 8 and
-`CalibratorAgent` in Phase 7; none of the three started here.
+"""`CuratorAgent` joined this set in Phase 9, `FusionBridge` and
+`CollateralAgent` in Phase 8 and `CalibratorAgent` in Phase 7; none of the four
+started here.
+
+`CuratorAgent` is the eighth consecutive component to move to the arithmetic
+side, and it moves for the reason ADR 0026 gave for the bridge: the judgement is
+real and somebody else already paid for it. "Are these two claims about the same
+thing" is `ContradictionDetector`'s question, answered in Phase 5 in a `reason`
+tier call and written down as a `CONTRADICTS` edge. What is left for the curator
+is reading that edge, comparing two parsed predicates, ordering two timestamps
+and asking Phase 5's audit trail whether the monitor ever spoke -- none of which
+a model has privileged access to. `ChallengerAgent` beside it is the seventh
+component and the first in seven to keep its route, which is exactly where ADR
+0027 predicted the run would stop. See ADR 0031.
 
 `FusionBridge` is the more surprising of the two, because `ARCHITECTURE.md`
 describes its job as *recognising* that a predicate's subject is an estimate in
@@ -193,9 +206,10 @@ _ROUTING: Final[Mapping[str, ModelRole]] = MappingProxyType(
         # and the second turned out to be a graph walk Phase 1 had already
         # written. See ADR 0026 and ADR 0027.
         "ReviewTriageAgent": ModelRole.EXTRACT,
-        # Cross-cutting
+        # Cross-cutting. `CuratorAgent` was assigned `extract` here in Phase 0
+        # and left this table in Phase 9: what it decides is already a record,
+        # written by agents that were paid to judge it. See ADR 0031.
         "ChallengerAgent": ModelRole.REASON,
-        "CuratorAgent": ModelRole.EXTRACT,
         "AbstentionGate": ModelRole.EXTRACT,
         "ReporterAgent": ModelRole.EXTRACT,
     }
