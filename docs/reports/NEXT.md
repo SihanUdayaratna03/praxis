@@ -640,3 +640,12 @@ been confirmed and passed over, and the answer has not changed.
   `agent-implementation` on the same grounds, and splitting the class at n=0
   would throw away the project's only calibration signal to make a taxonomic
   point.
+
+- **ADR 0033 — the style change reaches comments and docstrings.** Second stage
+  of ADR 0029's decision, not a new one. Phase 10 code onward gets one or two
+  plain lines; depth goes to an ADR and the code points at it. Phases 0–9 are
+  never restyled, for the reason ADR 0007 gives about history. `CLAUDE.md`'s
+  Style section says so and names the ADR. All three of 0033's predicates parse
+  against the Phase 5 grammar, checked with `read_adr_predicates` rather than
+  assumed — the corpus is now 132 hand-written predicates at a 0.9924 parse
+  rate.
