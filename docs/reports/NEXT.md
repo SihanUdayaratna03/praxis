@@ -435,3 +435,11 @@ the ruff `T201` exemption was **not** widened for them. They cannot affect CI â€
 `.github/workflows/ci.yml` runs `actions/checkout`, which materialises committed
 files only, so nothing outside the index is visible to any job. Confirmed rather
 than assumed.
+- **`ChallengerAgent`** + **ADR 0030** (`praxis/agents/challenger.py`). Argues
+  against a finding and records what survived, onto `Finding.challenge` and
+  `Finding.verdict` â€” fields Phase 1 built for it, so **no new storage**. The
+  first component in seven to make a model call, and ADR 0027 called it in
+  advance: its input is a `prosecution` in prose that nobody reduced to a
+  record. An unconfident verdict is recorded as **no verdict**, and an empty
+  rebuttal forfeits the verdict with it, because `Finding`'s own validator
+  refuses a verdict with no challenge behind it. 29 tests, **100%**.
