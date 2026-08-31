@@ -35,6 +35,7 @@ def provider_for(
     sink: TraceSink | None = None,
     ledger: CostLedger | None = None,
     run_id: str | None = None,
+    cite_coherently: bool = False,
 ) -> LLMProvider:
     """Return the provider this configuration selects.
 
@@ -44,6 +45,9 @@ def provider_for(
             works before any store exists.
         ledger: The run's budget. Defaults to the configured ceiling.
         run_id: Groups this run's traces. Defaults to a fresh one.
+        cite_coherently: Asks the mock to quote from the passage it cites.
+            Ignored by every other provider, which have no say in the matter.
+            ADR 0034.
 
     Returns:
         `MockProvider` unless something says otherwise -- the default is
@@ -66,7 +70,13 @@ def provider_for(
     # working run. `test_factory` walks every member of `ProviderName` and
     # asserts the provider it gets back reports that same name, so a member
     # falling through to here fails a test rather than a demo.
-    return MockProvider(sink=sink, ledger=ledger, run_id=run_id, settings=resolved)
+    return MockProvider(
+        sink=sink,
+        ledger=ledger,
+        run_id=run_id,
+        settings=resolved,
+        cite_coherently=cite_coherently,
+    )
 
 
 def _live_class(settings: Settings) -> type[LLMProvider]:

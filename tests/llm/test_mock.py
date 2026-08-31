@@ -20,7 +20,7 @@ from praxis.config.settings import ProviderName, Settings
 from praxis.llm.accounting import CostLedger
 from praxis.llm.errors import ProviderRefusalError
 from praxis.llm.mock import CHARS_PER_TOKEN_ESTIMATE, MockProvider
-from praxis.llm.synthesis import identifiers_in, sentences_of
+from praxis.llm.synthesis import identifiers_in, passages_in, sentences_of
 from praxis.llm.trace import MemoryTraceSink
 from praxis.llm.types import (
     CallOutcome,
@@ -59,6 +59,29 @@ CANDIDATE_SCHEMA = ResponseSchema(
         },
     },
 )
+
+
+ORDINAL_SCHEMA = ResponseSchema(
+    name="OrdinalCandidates",
+    json_schema={
+        "type": "object",
+        "properties": {
+            "candidates": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "quote": {"type": "string"},
+                        "span_ordinal": {"type": "integer"},
+                    },
+                },
+            }
+        },
+    },
+)
+"""A listing-cited answer, which `CANDIDATE_SCHEMA` is not -- it cites by id."""
 
 
 def request(**overrides) -> LLMRequest:
@@ -279,3 +302,49 @@ def _refused(provider: MockProvider, call: LLMRequest) -> bool:
     except ProviderRefusalError:
         return True
     return False
+
+
+class TestCitingCoherently:
+    """ADR 0034's flag, seen from the provider rather than the synthesiser."""
+
+    OFFERED = """Choose a passage and quote it.
+
+[0] We are going with OpenSearch on managed nodes, rather than Postgres.
+
+[1] This rests on the assumption that the index stays under 50 GB.
+
+[2] Nadeesha put this at four weeks of hands-on work, blocked aside.
+"""
+
+    def _candidates(self, *, coherent: bool):
+        """The candidates one answer carries, cited into the listing above."""
+        provider = MockProvider(cite_coherently=coherent)
+        call = request(
+            messages=(Message(role=MessageRole.USER, content=self.OFFERED),),
+            schema=ORDINAL_SCHEMA,
+        )
+        return json.loads(provider.complete(call).text)["candidates"]
+
+    def test_it_is_off_by_default(self):
+        assert MockProvider().cite_coherently is False
+
+    def test_the_default_answer_is_unchanged_by_the_flag_being_off(self):
+        """ADR 0034 assumption 1. Nine phases of numbers rest on this."""
+        call = request(schema=CANDIDATE_SCHEMA)
+
+        assert (
+            MockProvider(cite_coherently=False).complete(call).text
+            == MockProvider().complete(call).text
+        )
+
+    def test_with_it_on_a_quotation_is_in_the_passage_it_cites(self):
+        found = passages_in(self.OFFERED)
+
+        for candidate in self._candidates(coherent=True):
+            assert candidate["quote"] in found[candidate["span_ordinal"]]
+
+    def test_with_it_off_they_disagree(self):
+        found = passages_in(self.OFFERED)
+        drawn = self._candidates(coherent=False)
+
+        assert any(c["quote"] not in found[c["span_ordinal"]] for c in drawn)

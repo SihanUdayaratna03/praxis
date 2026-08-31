@@ -177,7 +177,10 @@ def eval_corpus(
     try:
         with _scratch(settings, keep) as repository:
             provider = provider_for(
-                settings, sink=SqliteTraceSink(repository.connection), run_id=run_id
+                settings,
+                sink=SqliteTraceSink(repository.connection),
+                run_id=run_id,
+                cite_coherently=True,
             )
             result = evaluate(repository, provider, corpus, at=datetime.now(UTC), run_id=run_id)
     except (ProviderError, StoreError, OSError, ValueError) as exc:

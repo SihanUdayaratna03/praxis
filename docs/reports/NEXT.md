@@ -705,3 +705,24 @@ been confirmed and passed over, and the answer has not changed.
   special-casing the mock rather than ignoring it, and three Phase 10 backlog
   entries are added, including the honest alternative (recorded fixtures) and
   why invariant 1 forbids it.
+
+- **The mock can draw its ordinal and its quotation together, and `praxis eval`
+  asks it to.** ADR 0034 built. `passages_in` indexes a prompt's `[N]` listing,
+  `_Answerer` pins one passage per object before filling any field — so an
+  ordinal and a quotation in the same claim agree however the schema orders them
+  — and restores the outer pin afterwards, because an extraction answer is a
+  list of claims each citing its own passage. **The measured effect is the
+  phase's turning point: citation integrity 0.2821 → 0.9075**, fabrications
+  0.3077 → 0.0000, and the pipeline now runs end to end offline for the first
+  time — 44 assumptions stored where there were 0, 18 predicates parsed, 73
+  estimates classified, 13 resolved, 28 fusion edges priced, 9 findings argued.
+  ADR 0034 assumption 2 (`>= 0.8`) holds on its first measurement. All three
+  refusal paths predicted for this component were real: a passage with nothing
+  quotable is left out of the index rather than pinned, a prompt with no listing
+  falls back to the default draw, and the flag off is asserted byte-identical to
+  the Phase 2–9 answer.
+- **One defect the coherent mock exposed, fixed in the next commit rather than
+  hidden here:** `fusion_recall` divides every `estimated_as` edge in the store
+  by the number the corpus labels, so now that spurious edges exist it reports
+  **9.3333**. A ratio over 1 is not a recall. It was latent for six phases
+  because nothing offline ever wrote more edges than the key had.

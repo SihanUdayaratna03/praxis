@@ -27,6 +27,7 @@ from praxis.llm.synthesis import (
     expiries_in,
     identifiers_in,
     ordinals_in,
+    passages_in,
     predicates_in,
     sentences_of,
     synthesise_answer,
@@ -503,3 +504,112 @@ class TestPredicateAndExpiryShapes:
         schema = {"type": "object", "properties": {"predicate": {"type": "string"}}}
         answer = synthesise_value(schema, "Nothing here looks like an expression at all.", "seed")
         assert isinstance(answer["predicate"], str)
+
+
+# -- citing coherently (ADR 0034) ---------------------------------------------
+
+OFFERING = """You are extracting assumptions from an engineering document.
+
+Choose one of the passages below and quote it.
+
+[0] We are going with OpenSearch on managed nodes, rather than Postgres.
+
+[1] This rests on the assumption that the index stays under 50 GB this year.
+
+[2] Nadeesha put this at four weeks of hands-on work, blocked time aside.
+"""
+
+CLAIM_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "claims": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {"$ref": "#/$defs/Claim"},
+        }
+    },
+    "$defs": {
+        "Claim": {
+            "type": "object",
+            "properties": {
+                "quote": {"type": "string"},
+                "span_ordinal": {"type": "integer"},
+            },
+        }
+    },
+}
+
+
+def claims(prompt=OFFERING, seed="seed", *, coherent):
+    """Every claim one synthesised answer carries."""
+    value = synthesise_value(CLAIM_SCHEMA, prompt, seed, cite_coherently=coherent)
+    return value["claims"]
+
+
+class TestPassagesIn:
+    """The index the coherent mode quotes from."""
+
+    def test_it_finds_every_labelled_passage(self):
+        assert sorted(passages_in(OFFERING)) == [0, 1, 2]
+
+    def test_each_passage_holds_only_its_own_sentences(self):
+        found = passages_in(OFFERING)
+
+        assert any("OpenSearch" in sentence for sentence in found[0])
+        assert not any("OpenSearch" in sentence for sentence in found[1])
+
+    def test_a_prompt_with_no_labels_yields_nothing(self):
+        """Not every agent is shown a listing."""
+        assert passages_in(PROMPT) == {}
+
+    def test_a_passage_with_nothing_quotable_is_left_out(self):
+        """Otherwise a caller could pin an ordinal it cannot then quote from."""
+        long_enough = "A sentence well past the minimum length."
+        prompt = f"[0] short\n\n[1] {long_enough}"
+
+        assert passages_in(prompt) == {1: (long_enough,)}
+
+
+class TestCoherentCitation:
+    """The quotation lands in the passage the same claim cites."""
+
+    def test_every_claim_quotes_the_passage_it_cites(self):
+        found = passages_in(OFFERING)
+
+        for claim in claims(coherent=True):
+            assert claim["quote"] in found[claim["span_ordinal"]]
+
+    def test_the_default_draws_them_independently(self):
+        """The Phase 2 to 9 behaviour, and the only offline exercise the
+        citation gate's refusal branches get."""
+        found = passages_in(OFFERING)
+        drawn = claims(coherent=False)
+
+        assert any(claim["quote"] not in found[claim["span_ordinal"]] for claim in drawn)
+
+    def test_claims_still_cite_different_passages(self):
+        """Coherent, not competent. Which passage is pinned is still a coin toss."""
+        cited = {claim["span_ordinal"] for claim in claims(coherent=True)}
+
+        assert len(cited) > 1
+
+    def test_it_is_still_deterministic(self):
+        assert claims(coherent=True) == claims(coherent=True)
+
+    def test_a_prompt_offering_nothing_falls_back_to_the_default(self):
+        """Refusal path: no listing means no pin, and the default draw stands."""
+        assert claims(PROMPT, coherent=True) == claims(PROMPT, coherent=False)
+
+
+def test_the_flag_off_changes_nothing_about_the_answer():
+    """ADR 0034 assumption 1, asserted rather than asserted about.
+
+    Nine phases of numbers rest on the default draw, so the flag has to be
+    invisible when it is off.
+    """
+    schema = ResponseSchema("Decisions", DECISION_SCHEMA)
+
+    assert synthesise_answer(schema, PROMPT, "seed", cite_coherently=False) == synthesise_answer(
+        schema, PROMPT, "seed"
+    )
