@@ -31,6 +31,7 @@ from praxis.cli_calibrate import calibrate
 from praxis.cli_estimate import estimates
 from praxis.cli_eval import eval_corpus, extract
 from praxis.cli_fuse import fuse
+from praxis.cli_govern import govern
 from praxis.cli_monitor import contradictions, formalize, monitor, why
 from praxis.cli_tables import configuration_table, links_table, records_table, routing_table
 from praxis.config.models import (
@@ -280,6 +281,13 @@ app.command(name="calibrate")(calibrate)
 # and the calibration history Phase 7 grades. It also makes no model call --
 # ADR 0026 and ADR 0027 -- so the whole fusion layer is free to run.
 app.command(name="fuse")(fuse)
+
+# `praxis govern`, from `praxis.cli_govern`, registered after `fuse` because
+# it governs what every command above it produced: it argues against the
+# findings `monitor` and `fuse` filed, curates the assumptions `extract` and
+# `formalize` wrote, and refuses to conclude where the evidence is thin. It
+# is the only command whose headline output is a count of refusals.
+app.command(name="govern")(govern)
 
 
 @corpus_app.command(name="generate")

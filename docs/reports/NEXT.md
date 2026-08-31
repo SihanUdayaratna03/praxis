@@ -473,3 +473,18 @@ than assumed.
   the loser** — the `supersedes` edge is the whole claim, and withdrawing the
   earlier record would take half of every revision out of `list_all`. 21 tests,
   **100%**.
+- **`praxis govern`** (`praxis/cli_govern.py`). The demo surface, and the only
+  command whose headline output is a count of refusals. Leads with the
+  abstentions, grouped by which rule fired and each explained in words a reader
+  can act on. **The concede rate carries the sentence that saves it**: against
+  the mock it is a property of `_TRUE_BIAS = 0.7`, not of any reasoning, and
+  that is printed on the line where the number appears. `--dry-run` computes
+  through the same agents and makes no call. 21 tests, **100%**.
+
+  **Three defects found by running it against the real pipeline rather than
+  reading it**, which is the reason to run it. The empty store printed "nothing
+  changed" when it had never had anything to change; the dry run asserted "A-0003
+  has been retracted" about a record still standing, because it was feeding the
+  gate retirements it had only proposed; and the whole argument section vanished
+  on a dry run, so a reader was left to infer from a missing heading that no
+  verdict had been reached.
