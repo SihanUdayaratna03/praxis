@@ -428,3 +428,53 @@ def test_every_span_records_the_agent_that_cut_it(settings):
 
     assert all(span.created_by == SEGMENTER_NAME for span in result.spans)
     assert all(span.created_at == AT for span in result.spans)
+
+
+# -- the floor on purpose -----------------------------------------------------
+
+
+class TestFloorOnly:
+    """`floor_only=True` is the ablation's baseline rung: one span per block."""
+
+    def test_it_makes_no_call_at_all(self, settings):
+        """Not a wasted call whose answer is thrown away.
+
+        The rung's cost is reported per document, so a baseline that spent the
+        scan tier and then ignored it would misprice the layer above it.
+        """
+        provider = planned(settings, plan((0, 1)))
+        result = SegmenterAgent(provider, floor_only=True).segment(document(), at=AT)
+
+        assert provider.requests == []
+        assert result.calls == 0
+
+    def test_every_block_becomes_its_own_span(self, settings):
+        doc = document()
+        result = SegmenterAgent(planned(settings), floor_only=True).segment(doc, at=AT)
+
+        assert len(result.spans) == len(result.blocks)
+        assert [(span.start_byte, span.end_byte) for span in result.spans] == block_ranges(doc)
+        assert all(verify_span(span, doc).ok for span in result.spans)
+
+    def test_it_reports_every_window_as_degraded(self, settings):
+        """The floor is a worse answer honestly labelled, not a silent one."""
+        result = SegmenterAgent(planned(settings), floor_only=True).segment(document(), at=AT)
+
+        assert result.degraded is True
+        assert result.degraded_windows == 1
+
+    def test_a_document_with_no_blocks_still_produces_nothing(self, settings):
+        """The no-blocks path returns before the flag is ever consulted."""
+        blank = Document(
+            id=DocumentId("DOC-0003"),
+            source_uri="blank.md",
+            source_kind=MARKDOWN_ADAPTER.source_kind,
+            content="   \n\n  \n",
+            ingested_at=AT,
+            created_at=AT,
+            created_by="test",
+        )
+
+        result = SegmenterAgent(planned(settings), floor_only=True).segment(blank, at=AT)
+
+        assert result.spans == ()

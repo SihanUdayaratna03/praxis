@@ -682,3 +682,14 @@ been confirmed and passed over, and the answer has not changed.
   and a negative control count is refused rather than clamped. The other
   prediction held too — `GroundTruthItem`'s validator does refuse fields on a
   distractor, so the adversarial memo plants none.
+
+- **The segmenter can be told to run on the floor alone.** `floor_only=True`
+  skips the model for every window and takes one span per block, which is the
+  ablation's baseline rung. `BACKLOG.md` predicted this would be "a
+  configuration change rather than a rewrite when the harness exists" and it
+  was: one flag, one early return, and `IngestionPipeline` already accepted an
+  injected segmenter, so it cost none of the integration points priced for it.
+  The refusal path predicted as number 6 was real and is closed — the floor
+  makes **zero** calls rather than one it throws away, because the ablation
+  reports cost per document and a baseline that spent the scan tier would
+  misprice every rung above it.
