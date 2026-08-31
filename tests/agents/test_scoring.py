@@ -295,12 +295,13 @@ class TestOverAStore:
 
 
 class TestThisProjectsOwnHistory:
-    """A curiosity at n = 9, reported as one. Still never a result.
+    """A curiosity at n = 10, reported as one. Two rows now graded.
 
-    Nine outcomes across four classes, with the largest -- `agent-implementation`
-    -- at six. Six is where this project's own history becomes *scoreable* for
-    the first time: `BiasDetective` needs five resolved estimates to speak, and a
-    prequential walk needs five *before* the row it is grading, so it needs six.
+    Ten outcomes across four classes, with the largest -- `agent-implementation`
+    -- at seven. Six is where this project's own history became *scoreable*:
+    `BiasDetective` needs five resolved estimates to speak, and a prequential
+    walk needs five *before* the row it is grading, so it needs six. Seven grades
+    two.
 
     **These assertions are pinned to the real log on purpose, and they are
     supposed to fail when it grows.** They did at the close of Phase 7, when
@@ -308,6 +309,15 @@ class TestThisProjectsOwnHistory:
     8, when `OUT-0009` took it to six. That is the failure mode they exist for: a
     change to `docs/dogfood/` is a change to fixture data, and the pin is what
     makes it visible rather than silent.
+
+    **`OUT-0010` is the row worth reading**, and it is the uncomfortable one. It
+    is the second bias-corrected estimate in the log and it came in **1.8000x
+    over** -- to four figures, the very factor that was applied to it. That is
+    exactly the shape that would argue for correcting twice, and it is refused:
+    one row is not a trend, and the prequential walk below is what answers the
+    question. The walk says the correction **helped on both graded rows**, more
+    than halving the error, which is what "correct once" predicts and
+    double-correcting would not.
 
     **`OUT-0009` also broke something the pins were not designed to catch, and
     that is the more useful thing recorded here.** `EST-0009` is the first
@@ -365,35 +375,37 @@ class TestThisProjectsOwnHistory:
             )
         return rows
 
-    def test_the_log_holds_nine_outcomes_across_four_classes(self) -> None:
+    def test_the_log_holds_ten_outcomes_across_four_classes(self) -> None:
         """The premise, checked rather than recalled, so the conclusion is real."""
         rows = self.dogfood_rows()
 
-        assert len(rows) == 9
+        assert len(rows) == 10
         assert len({row.work_class for row in rows}) == 4
 
-    def test_the_largest_class_is_one_past_the_threshold(self) -> None:
-        """`OUT-0009` took it to six, which is where a backtest can score.
+    def test_the_largest_class_is_two_past_the_threshold(self) -> None:
+        """`OUT-0009` took it to six and `OUT-0010` to seven.
 
-        One *past* `MINIMUM_SAMPLE` rather than at it, and the difference is the
-        whole of what this outcome bought: at five the detective can speak, at
-        six the scorer can grade.
+        Six is where the scorer grades its first row -- at five the detective can
+        speak, at six the walk has five rows *before* one to grade. Seven grades
+        a second, which is the first time the correction has been tested rather
+        than illustrated.
         """
         rows = self.dogfood_rows()
         by_class: dict[str, int] = {}
         for row in rows:
             by_class[row.work_class] = by_class.get(row.work_class, 0) + 1
 
-        assert max(by_class.values()) == MINIMUM_SAMPLE + 1
-        assert by_class["agent-implementation"] == MINIMUM_SAMPLE + 1
+        assert max(by_class.values()) == MINIMUM_SAMPLE + 2
+        assert by_class["agent-implementation"] == MINIMUM_SAMPLE + 2
 
-    def test_backtesting_this_projects_history_now_scores_exactly_one_row(self) -> None:
-        """The first row this project has ever had backtested. n = 1.
+    def test_backtesting_this_projects_history_now_scores_two_rows(self) -> None:
+        """Two rows. Still not evidence, and closer to it than one was.
 
-        Worth stating precisely, because the number is easy to over-read. One
-        scored row is not evidence that the correction works; it is the first
-        data point that could ever have been evidence either way. The class that
-        used to assert "scores exactly nothing" is this one, repinned.
+        Worth stating precisely, because the number is easy to over-read. Two
+        scored rows are two data points that could have gone either way and did
+        not; they are not a demonstration that the correction is the right size.
+        The class that used to assert "scores exactly nothing" is this one,
+        repinned twice.
         """
         rows = sorted(self.dogfood_rows(), key=lambda row: row.estimate_id)
         results = [
@@ -406,23 +418,26 @@ class TestThisProjectsOwnHistory:
 
         summed = total(results)
 
-        assert summed.considered == 9
-        assert summed.scored == 1
+        assert summed.considered == 10
+        assert summed.scored == 2
         assert summed.graded
 
-    def test_the_first_backtested_row_says_the_correction_helped(self) -> None:
-        """What `OUT-0009` actually bought, as arithmetic rather than a hope.
+    def test_both_backtested_rows_say_the_correction_helped(self) -> None:
+        """The question `OUT-0010` made answerable, as arithmetic rather than a hope.
 
-        `EST-0009` predicted 3.6h by correcting a raw 6.5h with the factor its
-        own five predecessors had fitted, and the phase came in at 3.5h. Walked
-        forward, the uncorrected estimate carries a log error of 0.6190 and the
-        corrected one 0.0313 -- so on the single row that can be graded, the
-        correction helped by roughly twentyfold.
+        `EST-0010` was corrected and still came in 1.8000x over, which reads as
+        an argument for correcting twice. The walk is what settles it: over both
+        graded rows the corrected error is well under the raw one and neither row
+        was made worse, so the correction is helping at the size it is applied.
+        A second application would be fitted to two observations, and the honest
+        response to a factor that keeps under-correcting is to let the *factor*
+        move as the sample grows -- which is what the next `summarise` does on
+        its own, without anybody deciding to double anything.
 
         **Pinned as `improved` and not as the numbers**, deliberately. The exact
         errors move whenever the log grows and pinning them would make this test
         a tripwire for arithmetic that is already property-tested elsewhere. What
-        is worth holding is the direction and the fact that anything was graded
+        is worth holding is the direction and the fact that anything is graded
         at all.
         """
         rows = [row for row in self.dogfood_rows() if row.work_class == "agent-implementation"]
@@ -430,8 +445,8 @@ class TestThisProjectsOwnHistory:
 
         result = walk(group, rows)
 
-        assert result.scored == 1
-        assert result.improved == 1
+        assert result.scored == 2
+        assert result.improved == 2
         assert result.worsened == 0
         assert result.corrected_error < result.raw_error
 
