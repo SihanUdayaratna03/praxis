@@ -115,6 +115,14 @@ irreversible in reputation terms even though the flag itself is not.
 | A concede rate that means something offline | `MockProvider` answers a bare boolean true seven times in ten and synthesises about two array entries per call whatever the batch holds, so an offline run argues a minority of findings and concedes at a rate fixed by `_TRUE_BIAS`. **Deliberately not repaired.** Making the mock answer about every ordinal would make it a better challenger than it is a model, and every other agent's offline numbers would then be measuring a mock that had been special-cased for one of them. ADR 0030 assumptions 1 and 2 state the band a *real* run has to land in, and that is where the number gets earned. |
 | `IDLE_DAYS` fitted to anything | Sixty days is a judgement stated as one, the way ADR 0024 states `MINIMUM_SAMPLE = 5`. There is no data to fit it to: this project has one corpus and generated it. It is reported beside every retirement so a reader who disagrees can re-derive without re-running anything. Revisit when a real corpus exists with assumptions old enough to disagree about. |
 
+## Deferred from Phase 10
+
+| Item | Why not now |
+| ---- | ----------- |
+| Recorded fixtures replacing the coherently-citing mock | The honest way to get real citations offline is `ReplayProvider` over fixtures recorded from a live run, and [ADR 0034](docs/adr/0034-the-eval-harness-runs-a-coherently-citing-mock.md) rejects it for one reason: recording them needs a credential, and invariant 1 says nothing may. A fixture set nobody without a key can regenerate rots the first time a prompt version moves. Revisit the day this project has a funded key — the recording machinery already exists. |
+| An ablation rung per prompt version | The table ablates *layers*. Ablating prompt versions is the other axis and it is the one ADR 0014 built the version column for, but with one version of each prompt there is nothing to compare. Revisit when a prompt reaches v2 for a reason other than a typo. |
+| Grading the corpus's clean controls against a live provider | The controls make a hallucination rate measurable, and offline the number they produce is a property of the mock. Nothing to do about that here; the number becomes evidence on the first live run, which is where ADR 0034 assumption 3 expires. |
+
 ## Deferred by design (revisit with data, not opinion)
 
 | Item | Why not now |

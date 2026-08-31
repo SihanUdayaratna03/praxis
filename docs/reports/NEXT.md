@@ -693,3 +693,15 @@ been confirmed and passed over, and the answer has not changed.
   makes **zero** calls rather than one it throws away, because the ablation
   reports cost per document and a baseline that spent the scan tier would
   misprice every rung above it.
+
+- **ADR 0034 — the eval harness runs a coherently-citing mock.** The blocker
+  the phase had to answer: offline the mock draws its cited ordinal and its
+  quotation independently, so the gate refuses 28 of 39 claims and every number
+  downstream is a correct zero. An ablation table cannot show a layer adding
+  anything to zero. The mode is opt-in, the default draw is untouched, and the
+  citation gate is *not* disabled — invariant 6 has no convenience exception, so
+  the gate's own contribution is computed counterfactually from the refusal
+  record instead. The ADR answers `BACKLOG.md`'s Phase 9 objection to
+  special-casing the mock rather than ignoring it, and three Phase 10 backlog
+  entries are added, including the honest alternative (recorded fixtures) and
+  why invariant 1 forbids it.
