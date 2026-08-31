@@ -610,3 +610,33 @@ by predicted lines, and see whether that procedure needs a smaller correction.
   rewritten.
 - Progress explanations to the product owner are in **Sinhala**; everything in
   the repository is in English.
+
+---
+
+## Phase 10 progress log
+
+Branch `feat/phase-10-eval-harness`, cut from `main` at `b43b21e`. One line per
+component, appended after it was committed and pushed.
+
+**The four untracked paths were checked again before the branch was cut and
+left alone again.** `.codex/`, `AGENTS.md`, `docs/assets/` and `docs/design/`
+are untracked and not gitignored either — `git check-ignore` exits 1 on all
+four. None can reach CI: `.github/workflows/ci.yml` starts every one of its
+three jobs with `actions/checkout@v7.0.1`, which materialises committed files
+only. Nothing was committed, moved, renamed or deleted, and no ruff exemption
+was widened for any of them. This is the second phase running that they have
+been confirmed and passed over, and the answer has not changed.
+
+- **`EST-0011` logged before any Phase 10 file was written.** 3.1h active
+  against a 6.0h raw bottom-up, corrected once by the fitted factor
+  (`agent-implementation`, n=7, 1.9670x over, factor 0.5084 — recomputed with
+  `BiasDetective` over `docs/dogfood/` rather than copied from the Phase 9
+  table, and it agrees). Blocked 3.9h, the geometric mean of all ten actuals
+  and not an engineering prediction. **Priced by refusal vocabulary (16 paths)
+  and integration points (20), with no line count predicted at all** — which is
+  what `OUT-0010` asked for, having been wrong on hours and volume in opposite
+  directions at once. The class decision is stated rather than inherited: no
+  new agents in this phase, but `EST-0004` and `EST-0008` are already in
+  `agent-implementation` on the same grounds, and splitting the class at n=0
+  would throw away the project's only calibration signal to make a taxonomic
+  point.
