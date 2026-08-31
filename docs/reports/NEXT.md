@@ -419,3 +419,108 @@ must not be spent to buy it; cut it to the backlog rather than spend it), the
 store pass, the CLI, and `praxis/eval/fusion.py` plus its four edits.
 `ReviewTriageAgent` is **not** in this phase — `BACKLOG.md` places its first
 consumer in Phase 9.
+
+---
+
+## Phase 9 progress log
+
+One line per component, appended as it landed. Branch
+`feat/phase-9-adversarial-governance`, cut from `main` at `a79dc0e`
+(`v0.8-phase-8` dereferenced through `git ls-remote`, not assumed).
+
+**Three untracked paths carried forward untouched.** `.codex/`, `AGENTS.md` and
+`docs/assets/` were flagged at the Phase 8 handover as deliberately left alone,
+and they still are: still untracked, not committed, not moved, not deleted, and
+the ruff `T201` exemption was **not** widened for them. They cannot affect CI —
+`.github/workflows/ci.yml` runs `actions/checkout`, which materialises committed
+files only, so nothing outside the index is visible to any job. Confirmed rather
+than assumed.
+- **`ChallengerAgent`** + **ADR 0030** (`praxis/agents/challenger.py`). Argues
+  against a finding and records what survived, onto `Finding.challenge` and
+  `Finding.verdict` — fields Phase 1 built for it, so **no new storage**. The
+  first component in seven to make a model call, and ADR 0027 called it in
+  advance: its input is a `prosecution` in prose that nobody reduced to a
+  record. An unconfident verdict is recorded as **no verdict**, and an empty
+  rebuttal forfeits the verdict with it, because `Finding`'s own validator
+  refuses a verdict with no challenge behind it. 29 tests, **100%**.
+- **`CuratorAgent`** + **ADR 0031** (`praxis/agents/curator.py`). Merging is
+  `LinkType.SUPERSEDES`, retiring is `Repository.retract` — both Phase 1's, both
+  already documented as doing exactly this, so **no migration and no new
+  `AssumptionStatus` member**. **No model call**: what it decides is a
+  `CONTRADICTS` edge Phase 5 paid a `reason` call for, two parsed predicates,
+  two timestamps and an audit trail. Eighth consecutive component on the
+  arithmetic side. *Never fires* is defined precisely — `UNVERIFIED`, no
+  `AssumptionMonitor` event in the trail, and `IDLE_DAYS` since the **first**
+  version, read off `audit_for` because `revise` overwrites `created_at`. The
+  refusal that matters: an idle assumption a live decision rests on is a finding
+  for a person, not dead weight. 38 tests, **100%**.
+- **`AbstentionGate`** + **ADR 0032** (`praxis/agents/abstention.py`). Sits
+  immediately downstream of the challenger and asks the other question: the
+  challenger tests whether the *argument* holds, this tests whether the
+  *evidence* does. Four checks — never challenged, below the confidence floor, a
+  quoting kind that cites nothing, a withdrawn subject — and **all four run**, so
+  a person is told every defect rather than sent back once per fix. **No model
+  call and nothing stored**: a disposition is recomputed, the same argument
+  `praxis.agents.calibration` makes about a factor, and it is what keeps this
+  phase migration-free on the third axis. Ninth consecutive component on the
+  arithmetic side. 25 tests, **100%**.
+- **`govern_store`** (`praxis/agents/governance.py`). All three agents over a
+  store, in an order that cannot move: the gate reads the verdict the challenger
+  writes, and it re-reads the store *after* curation so a finding about an
+  assumption this very pass retracted is not concluded on. **A second pass over
+  an unchanged store writes nothing and costs no model call**, because the
+  challenger refuses to re-argue a decided finding. **A merge does not retract
+  the loser** — the `supersedes` edge is the whole claim, and withdrawing the
+  earlier record would take half of every revision out of `list_all`. 21 tests,
+  **100%**.
+- **`praxis govern`** (`praxis/cli_govern.py`). The demo surface, and the only
+  command whose headline output is a count of refusals. Leads with the
+  abstentions, grouped by which rule fired and each explained in words a reader
+  can act on. **The concede rate carries the sentence that saves it**: against
+  the mock it is a property of `_TRUE_BIAS = 0.7`, not of any reasoning, and
+  that is printed on the line where the number appears. `--dry-run` computes
+  through the same agents and makes no call. 21 tests, **100%**.
+
+  **Three defects found by running it against the real pipeline rather than
+  reading it**, which is the reason to run it. The empty store printed "nothing
+  changed" when it had never had anything to change; the dry run asserted "A-0003
+  has been retracted" about a record still standing, because it was feeding the
+  gate retirements it had only proposed; and the whole argument section vanished
+  on a dry run, so a reader was left to infer from a missing heading that no
+  verdict had been reached.
+- **The corpus gains one edge type** (`praxis/corpus/templates.py`). Checked
+  before assuming a gap, the discipline Phases 5 and 6 both applied: the offline
+  pipeline was run end to end first, and it extracts **1 decision, 0 assumptions,
+  0 findings** from 16 documents, because ADR 0016's citation gate refuses 38 of
+  40 claims. So every Phase 9 corpus number is a correct zero. What the corpus
+  *does* hold is 4 revision notes, each saying in words that an earlier
+  assumption no longer stands — a stated `supersedes`, planted beside the
+  `contradicts` already there. Findings and challenges are **not** planted: a
+  finding is produced rather than stated, and planting one would grade the
+  harness against itself.
+- **`praxis/eval/governance.py`** — the sixth quarter of the metrics table, as a
+  module plus edits to `harness`, `report` and `matching` (OUT-0006's lesson,
+  fourth application). Three rates, **one** answer key and three booleans. The
+  answer key is `merge_recall` against the `supersedes` edges the corpus now
+  plants; the three rates have none. `mock_provider` travels *inside* the score,
+  so the concede rate can never be printed without the sentence that qualifies
+  it. Every boolean tested in **both** directions, including the ones only a
+  monkeypatched gate can falsify — a consistency claim that can only be true is
+  not a claim. 23 tests, **100%**.
+
+  **The mock's concede rate, measured rather than guessed:** over 40 synthetic
+  findings the mock answered about **6**, decided 5 and conceded 1 —
+  **0.2000**, inside the 5%–60% band, and *not evidence about the challenger*.
+  The dominant fact is the other one: 34 of 40 went **unargued**, because
+  `MockProvider` synthesises about two array entries per call whatever the batch
+  holds. The agent reports them as `unjudged` rather than as concessions nobody
+  made, which is the refusal working.
+- `tests/ingest/test_adapters.py` — **a pre-existing latent flake `hypothesis`
+  found in CI on this PR**, not a Phase 9 defect and not a product bug.
+  `TEXT_BODIES` filtered on `str.strip() != ""` as a proxy for "will survive
+  normalisation", and the two disagree on exactly one character: a body of
+  nothing but `\ufeff` is non-empty to `strip()` (a BOM is not whitespace) and
+  empty after normalisation (which removes it), so the adapter refuses it —
+  correctly, since no span could ever address it. A property about *re-reading*
+  was failing on an input that never gets read once. The filter now asks
+  normalisation directly instead of guessing.

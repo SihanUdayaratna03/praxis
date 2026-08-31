@@ -237,6 +237,28 @@ def fusion_pairs(truth: CorpusGroundTruth) -> tuple[tuple[str, str], ...]:
     )
 
 
+def supersedes_pairs(truth: CorpusGroundTruth) -> tuple[tuple[str, str], ...]:
+    """Every `supersedes` edge the corpus asserts, as (newer, older).
+
+    Planted by Phase 9 on the revision notes, where the source says in words
+    that an earlier assumption no longer stands. That is what makes it a real
+    answer key rather than a planted answer: the relation is *stated* in the
+    document, so labelling it is reading the corpus, not deciding what the
+    curator should conclude before anyone has asked.
+
+    The direction matters and is the key's, not this function's -- newer to
+    older, matching `LinkType.SUPERSEDES` and the ADR convention. Reversed, the
+    key would grade a curator that retired the claim the organisation had just
+    adopted.
+    """
+    return tuple(
+        (item.item_id, link.target_item_id)
+        for item in truth.items
+        for link in item.links
+        if link.link_type is LinkType.SUPERSEDES
+    )
+
+
 def _items_of(truth: CorpusGroundTruth, kind: ItemKind | None) -> tuple[GroundTruthItem, ...]:
     """The real items a run is expected to find. Distractors are not answers."""
     return tuple(

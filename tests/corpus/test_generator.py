@@ -432,6 +432,43 @@ class TestTheRevisionNotes:
             tmp_path / "plain", documents=4, revisions=0, seed=1, generated_at=AT
         )
         assert _contradiction_pairs(truth) == []
+        assert _supersedes_pairs(truth) == []
+
+    def test_a_revision_note_plants_a_supersedes_beside_its_contradiction(self, corpus):
+        """The two edges are different claims and the document states both.
+
+        `contradicts` says the pair cannot both be true, which is
+        `ContradictionDetector`'s question. `supersedes` says which one still
+        stands, which is `CuratorAgent`'s -- and the note answers it in words:
+        "That is no longer true, and it has not been true for a while."
+
+        Planted rather than inferred. `BACKLOG.md` refuses to plant a
+        cross-document `estimated_as` edge because the corpus would be fixing an
+        answer nobody had asked for yet; this is the opposite case, where the
+        source states the relation and labelling it is reading the document.
+        """
+        truth = load_ground_truth(corpus)
+
+        assert _supersedes_pairs(truth) == _contradiction_pairs(truth)
+        assert _supersedes_pairs(truth)
+
+    def test_a_supersedes_edge_points_from_the_newer_assumption_to_the_older(self, corpus):
+        """Phase 1's direction, and the direction `CuratorAgent` writes.
+
+        Reversed, the answer key would grade a curator that retired the claim
+        the organisation had just adopted.
+        """
+        truth = load_ground_truth(corpus)
+        by_id = {item.item_id: item for item in truth.items}
+        by_document = {
+            item.item_id: document.path for document in truth.documents for item in document.items
+        }
+
+        for newer, older in _supersedes_pairs(truth):
+            assert by_id[newer].kind is ItemKind.ASSUMPTION
+            assert by_id[older].kind is ItemKind.ASSUMPTION
+            assert "revision" in by_document[newer]
+            assert "revision" not in by_document[older]
 
     def test_a_negative_revision_count_is_refused(self, tmp_path):
         with pytest.raises(ValueError, match="revision notes"):
@@ -445,6 +482,16 @@ def _contradiction_pairs(truth) -> list[tuple[str, str]]:
         for item in truth.items
         for link in item.links
         if link.link_type is LinkType.CONTRADICTS
+    ]
+
+
+def _supersedes_pairs(truth) -> list[tuple[str, str]]:
+    """Every `supersedes` edge the answer key asserts, newer first."""
+    return [
+        (item.item_id, link.target_item_id)
+        for item in truth.items
+        for link in item.links
+        if link.link_type is LinkType.SUPERSEDES
     ]
 
 

@@ -35,7 +35,9 @@ from praxis.agents.estimation import EstimationRun, estimate_store
 from praxis.agents.extraction import ExtractionPipeline
 from praxis.agents.formalization import formalize_store
 from praxis.agents.fusion_pass import fuse_store
+from praxis.agents.governance import govern_store
 from praxis.agents.results import ExtractionRun
+from praxis.config.settings import ProviderName
 from praxis.corpus.groundtruth import (
     DOCUMENTS_DIRNAME,
     CorpusGroundTruth,
@@ -56,7 +58,15 @@ from praxis.domain.records import (
 from praxis.eval.calibration import CalibrationScore, grade_calibration
 from praxis.eval.estimation import EstimationResult, grade_estimation
 from praxis.eval.fusion import FusionScore, grade_fusion
-from praxis.eval.matching import SET_SEPARATOR, Claim, Pairing, fusion_pairs, pair
+from praxis.eval.governance import GovernanceScore, grade_governance
+from praxis.eval.matching import (
+    SET_SEPARATOR,
+    Claim,
+    Pairing,
+    fusion_pairs,
+    pair,
+    supersedes_pairs,
+)
 from praxis.eval.memory import MemoryResult, grade_memory
 from praxis.eval.metrics import (
     CitationIntegrity,
@@ -132,6 +142,10 @@ class EvalResult:
         fusion: What the fusion layer concluded, and the two internal claims
             that can be checked without an answer key: that no refusal was
             bypassed and that every flip really moved a verdict.
+        governance: What the adversarial and governance layer concluded --
+            the three rates and the three internal claims. Its concede rate is
+            a property of the provider that produced it, which is why the score
+            carries `mock_provider` beside the number.
         calibration: What the calibration half concluded about itself -- whether
             the refusal threshold held, whether the pass-through fired exactly
             where it should, and what the backtest scored. Its headline numbers
@@ -150,6 +164,7 @@ class EvalResult:
     estimation: EstimationResult = field(default_factory=EstimationResult)
     calibration: CalibrationScore = field(default_factory=CalibrationScore)
     fusion: FusionScore = field(default_factory=FusionScore)
+    governance: GovernanceScore = field(default_factory=GovernanceScore)
     cost: Mapping[str, Decimal] = field(default_factory=dict)
 
     @property
@@ -170,6 +185,7 @@ def grade(  # noqa: PLR0913 -- one argument per source the table reads from
     detection: DetectionRun | None = None,
     estimation: EstimationRun | None = None,
     run_id: str | None = None,
+    mock_provider: bool = True,
 ) -> EvalResult:
     """Grade what a store holds against the corpus's answer key.
 
@@ -188,6 +204,10 @@ def grade(  # noqa: PLR0913 -- one argument per source the table reads from
         run_id: The run whose trace rows the cost column totals. Without one
             there is no cost to report -- the trace table is keyed by run, and
             summing every row would total every run this store ever held.
+        mock_provider: Whether the run used the mock. Carried into the
+            governance score so a report can say whose number its concede rate
+            is: against the mock a bare boolean comes back true seven times in
+            ten, so the rate measures schema synthesis rather than reasoning.
 
     Returns:
         Every number the report prints.
@@ -222,6 +242,17 @@ def grade(  # noqa: PLR0913 -- one argument per source the table reads from
         # really moved a verdict. `fusion_recall` above still grades the edges
         # the corpus *does* plant; this does not recompute it.
         fusion=grade_fusion(repository),
+        # One answer key and three rates that have none. The corpus labels a
+        # `supersedes` edge wherever a revision note says in words that an
+        # earlier assumption no longer stands, so merge recall is real. Whether
+        # a challenger *should* have conceded is not something a document can
+        # state, so the concede rate is reported with the provider that produced
+        # it attached -- against the mock it measures schema synthesis.
+        governance=grade_governance(
+            repository,
+            merges_expected=len(supersedes_pairs(truth)),
+            mock_provider=mock_provider,
+        ),
         cost=_cost(repository, documents, run_id),
     )
 
@@ -267,6 +298,11 @@ def evaluate(
     # asks `BiasDetective` for a factor per group, so it has to run once the
     # outcomes calibration reads are in place. It costs no model call either.
     fuse_store(repository, at=at, run_id=run_id)
+    # Last, and this one genuinely cannot move either: governance argues against
+    # the findings every stage above it filed, so it has to run once they exist.
+    # It is also the only stage after ingestion whose cost is a `reason`-tier
+    # call per batch of findings rather than per document.
+    governance = govern_store(repository, provider, at=at, run_id=run_id)
     _log.info(
         "eval_run",
         documents=len(ingestion.ingested),
@@ -275,7 +311,7 @@ def evaluate(
         assumptions=run.assumptions,
         estimates=run.estimates,
         outcomes=estimation.outcomes,
-        calls=ingestion.calls + run.calls + estimation.calls + memory.calls,
+        calls=(ingestion.calls + run.calls + estimation.calls + memory.calls + governance.calls),
     )
     return grade(
         repository,
@@ -284,6 +320,7 @@ def evaluate(
         detection=memory.detection,
         estimation=estimation,
         run_id=run_id,
+        mock_provider=provider.name is ProviderName.MOCK,
     )
 
 

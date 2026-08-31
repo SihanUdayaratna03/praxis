@@ -74,6 +74,12 @@ Subject under 72 characters, lower case, no trailing period.
 Types: `feat` `fix` `docs` `test` `refactor` `perf` `build` `ci` `chore`
 `style` `revert`.
 
+**Keep them short — one line, or at most two or three short sentences.** Write
+the way a person writes day to day. Depth belongs in an ADR, and the commit
+points at it rather than repeating it. This starts at Phase 9; Phases 0–8 keep
+their long bodies and are never rewritten. See
+[ADR 0029](docs/adr/0029-short-commit-messages-from-phase-9.md).
+
 ## Long text always goes to a file, never inline
 
 The shell here has a ~965-byte parse limit on a single command. Any multi-line

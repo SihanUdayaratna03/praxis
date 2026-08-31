@@ -31,6 +31,7 @@ from praxis.cli_calibrate import calibrate
 from praxis.cli_estimate import estimates
 from praxis.cli_eval import eval_corpus, extract
 from praxis.cli_fuse import fuse
+from praxis.cli_govern import govern
 from praxis.cli_monitor import contradictions, formalize, monitor, why
 from praxis.cli_tables import configuration_table, links_table, records_table, routing_table
 from praxis.config.models import (
@@ -281,6 +282,13 @@ app.command(name="calibrate")(calibrate)
 # ADR 0026 and ADR 0027 -- so the whole fusion layer is free to run.
 app.command(name="fuse")(fuse)
 
+# `praxis govern`, from `praxis.cli_govern`, registered after `fuse` because
+# it governs what every command above it produced: it argues against the
+# findings `monitor` and `fuse` filed, curates the assumptions `extract` and
+# `formalize` wrote, and refuses to conclude where the evidence is thin. It
+# is the only command whose headline output is a count of refusals.
+app.command(name="govern")(govern)
+
 
 @corpus_app.command(name="generate")
 def corpus_generate(
@@ -327,7 +335,10 @@ def corpus_generate(
     console.print(f"  documents  {len(truth.documents)}, seed {truth.seed}")
     console.print(f"  items      {', '.join(f'{n} {k.value}' for k, n in counts.items())}")
     console.print(f"  negatives  {distractors} distractors")
-    console.print(f"  edges      {_contradictions(truth)} contradicts pairs planted")
+    console.print(
+        f"  edges      {_edges(truth, LinkType.CONTRADICTS)} contradicts, "
+        f"{_edges(truth, LinkType.SUPERSEDES)} supersedes pairs planted"
+    )
 
 
 @app.command()
@@ -460,14 +471,14 @@ def _report(
     console.print(f"  data dir   {settings.data_dir}")
 
 
-def _contradictions(truth: CorpusGroundTruth) -> int:
-    """How many `contradicts` edges the answer key asserts.
+def _edges(truth: CorpusGroundTruth, link_type: LinkType) -> int:
+    """How many edges of one type the answer key asserts.
 
-    Reported because it is the number that decides whether a contradiction
-    metric means anything: before the revision notes existed the corpus had
-    none, and a detector finding nothing scored the same as one finding
-    everything.
+    Reported because it is the number that decides whether the metric over that
+    edge means anything: before the revision notes existed the corpus had no
+    `contradicts` pairs, and a detector finding nothing scored the same as one
+    finding everything. The same is true of `supersedes` and `CuratorAgent`,
+    which is why Phase 9 planted those too -- both come from the same revision
+    note, which states both relations in words.
     """
-    return sum(
-        1 for item in truth.items for link in item.links if link.link_type is LinkType.CONTRADICTS
-    )
+    return sum(1 for item in truth.items for link in item.links if link.link_type is link_type)

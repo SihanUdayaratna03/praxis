@@ -318,14 +318,30 @@ def revision_note(topic: Topic, draft: Draft, rng: Random, index: int) -> Writte
         reversal,
         fields=_assumption_fields(topic.reversal, topic.reversal_predicate, topic.expiry),
         links=(
-            (ExpectedLink(link_type=LinkType.CONTRADICTS, target_item_id=overturned),)
+            (
+                ExpectedLink(link_type=LinkType.CONTRADICTS, target_item_id=overturned),
+                # Both edges, because the document states both relations and they
+                # are different claims. `contradicts` says the two cannot both be
+                # true, which `ContradictionDetector` finds. `supersedes` says
+                # which one still stands, which is `CuratorAgent`'s question --
+                # and the document answers it in words: "That is no longer true."
+                #
+                # Planted rather than inferred, and the distinction is the one
+                # BACKLOG.md draws for cross-document `estimated_as` edges: this
+                # relation is *stated* in the source, so labelling it is reading
+                # the document rather than fixing the answer before anyone asked
+                # the question.
+                ExpectedLink(link_type=LinkType.SUPERSEDES, target_item_id=overturned),
+            )
             if overturned is not None
             else ()
         ),
         note=(
             "Overturns an assumption stated in an earlier document. The two "
             "predicates permit no common value, so this pair is provable rather "
-            "than a judgement."
+            "than a judgement -- and the note says in words that the earlier "
+            "claim no longer stands, which is a supersedes as well as a "
+            "contradiction."
         ),
     )
     draft.distractor(
