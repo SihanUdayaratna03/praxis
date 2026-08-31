@@ -419,3 +419,19 @@ must not be spent to buy it; cut it to the backlog rather than spend it), the
 store pass, the CLI, and `praxis/eval/fusion.py` plus its four edits.
 `ReviewTriageAgent` is **not** in this phase — `BACKLOG.md` places its first
 consumer in Phase 9.
+
+---
+
+## Phase 9 progress log
+
+One line per component, appended as it landed. Branch
+`feat/phase-9-adversarial-governance`, cut from `main` at `a79dc0e`
+(`v0.8-phase-8` dereferenced through `git ls-remote`, not assumed).
+
+**Three untracked paths carried forward untouched.** `.codex/`, `AGENTS.md` and
+`docs/assets/` were flagged at the Phase 8 handover as deliberately left alone,
+and they still are: still untracked, not committed, not moved, not deleted, and
+the ruff `T201` exemption was **not** widened for them. They cannot affect CI —
+`.github/workflows/ci.yml` runs `actions/checkout`, which materialises committed
+files only, so nothing outside the index is visible to any job. Confirmed rather
+than assumed.
