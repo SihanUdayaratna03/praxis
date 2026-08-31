@@ -649,3 +649,18 @@ been confirmed and passed over, and the answer has not changed.
   against the Phase 5 grammar, checked with `read_adr_predicates` rather than
   assumed — the corpus is now 132 hand-written predicates at a 0.9924 parse
   rate.
+
+- **Eight more corpus topics, taking it to sixteen.** Arithmetic, not taste:
+  eight topics across four templates is thirty-two document shapes, so the
+  sixty-document corpus the phase needs was repeating every shape twice and the
+  extra documents measured nothing. Sixteen gives sixty-four, and `--documents
+  60 --revisions 8` now writes 68 documents with **no repeated topic-and-template
+  pair at all**, checked by listing them rather than assumed. Eight
+  `contradicts` and eight `supersedes` pairs planted, up from four each. New
+  work classes (`frontend`, `security`, `ml`) and three owners who had only been
+  meeting attendees before, so calibration has more than one group to be silent
+  about. `tests/corpus/test_topics.py` is new and is where the risk actually
+  lived — it parametrises over every topic and checks that the reversal
+  predicate's satisfying witness names the same quantity the predicate's
+  violating witness does, which is what makes the planted contradiction settleable
+  by interval arithmetic instead of by a model.
