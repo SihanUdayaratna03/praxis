@@ -36,6 +36,7 @@ from praxis.ingest.adapters import (
 )
 from praxis.ingest.errors import (
     EmptySourceError,
+    IngestionError,
     MalformedSourceError,
     SourceDecodeError,
     UnsupportedSourceError,
@@ -43,11 +44,34 @@ from praxis.ingest.errors import (
 
 AT = datetime(2026, 8, 16, 12, 0, tzinfo=UTC)
 
+
+def _survives_normalisation(body: str) -> bool:
+    """Whether an adapter would accept this body, asked rather than guessed."""
+    try:
+        return normalise_bytes(body.encode("utf-8"), "probe.txt").strip() != ""
+    except IngestionError:
+        return False
+
+
 TEXT_BODIES = st.text(
     alphabet=st.characters(blacklist_categories=("Cs",)),
     min_size=1,
     max_size=200,
-).filter(lambda body: body.strip() != "")
+).filter(_survives_normalisation)
+"""Bodies an adapter is willing to accept, filtered on what normalisation
+actually yields rather than on `str.strip()`.
+
+The two disagree on exactly one character and `hypothesis` found it in CI: a
+body of nothing but `\\ufeff` is non-empty to `str.strip()`, because a BOM is not
+whitespace, and empty after normalisation, because normalisation removes it. The
+adapter then refuses the source -- correctly, since no span could ever address
+it -- and a property about *re-reading* failed on an input that never gets read
+once.
+
+Filtering on `str.strip()` was a proxy for "will survive normalisation" that was
+right about every character but one. Asking normalisation directly removes the
+proxy.
+"""
 
 
 # -- what normalisation does -------------------------------------------------

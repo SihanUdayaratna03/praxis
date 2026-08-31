@@ -515,3 +515,12 @@ than assumed.
   `MockProvider` synthesises about two array entries per call whatever the batch
   holds. The agent reports them as `unjudged` rather than as concessions nobody
   made, which is the refusal working.
+- `tests/ingest/test_adapters.py` — **a pre-existing latent flake `hypothesis`
+  found in CI on this PR**, not a Phase 9 defect and not a product bug.
+  `TEXT_BODIES` filtered on `str.strip() != ""` as a proxy for "will survive
+  normalisation", and the two disagree on exactly one character: a body of
+  nothing but `\ufeff` is non-empty to `strip()` (a BOM is not whitespace) and
+  empty after normalisation (which removes it), so the adapter refuses it —
+  correctly, since no span could ever address it. A property about *re-reading*
+  was failing on an input that never gets read once. The filter now asks
+  normalisation directly instead of guessing.
