@@ -131,6 +131,7 @@ _REGISTRY: Final[Mapping[ModelRole, ModelSpec]] = MappingProxyType(
 # property tests meaningful.
 NON_LLM_AGENTS: Final[frozenset[str]] = frozenset(
     {
+        "AbstentionGate",
         "BiasDetective",
         "CalibratorAgent",
         "CollateralAgent",
@@ -141,9 +142,14 @@ NON_LLM_AGENTS: Final[frozenset[str]] = frozenset(
         "VerifierAgent",
     }
 )
-"""`CuratorAgent` joined this set in Phase 9, `FusionBridge` and
-`CollateralAgent` in Phase 8 and `CalibratorAgent` in Phase 7; none of the four
-started here.
+"""`CuratorAgent` and `AbstentionGate` joined this set in Phase 9, `FusionBridge`
+and `CollateralAgent` in Phase 8 and `CalibratorAgent` in Phase 7; none of the
+five started here.
+
+`AbstentionGate` is the plainest member of the set. Its whole input is a
+confidence, a count of evidence spans, a `Verdict`, a `FindingKind` and a
+boolean, and asking a model whether one number is below another is exactly what
+invariant 3 forbids. See ADR 0032.
 
 `CuratorAgent` is the eighth consecutive component to move to the arithmetic
 side, and it moves for the reason ADR 0026 gave for the bridge: the judgement is
@@ -206,11 +212,12 @@ _ROUTING: Final[Mapping[str, ModelRole]] = MappingProxyType(
         # and the second turned out to be a graph walk Phase 1 had already
         # written. See ADR 0026 and ADR 0027.
         "ReviewTriageAgent": ModelRole.EXTRACT,
-        # Cross-cutting. `CuratorAgent` was assigned `extract` here in Phase 0
-        # and left this table in Phase 9: what it decides is already a record,
-        # written by agents that were paid to judge it. See ADR 0031.
+        # Cross-cutting. `CuratorAgent` and `AbstentionGate` were both assigned
+        # `extract` here in Phase 0 and both left this table in Phase 9: what
+        # the first decides is already a record, written by agents that were
+        # paid to judge it, and what the second decides is two numbers and three
+        # enums. See ADR 0031 and ADR 0032.
         "ChallengerAgent": ModelRole.REASON,
-        "AbstentionGate": ModelRole.EXTRACT,
         "ReporterAgent": ModelRole.EXTRACT,
     }
 )
