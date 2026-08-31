@@ -31,6 +31,7 @@ from typing import Any, Final
 from praxis.eval.calibration import CalibrationScore
 from praxis.eval.estimation import EstimationResult
 from praxis.eval.fusion import FusionScore
+from praxis.eval.governance import GovernanceScore
 from praxis.eval.harness import EvalResult, KindResult
 from praxis.eval.memory import MemoryResult
 from praxis.eval.metrics import CitationIntegrity, MatchScore, PairScore
@@ -87,6 +88,20 @@ FUSION_NOTE = (
 """Printed above the fusion numbers, for the reason `REFUSAL_NOTE` is printed
 above the calibration ones: a reader who meets a column of zeros before the
 sentence explaining them has already formed the wrong conclusion."""
+
+
+GOVERNANCE_NOTE = (
+    "A concede rate needs a challenger that reasons, and offline there is not "
+    "one: MockProvider answers a bare boolean true seven times in ten, so a "
+    "rate produced against it measures schema synthesis. It is printed with "
+    "the provider attached rather than withheld, because withholding it would "
+    "hide that the metric exists. The abstention rate is not a shortfall -- a "
+    "refusal to conclude is this layer's output. The three booleans below are "
+    "what carry a claim."
+)
+"""Printed above the governance numbers, for the reason `FUSION_NOTE` is printed
+above the fusion ones: a reader who meets the concede rate before the sentence
+qualifying it has already concluded something about an agent that never ran."""
 
 
 REFUSAL_NOTE: Final = (
@@ -171,6 +186,7 @@ def as_markdown(
         *_estimation_lines(result.estimation),
         *_calibration_lines(result.calibration),
         *_fusion_lines(result.fusion),
+        *_governance_lines(result.governance),
         *_cost_lines(result.cost),
     ]
     if offline:
@@ -214,6 +230,7 @@ def as_json(result: EvalResult, *, provenance: Mapping[str, str] | None = None) 
         "memory": _memory_data(result.memory),
         "estimation": _estimation_data(result.estimation),
         "calibration": _calibration_data(result.calibration),
+        "governance": _governance_data(result.governance),
         # Strings for the reason the rates are strings: these are `Decimal` and
         # JSON floats would put back the representation invariant 4 excludes.
         "cost_per_document": {agent: str(spent) for agent, spent in sorted(result.cost.items())},
@@ -273,6 +290,101 @@ def _fusion_data(fusion: FusionScore) -> dict[str, Any]:
         "damaging_rate": str(fusion.damaging_rate),
         "stale_findings": fusion.stale_findings,
         "collateral_findings": fusion.collateral_findings,
+    }
+
+
+def _governance_lines(governance: GovernanceScore) -> list[str]:
+    """What the governance layer concluded, rendered.
+
+    Three rates, one answer key and three booleans, in that order of how much
+    they can be trusted.
+
+    The **abstention rate leads** because it is the number this layer exists to
+    produce and the one most likely to be misread as a shortfall. The **concede
+    rate carries its provider on the same line**, because printed bare it is the
+    most misleading number in this whole report -- a reader has no way to tell a
+    challenger's judgement from `_TRUE_BIAS`. **Merge recall is the only
+    comparison against truth here**, and it is stated as one so the other two
+    are not mistaken for scores.
+    """
+    caveat = " *(mock -- see the note above)*" if governance.mock_provider else ""
+    decided = (
+        f"**{governance.concede_rate}** of {governance.decided} decided{caveat}"
+        if governance.decided
+        else "**no measurement** -- nothing was decided"
+    )
+    return [
+        "## Adversarial and governance",
+        "",
+        f"> {GOVERNANCE_NOTE}",
+        "",
+        f"Findings standing: **{governance.findings}**, challenged "
+        f"**{governance.challenged}**, decided **{governance.decided}**.",
+        "",
+        f"Abstention rate: **{governance.abstention_rate}** "
+        f"({governance.abstained} withheld, {governance.emitted} concluded). "
+        f"Concede rate: {decided}.",
+        "",
+        *_insufficiency_lines(governance.by_insufficiency),
+        f"Assumptions curated: **{governance.assumptions}**, retirement rate "
+        f"**{governance.retirement_rate}** ({governance.retirements} retired). "
+        f"Kept because a live decision rests on them: "
+        f"**{governance.kept_under_a_decision}**.",
+        "",
+        f"Merges proposed: **{governance.merges}** of {governance.merges_expected} "
+        f"the corpus labels (recall **{governance.merge_recall}**).",
+        "",
+        f"Verdicts carry their challenge: **{_yes(governance.verdicts_hold)}**. "
+        f"Nothing retired was depended on or deleted: "
+        f"**{_yes(governance.retirements_hold)}**. "
+        f"The gate agrees with its own rules: **{_yes(governance.abstentions_hold)}**.",
+        "",
+    ]
+
+
+def _insufficiency_lines(counted: Mapping[str, int]) -> list[str]:
+    """Which rule withheld how many conclusions.
+
+    Omitted entirely when nothing was withheld, rather than printed as an empty
+    table: a heading over no rows reads as a measurement that failed, and
+    nothing withheld is a real and reportable state.
+    """
+    if not counted:
+        return []
+    return [
+        _row(("withheld because", "findings")),
+        _row(("---", "---")),
+        *(
+            _row((rule, str(count)))
+            for rule, count in sorted(counted.items(), key=lambda pair: (-pair[1], pair[0]))
+        ),
+        "",
+    ]
+
+
+def _governance_data(governance: GovernanceScore) -> dict[str, Any]:
+    """The same numbers as data, for Phase 10's ablation table."""
+    return {
+        "findings": governance.findings,
+        "challenged": governance.challenged,
+        "decided": governance.decided,
+        "conceded": governance.conceded,
+        "concede_rate": str(governance.concede_rate),
+        "mock_provider": governance.mock_provider,
+        "assumptions": governance.assumptions,
+        "merges": governance.merges,
+        "merges_expected": governance.merges_expected,
+        "merge_recall": str(governance.merge_recall),
+        "retirements": governance.retirements,
+        "retirement_rate": str(governance.retirement_rate),
+        "kept_under_a_decision": governance.kept_under_a_decision,
+        "emitted": governance.emitted,
+        "abstained": governance.abstained,
+        "abstention_rate": str(governance.abstention_rate),
+        "by_insufficiency": dict(governance.by_insufficiency),
+        "verdicts_hold": governance.verdicts_hold,
+        "retirements_hold": governance.retirements_hold,
+        "abstentions_hold": governance.abstentions_hold,
     }
 
 

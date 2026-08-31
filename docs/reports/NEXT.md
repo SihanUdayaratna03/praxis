@@ -498,3 +498,20 @@ than assumed.
   `contradicts` already there. Findings and challenges are **not** planted: a
   finding is produced rather than stated, and planting one would grade the
   harness against itself.
+- **`praxis/eval/governance.py`** — the sixth quarter of the metrics table, as a
+  module plus edits to `harness`, `report` and `matching` (OUT-0006's lesson,
+  fourth application). Three rates, **one** answer key and three booleans. The
+  answer key is `merge_recall` against the `supersedes` edges the corpus now
+  plants; the three rates have none. `mock_provider` travels *inside* the score,
+  so the concede rate can never be printed without the sentence that qualifies
+  it. Every boolean tested in **both** directions, including the ones only a
+  monkeypatched gate can falsify — a consistency claim that can only be true is
+  not a claim. 23 tests, **100%**.
+
+  **The mock's concede rate, measured rather than guessed:** over 40 synthetic
+  findings the mock answered about **6**, decided 5 and conceded 1 —
+  **0.2000**, inside the 5%–60% band, and *not evidence about the challenger*.
+  The dominant fact is the other one: 34 of 40 went **unargued**, because
+  `MockProvider` synthesises about two array entries per call whatever the batch
+  holds. The agent reports them as `unjudged` rather than as concessions nobody
+  made, which is the refusal working.
