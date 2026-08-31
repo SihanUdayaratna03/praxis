@@ -335,7 +335,10 @@ def corpus_generate(
     console.print(f"  documents  {len(truth.documents)}, seed {truth.seed}")
     console.print(f"  items      {', '.join(f'{n} {k.value}' for k, n in counts.items())}")
     console.print(f"  negatives  {distractors} distractors")
-    console.print(f"  edges      {_contradictions(truth)} contradicts pairs planted")
+    console.print(
+        f"  edges      {_edges(truth, LinkType.CONTRADICTS)} contradicts, "
+        f"{_edges(truth, LinkType.SUPERSEDES)} supersedes pairs planted"
+    )
 
 
 @app.command()
@@ -468,14 +471,14 @@ def _report(
     console.print(f"  data dir   {settings.data_dir}")
 
 
-def _contradictions(truth: CorpusGroundTruth) -> int:
-    """How many `contradicts` edges the answer key asserts.
+def _edges(truth: CorpusGroundTruth, link_type: LinkType) -> int:
+    """How many edges of one type the answer key asserts.
 
-    Reported because it is the number that decides whether a contradiction
-    metric means anything: before the revision notes existed the corpus had
-    none, and a detector finding nothing scored the same as one finding
-    everything.
+    Reported because it is the number that decides whether the metric over that
+    edge means anything: before the revision notes existed the corpus had no
+    `contradicts` pairs, and a detector finding nothing scored the same as one
+    finding everything. The same is true of `supersedes` and `CuratorAgent`,
+    which is why Phase 9 planted those too -- both come from the same revision
+    note, which states both relations in words.
     """
-    return sum(
-        1 for item in truth.items for link in item.links if link.link_type is LinkType.CONTRADICTS
-    )
+    return sum(1 for item in truth.items for link in item.links if link.link_type is link_type)

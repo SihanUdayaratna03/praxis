@@ -488,3 +488,13 @@ than assumed.
   gate retirements it had only proposed; and the whole argument section vanished
   on a dry run, so a reader was left to infer from a missing heading that no
   verdict had been reached.
+- **The corpus gains one edge type** (`praxis/corpus/templates.py`). Checked
+  before assuming a gap, the discipline Phases 5 and 6 both applied: the offline
+  pipeline was run end to end first, and it extracts **1 decision, 0 assumptions,
+  0 findings** from 16 documents, because ADR 0016's citation gate refuses 38 of
+  40 claims. So every Phase 9 corpus number is a correct zero. What the corpus
+  *does* hold is 4 revision notes, each saying in words that an earlier
+  assumption no longer stands — a stated `supersedes`, planted beside the
+  `contradicts` already there. Findings and challenges are **not** planted: a
+  finding is produced rather than stated, and planting one would grade the
+  harness against itself.
