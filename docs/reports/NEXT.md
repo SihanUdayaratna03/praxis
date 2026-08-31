@@ -464,3 +464,12 @@ than assumed.
   `praxis.agents.calibration` makes about a factor, and it is what keeps this
   phase migration-free on the third axis. Ninth consecutive component on the
   arithmetic side. 25 tests, **100%**.
+- **`govern_store`** (`praxis/agents/governance.py`). All three agents over a
+  store, in an order that cannot move: the gate reads the verdict the challenger
+  writes, and it re-reads the store *after* curation so a finding about an
+  assumption this very pass retracted is not concluded on. **A second pass over
+  an unchanged store writes nothing and costs no model call**, because the
+  challenger refuses to re-argue a decided finding. **A merge does not retract
+  the loser** — the `supersedes` edge is the whole claim, and withdrawing the
+  earlier record would take half of every revision out of `list_all`. 21 tests,
+  **100%**.
