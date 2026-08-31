@@ -36,7 +36,7 @@ import pytest
 from praxis.agents.errors import Refusal
 from praxis.agents.results import DocumentExtraction, ExtractionRun, Refused, Stage
 from praxis.config.settings import Settings
-from praxis.corpus.generator import generate_corpus
+from praxis.corpus.generator import Controls, generate_corpus
 from praxis.corpus.groundtruth import (
     DOCUMENTS_DIRNAME,
     CorpusGroundTruth,
@@ -80,7 +80,16 @@ def corpus(tmp_path_factory: pytest.TempPathFactory) -> Path:
     root = tmp_path_factory.mktemp("corpus")
     # revisions=0: this file grades Half A's extraction, and the revision
     # notes are ground truth for ContradictionDetector rather than for it.
-    generate_corpus(root, documents=DOCUMENTS, revisions=0, seed=SEED, generated_at=AT)
+    # Phase 10's controls are off here for the same reason, and are graded in
+    # tests/eval/test_ablation.py where they are the subject.
+    generate_corpus(
+        root,
+        documents=DOCUMENTS,
+        revisions=0,
+        controls=Controls(clean=0, adversarial=0, orphans=0),
+        seed=SEED,
+        generated_at=AT,
+    )
     return root
 
 

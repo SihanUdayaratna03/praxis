@@ -664,3 +664,21 @@ been confirmed and passed over, and the answer has not changed.
   predicate's satisfying witness names the same quantity the predicate's
   violating witness does, which is what makes the planted contradiction settleable
   by interval arithmetic instead of by a model.
+
+- **The corpus gained its controls, and the default corpus is now 82 documents.**
+  `praxis/corpus/controls.py` is new and holds three passes that run after the
+  revisions: six **clean controls** (an on-call handover, a deploy log) with
+  *zero* ground-truth items, so anything extracted from one is a false positive
+  outright; four **adversarial memos** where all five extractable-looking
+  sentences are labelled negatives — a conditional, a deferral, another team's
+  decision, a refused proposal and a question; and four **orphan notes**, each
+  stating one real assumption that no `assumes` edge anywhere points at, which
+  is the retirement candidate `CuratorAgent` has never had a denominator for.
+  `DEFAULT_DOCUMENTS` 12 → 60, `DEFAULT_REVISIONS` 4 → 8, and the counts are
+  grouped into a `Controls` object so `generate_corpus` keeps a signature a
+  person can read. `GENERATOR_VERSION` 3 → 4, because the generated text
+  changed. Two of the sixteen predicted refusal paths were real and are now
+  closed: a zero-item document is a shape `_document_problems` had never seen,
+  and a negative control count is refused rather than clamped. The other
+  prediction held too — `GroundTruthItem`'s validator does refuse fields on a
+  distractor, so the adversarial memo plants none.
