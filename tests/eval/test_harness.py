@@ -281,6 +281,21 @@ def test_the_fusion_denominator_is_the_edges_the_corpus_labels(corpus, truth):
     assert result.fusion_expected == labelled > 0
 
 
+def test_the_fusion_numerator_counts_only_labelled_pairs(corpus):
+    """A recall over 1 is not a recall.
+
+    The numerator used to be every `estimated_as` edge in the store, which was
+    invisible for six phases because no offline run ever wrote more edges than
+    the key holds. Phase 10's coherently-citing mock writes plenty, and the
+    ratio came out at 9.3333.
+    """
+    result = evaluated(corpus)
+
+    assert result.fusion_found <= result.fusion_expected
+    assert result.fusion_found <= result.fusion_written
+    assert result.fusion_recall <= 1
+
+
 def test_the_offline_provider_is_refused_more_often_than_it_is_believed(corpus):
     """ADR 0016's claim, asserted rather than left to the report's caveat.
 

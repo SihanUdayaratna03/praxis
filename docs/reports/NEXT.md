@@ -726,3 +726,17 @@ been confirmed and passed over, and the answer has not changed.
   by the number the corpus labels, so now that spurious edges exist it reports
   **9.3333**. A ratio over 1 is not a recall. It was latent for six phases
   because nothing offline ever wrote more edges than the key had.
+
+- **Fusion recall counts only the labelled pairs an edge really reached.** The
+  defect the previous commit exposed. The numerator was every `estimated_as`
+  edge in the store and the denominator was the number the corpus labels, so
+  the two were over different sets — a ratio that can exceed 1, and did, at
+  **9.3333**. It joins through the assumption and estimate pairings now, which
+  is the same join `praxis.eval.memory` already makes for the same reason: the
+  store's ids and the key's ids are allocated independently and nothing relates
+  them but the passage both cite. The total edges written are still reported,
+  beside the recall rather than inside it, because an edge the key does not
+  label is unjudgeable rather than wrong. Recall on the probe corpus is now
+  **0 of 3** against 28 edges written, which is the honest reading: the mock's
+  citations are coherent but the passage is still drawn at random, so no edge
+  joins the right assumption to the right estimate.

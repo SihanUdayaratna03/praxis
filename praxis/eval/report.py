@@ -125,6 +125,16 @@ AGED_NOTE: Final = (
 """Printed beside the count, because a zero with no explanation reads as a
 column nobody filled in."""
 
+UNLABELLED_EDGE_NOTE: Final = (
+    "An edge the key does not label is unjudgeable rather than wrong -- the corpus "
+    "labels the fusion edges it constructed, not every one that could truthfully be "
+    "asserted. So the recall above counts only the labelled pairs an edge really "
+    "reached, and this counts everything the layer wrote."
+)
+"""Why the two fusion numbers differ. Before Phase 10 the recall's numerator was
+this count, which made it a ratio that could exceed 1 -- and did, the first time
+a run wrote more edges than the key holds."""
+
 UNNAMED_NOTE: Final = (
     "not false positives. The corpus labels the contradictions it planted, so a "
     "pair it never labelled is unjudgeable rather than wrong."
@@ -178,6 +188,8 @@ def as_markdown(
         f"{result.fusion_expected} the corpus labels "
         f"(recall **{result.fusion_recall}**).",
         "",
+        f"Edges written in total: **{result.fusion_written}**. {UNLABELLED_EDGE_NOTE}",
+        "",
         f"Documents graded: {result.documents}. "
         f"Model calls: {result.run.calls}. "
         f"Windows never answered about: {result.run.blind_windows}.",
@@ -223,6 +235,7 @@ def as_json(result: EvalResult, *, provenance: Mapping[str, str] | None = None) 
         # conclude the other was not measured.
         "fusion": {
             "found": result.fusion_found,
+            "written": result.fusion_written,
             "expected": result.fusion_expected,
             "recall": str(result.fusion_recall),
             **_fusion_data(result.fusion),

@@ -129,7 +129,14 @@ class EvalResult:
         run: What the extraction produced, refusals included.
         kinds: One result per graded kind, in `GRADED_KINDS` order.
         citations: How honest the citations were, and how they failed.
-        fusion_found: `estimated_as` edges written.
+        fusion_found: `estimated_as` edges written that land on a pair the
+            corpus labels. Joined through the assumption and estimate pairings,
+            because the store's ids and the key's ids are allocated
+            independently and nothing relates them but the passage both cite.
+        fusion_written: Every `estimated_as` edge in the store, labelled or
+            not. Reported beside the recall rather than as its numerator: an
+            edge the key does not label is not thereby wrong, so counting all
+            of them would give a ratio that can exceed 1 and is not a recall.
         fusion_expected: `estimated_as` edges the corpus labels.
         documents: How many documents were graded.
         memory: What the formalization, monitoring and detection passes
@@ -160,6 +167,9 @@ class EvalResult:
     fusion_found: int
     fusion_expected: int
     documents: int
+    fusion_written: int = 0
+    """Defaulted, unlike its neighbours, so a caller building a result by hand
+    to test the rendering does not have to supply a number it is not testing."""
     memory: MemoryResult = field(default_factory=MemoryResult)
     estimation: EstimationResult = field(default_factory=EstimationResult)
     calibration: CalibrationScore = field(default_factory=CalibrationScore)
@@ -219,7 +229,8 @@ def grade(  # noqa: PLR0913 -- one argument per source the table reads from
         run=run,
         kinds=kinds,
         citations=citation_integrity(run.refused, offered=len(claims)),
-        fusion_found=sum(
+        fusion_found=len(_fusion_found(repository, kinds, truth)),
+        fusion_written=sum(
             1 for link in repository.list_all(Link) if link.link_type is LinkType.ESTIMATED_AS
         ),
         fusion_expected=len(fusion_pairs(truth)),
@@ -503,6 +514,35 @@ def _graded(claims: tuple[Claim, ...], truth: CorpusGroundTruth, kind: ItemKind)
     return KindResult(
         pairing=pairing, score=score(pairing, kind), exact=exact_matches(pairing.matched)
     )
+
+
+def _fusion_found(
+    repository: Repository, kinds: tuple[KindResult, ...], truth: CorpusGroundTruth
+) -> set[tuple[str, str]]:
+    """The labelled `estimated_as` pairs an edge in the store really reaches.
+
+    An edge names two record ids; the key names two item ids. The two pairings
+    are the only thing that relates them, so an edge whose either end was never
+    paired cannot be judged and is not counted here -- it is counted in
+    `fusion_written` instead.
+    """
+    items = _item_ids(kinds, ItemKind.ASSUMPTION) | _item_ids(kinds, ItemKind.ESTIMATE)
+    expected = set(fusion_pairs(truth))
+    found = {
+        (items[link.source_id], items[link.target_id])
+        for link in repository.list_all(Link)
+        if link.link_type is LinkType.ESTIMATED_AS
+        and link.source_id in items
+        and link.target_id in items
+    }
+    return found & expected
+
+
+def _item_ids(kinds: tuple[KindResult, ...], kind: ItemKind) -> dict[str, str]:
+    """Record id to answer-key item id, for one kind's matched pairs."""
+    return {
+        match.claim.record_id: match.item.item_id for match in _pairing_for(kinds, kind).matched
+    }
 
 
 def _pairing_for(kinds: tuple[KindResult, ...], kind: ItemKind) -> Pairing:
