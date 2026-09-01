@@ -13,7 +13,7 @@ from datetime import timedelta
 import pytest
 from praxis.domain.enums import AssumptionStatus, RecordKind, Severity, Verdict
 from praxis.domain.ids import NodeId
-from praxis.domain.records import Assumption, Decision
+from praxis.domain.records import Assumption, Decision, Estimate
 from praxis.store import dashboard, drilldown
 from praxis.store.repository import Repository
 
@@ -280,3 +280,40 @@ def test_the_estimate_drill_down_carries_its_outcome_and_what_leaned_on_it(
 
 def test_the_estimate_drill_down_is_none_for_an_unknown_id(store: Repository, world: World):
     assert drilldown.estimate_detail(store, NodeId("EST-9999")) is None
+
+
+class TestARetractedRecordUnderneath:
+    """The two branches that fire when the graph outlives what it points at.
+
+    An edge is never retracted with its target, so a retracted assumption or
+    estimate leaves an edge pointing at a record the store no longer stands
+    behind. The drill-down has to walk past it rather than raise.
+    """
+
+    def test_a_retracted_assumption_drops_out_of_the_chain(self, store: Repository, world: World):
+        store.retract(
+            Assumption,
+            world.assumption.id,
+            actor=ACTOR,
+            reason="withdrawn by the curator",
+            at=WRITTEN_AT,
+        )
+        detail = drilldown.decision_detail(store, world.decision.id)
+        assert detail is not None
+        assert detail.lines == (), "the assumes edge still exists and must be walked past"
+
+    def test_a_retracted_estimate_leaves_the_line_without_one(
+        self, store: Repository, world: World
+    ):
+        store.retract(
+            Estimate,
+            world.estimate.id,
+            actor=ACTOR,
+            reason="superseded by a re-scoped estimate",
+            at=WRITTEN_AT,
+        )
+        detail = drilldown.decision_detail(store, world.decision.id)
+        assert detail is not None
+        assert len(detail.lines) == 1
+        assert detail.lines[0].estimate is None
+        assert detail.lines[0].outcome is None

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from praxis.domain.base import VersionedRecord
 from praxis.domain.enums import AssumptionStatus
 from praxis.domain.ids import NodeId
 from praxis.domain.links import LinkType
@@ -73,14 +74,14 @@ def decision_detail(repository: Repository, decision_id: NodeId) -> DecisionDeta
     Returns `None` when no current decision has that id, so a route can answer
     404 without a second lookup.
     """
-    decision = repository.get(Decision, decision_id)
+    decision = _standing(repository.get(Decision, decision_id))
     if decision is None:
         return None
     outcomes = {o.estimate_id: o for o in repository.list_all(Outcome)}
     findings = repository.list_all(Finding)
     lines = []
     for edge in repository.links_from(decision_id, [LinkType.ASSUMES]):
-        assumption = repository.get(Assumption, edge.target_id)
+        assumption = _standing(repository.get(Assumption, edge.target_id))
         if assumption is None:
             continue
         estimate = _estimate_behind(repository, assumption.id)
@@ -103,10 +104,21 @@ def decision_detail(repository: Repository, decision_id: NodeId) -> DecisionDeta
 def _estimate_behind(repository: Repository, assumption_id: NodeId) -> Estimate | None:
     """The estimate an assumption turned out to be, if the fusion edge exists."""
     for edge in repository.links_from(assumption_id, [LinkType.ESTIMATED_AS]):
-        estimate = repository.get(Estimate, edge.target_id)
+        estimate = _standing(repository.get(Estimate, edge.target_id))
         if estimate is not None:
             return estimate
     return None
+
+
+def _standing[R: VersionedRecord](record: R | None) -> R | None:
+    """Drop a record the store no longer stands behind.
+
+    `Repository.get` returns a retracted record rather than `None`, and an edge
+    is not retracted with its target -- so an edge outlives what it points at.
+    The list views filter retracted rows in SQL; these walks have to do the
+    same or the drill-down would show what the index does not count.
+    """
+    return None if record is None or record.retracted else record
 
 
 # --- the estimate drill-down -----------------------------------------------
@@ -134,14 +146,14 @@ class EstimateDetail:
 
 def estimate_detail(repository: Repository, estimate_id: NodeId) -> EstimateDetail | None:
     """One estimate with its outcome and everything that rested on it."""
-    estimate = repository.get(Estimate, estimate_id)
+    estimate = _standing(repository.get(Estimate, estimate_id))
     if estimate is None:
         return None
     outcome = next((o for o in repository.list_all(Outcome) if o.estimate_id == estimate_id), None)
     assumptions = tuple(
         found
         for edge in repository.links_to(estimate_id, [LinkType.ESTIMATED_AS])
-        if (found := repository.get(Assumption, edge.source_id)) is not None
+        if (found := _standing(repository.get(Assumption, edge.source_id))) is not None
     )
     return EstimateDetail(
         estimate=estimate,
