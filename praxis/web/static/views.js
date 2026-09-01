@@ -360,6 +360,80 @@
       </div>`;
   }
 
+  // --- the reasoning panel -------------------------------------------------
+
+  // Phase 2 has recorded every model call since the first agent ran. This is
+  // the first thing to show one.
+  async function reasoning() {
+    const data = await api("/api/traces?limit=40");
+    if (!data.total) {
+      view.innerHTML =
+        head("Reasoning", "no model call has been recorded in this store") +
+        panel(
+          "Nothing to show, and that is the correct answer",
+          `<p class="panel-note">Every model call is written to the trace store with the exact
+             request, the raw answer and what it cost. This store was seeded deterministically —
+             <code>praxis demo seed</code> calls no model — so there is nothing to read.
+             Run <code>praxis extract</code> or <code>praxis estimates</code> and this panel
+             fills with what each agent was actually asked and actually said.</p>`,
+        );
+      return;
+    }
+    const rows = data.traces
+      .map(
+        (t) => `<details class="trace">
+          <summary>
+            <span class="agent">${esc(t.agent)}</span>
+            <span class="dim">${esc(t.task)}</span>
+            <span class="faint">${esc(t.provider)} · ${esc(t.model_id)}</span>
+            <span class="count faint" style="font-weight:400">
+              ${esc(t.outcome)} · ${t.latency_ms}ms · $${esc(t.cost_usd)}</span>
+          </summary>
+          <pre>${esc(t.request_json)}</pre>
+          <pre>${esc(t.response_text || t.error || "(no answer)")}</pre>
+        </details>`,
+      )
+      .join("");
+    view.innerHTML =
+      head(`${data.total} model call(s)`, `${data.runs.length} run(s) · newest first`) +
+      panel("What every agent was asked, and what it said", rows);
+  }
+
+  // --- the audit timeline --------------------------------------------------
+
+  async function timeline() {
+    const data = await api("/api/timeline?limit=200");
+    if (!data.events.length) {
+      view.innerHTML = head("Audit trail", "nothing written yet") + empty("The store is empty.");
+      return;
+    }
+    const rows = data.events
+      .map(
+        (e) => `<tr>
+          <td class="faint">${esc(e.occurred_at.replace("T", " ").slice(0, 19))}</td>
+          <td><span class="item-id">${esc(e.entity_id)}</span></td>
+          <td>${esc(e.entity_kind)}</td>
+          <td class="dim">${esc(e.action)}</td>
+          <td class="num">v${e.entity_version}</td>
+          <td>${esc(e.reason)}</td>
+          <td class="faint">${esc(e.actor)}</td>
+        </tr>`,
+      )
+      .join("");
+    view.innerHTML =
+      head(
+        `${data.total} write(s)`,
+        `showing ${data.events.length}, newest first · append-only, nothing here is ever revised`,
+      ) +
+      panel(
+        "Every write this store has recorded",
+        `<div class="scroller"><table class="table">
+           <thead><tr><th>When</th><th>Record</th><th>Kind</th><th>Action</th>
+             <th class="num">Version</th><th>Why</th><th>Actor</th></tr></thead>
+           <tbody>${rows}</tbody></table></div>`,
+      );
+  }
+
   window.views = {
     ...(window.views || {}),
     decisions,
@@ -369,5 +443,7 @@
     assumptions,
     estimates,
     estimate,
+    reasoning,
+    timeline,
   };
 })();
