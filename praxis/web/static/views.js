@@ -211,5 +211,163 @@
       </div>`;
   }
 
-  window.views = { ...(window.views || {}), decisions, decision, calibration };
+  // --- the review queue ----------------------------------------------------
+
+  async function queue() {
+    const rows = await api("/api/queue");
+    if (!rows.length) {
+      view.innerHTML =
+        head("Review queue", "nothing needs a person") +
+        panel(
+          "Empty",
+          `<p class="panel-note">No finding is standing. Run <code>praxis monitor</code> to
+             evaluate the predicates, or <code>praxis fuse</code> to price the assumptions that
+             are estimates in disguise.</p>`,
+        );
+      return;
+    }
+    const undecided = rows.filter((r) => r.finding.verdict === "undecided").length;
+    view.innerHTML =
+      head(`${rows.length} finding(s)`, `${undecided} not yet challenged · most severe first`) +
+      `<div class="stack">${rows
+        .map(
+          (item) => `<section class="panel"><div class="prov" style="padding:var(--s5)">
+            <div class="item-meta" style="margin-top:0">
+              <span class="tag tag-${esc(item.finding.severity)}">${esc(item.finding.severity)}</span>
+              <span>${esc(item.finding.kind.replaceAll("_", " "))}</span>
+              <span>${esc(item.finding.subject_id)}</span>
+              <span>${esc(item.finding.verdict)}</span>
+              <span>${esc(day(item.finding.detected_at))}</span>
+            </div>
+            <p style="margin-top:var(--s4);font-weight:600">${esc(item.subject_label)}</p>
+            <p class="sentence" style="margin-top:var(--s3)">${esc(item.finding.prosecution)}</p>
+            ${
+              item.finding.challenge
+                ? `<p class="panel-note" style="padding:var(--s4) 0 0">
+                     <strong>Challenged:</strong> ${esc(item.finding.challenge)}</p>`
+                : `<p class="panel-note" style="padding:var(--s4) 0 0">
+                     Not yet challenged. <code>praxis govern</code> argues against a finding
+                     before a person sees it.</p>`
+            }
+          </div></section>`,
+        )
+        .join("")}</div>`;
+  }
+
+  // --- assumptions ---------------------------------------------------------
+
+  async function assumptions() {
+    const rows = await api("/api/assumptions");
+    const counted = rows.reduce((acc, a) => ({ ...acc, [a.status]: (acc[a.status] || 0) + 1 }), {});
+    const body = rows
+      .map(
+        (a) => `<tr>
+          <td><span class="item-id">${esc(a.id)}</span></td>
+          <td>${esc(a.statement)}</td>
+          <td><code>${esc(a.predicate)}</code></td>
+          <td><code class="faint">${esc(a.expiry_condition)}</code></td>
+          <td class="is-${esc(a.status)}">${esc(a.status)}</td>
+        </tr>`,
+      )
+      .join("");
+    view.innerHTML =
+      head(
+        `${rows.length} assumptions`,
+        Object.entries(counted)
+          .map(([k, n]) => `${n} ${k}`)
+          .join(" · "),
+      ) +
+      panel(
+        "Every predicate the store holds",
+        `<div class="scroller"><table class="table">
+           <thead><tr><th>Id</th><th>Statement</th><th>Predicate</th>
+             <th>Expires when</th><th>Status</th></tr></thead>
+           <tbody>${body}</tbody></table></div>`,
+      );
+  }
+
+  // --- estimates -----------------------------------------------------------
+
+  async function estimates() {
+    const rows = await api("/api/estimates");
+    const body = rows
+      .map(
+        (e) => `<tr>
+          <td><a href="#estimates/${esc(e.id)}"><span class="item-id">${esc(e.id)}</span></a></td>
+          <td>${esc(e.subject.slice(0, 110))}${e.subject.length > 110 ? "…" : ""}</td>
+          <td>${esc(e.work_class)}</td>
+          <td class="num">${esc(e.active_quantity)}</td>
+          <td class="num">${esc(e.blocked_quantity)}</td>
+          <td class="num">${Number(e.confidence).toFixed(2)}</td>
+          <td>${esc(day(e.estimated_at))}</td>
+        </tr>`,
+      )
+      .join("");
+    view.innerHTML =
+      head(`${rows.length} estimates`, "every prediction, logged before the work")+
+      panel(
+        "Predictions",
+        `<div class="scroller"><table class="table">
+           <thead><tr><th>Id</th><th>Subject</th><th>Class</th><th class="num">Active</th>
+             <th class="num">Blocked</th><th class="num">Confidence</th><th>Logged</th></tr></thead>
+           <tbody>${body}</tbody></table></div>`,
+      );
+  }
+
+  async function estimate(id) {
+    const detail = await api(`/api/estimates/${encodeURIComponent(id)}`);
+    const e = detail.estimate;
+    const o = detail.outcome;
+    const conditions = e.conditions.length
+      ? e.conditions.map((c) => `<div class="row">${esc(c)}</div>`).join("")
+      : empty("No conditions recorded.");
+    const impacted = detail.impacted.length
+      ? detail.impacted
+          .map(
+            (n) => `<div class="row"><span class="item-id">${esc(n.id)}</span>
+              <span class="dim">${esc(n.kind)}</span>
+              <span class="count faint" style="font-weight:400">${n.depth} hop(s)</span></div>`,
+          )
+          .join("")
+      : empty("Nothing recorded rests on this estimate.");
+    const result = o
+      ? `<div class="lens">
+           <div><span class="lens-k">Predicted</span>
+             <span class="lens-v">${esc(e.active_quantity)}</span></div>
+           <div><span class="lens-k">Actual</span>
+             <span class="lens-v">${esc(o.active_quantity ?? "—")}</span></div>
+           <div><span class="lens-k">Blocked</span>
+             <span class="lens-v">${esc(o.blocked_quantity ?? "—")}</span></div>
+           <div><span class="lens-k">Quality</span>
+             <span class="lens-v" style="font-size:16px">${esc(o.match_quality)}</span></div>
+         </div>
+         <p class="panel-note">${esc(o.notes || "No notes recorded.")}</p>`
+      : empty("Nothing has answered this estimate yet.");
+
+    view.innerHTML =
+      `<div class="list-head"><h2>${esc(e.id)}</h2>
+        <span class="faint">${esc(e.work_class)} · ${esc(e.owner)} · ${esc(day(e.estimated_at))}</span>
+      </div>
+      <div class="grid">
+        <div class="stack">
+          ${panel("Subject", `<div class="panel-note">${esc(e.subject)}</div>`)}
+          ${panel("What happened", result)}
+          ${panel("Conditions it assumed", conditions)}
+        </div>
+        <div class="stack span-rest">
+          ${panel("What rests on it", impacted)}
+        </div>
+      </div>`;
+  }
+
+  window.views = {
+    ...(window.views || {}),
+    decisions,
+    decision,
+    calibration,
+    queue,
+    assumptions,
+    estimates,
+    estimate,
+  };
 })();
