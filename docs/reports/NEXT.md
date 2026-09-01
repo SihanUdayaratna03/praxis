@@ -847,3 +847,19 @@ been confirmed and passed over, and the answer has not changed.
   three rungs write findings rather than claims, which is why a findings column
   exists, and that the citation gate is not a rung because invariant 6 has no
   off switch.
+
+- **The ladder's first run breached an assumption from Phase 3, which is the
+  point of having built it.** ADR 0011 assumption 1 says block grouping beats
+  the paragraph floor by `segmenter_f1 - paragraph_floor_f1 >= 0.05`, and its
+  expiry is `when(phases_completed >= 10)` — this phase. The floor and the
+  learned segmenter produce **byte-identical** counts: 38 true positives, 408
+  false positives, 124 false negatives, F1 **0.1250** both. The difference is
+  **0.0000**, and `praxis.predicates` evaluates the predicate to `Truth.FALSE`
+  — checked through the shipped evaluator rather than by eye. The segmenter's
+  only measured effect is **82 extra model calls**.
+
+  **It is not being recorded as false about the world.** Offline the segmenter's
+  grouping is synthesised by the mock rather than reasoned, so this is evidence
+  about `praxis.llm.synthesis`. What it does close is the excuse: the number was
+  unmeasurable before this phase and is measurable now, and it is not in the
+  assumption's favour. In `BACKLOG.md` for re-measurement on the first live run.
