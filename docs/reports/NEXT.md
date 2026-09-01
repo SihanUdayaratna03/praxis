@@ -766,3 +766,20 @@ been confirmed and passed over, and the answer has not changed.
   lives in its own module so `harness` and `ablation` can share it without
   importing each other. The floor rung spends nothing on the segmenter, which
   is what keeps the cost column comparable between rungs.
+
+- **ADR 0035 — the ablation ladder is cumulative.** Rung 1 is the floor with
+  extraction alone, each rung adds one component, and the top rung is the
+  ordinary graded run. Leave-one-out was rejected for a real reason rather than
+  a stylistic one: the stages are ordered by dependency — the monitor needs
+  compiled predicates, fusion needs calibrated factors, governance needs
+  findings — so removing a middle component prints a difference about the
+  missing dependency rather than about the component. A store per rung, because
+  a rung reading what an earlier rung wrote would grade a pipeline nobody ran.
+  The citation gate is *not* a rung: invariant 6 has no off switch, and ADR 0034
+  already settled that its contribution is counterfactual.
+
+- **ADR predicate parse rate, re-checked after 0033, 0034 and 0035 landed:
+  139 of 140, `0.9929`.** ADR 0001's first assumption asks for `>= 0.9` and it
+  holds. All 140 expiry conditions parse. The single unreadable row is still
+  ADR 0015's `mis_attribution_rate / fabrication_rate outside [0.5, 2.0]`,
+  which is prose in a predicate column rather than a grammar gap.
