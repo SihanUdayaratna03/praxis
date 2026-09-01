@@ -32,6 +32,7 @@ from typing import Final
 
 from praxis.agents.errors import Refusal
 from praxis.agents.results import Refused, Stage
+from praxis.agents.scoring import Backtest
 from praxis.corpus.groundtruth import ItemKind
 from praxis.domain.enums import AssumptionStatus
 from praxis.eval.matching import Match, Pairing
@@ -561,3 +562,47 @@ def cost_per_document(spent: Mapping[str, Decimal], documents: int) -> dict[str,
     return {
         agent: (total / Decimal(documents)).quantize(COST_PLACES) for agent, total in spent.items()
     }
+
+
+@dataclass(frozen=True, slots=True)
+class MaeImprovement:
+    """The brief's calibration MAE improvement: error before and after.
+
+    Errors are mean absolute *log* ratios, the scale `ScoringAgent` works in.
+
+    Attributes:
+        scored: Rows a correction existed for. Zero means not measured.
+        before: Mean absolute log error of the raw estimates.
+        after: The same after the fitted factor was applied.
+    """
+
+    scored: int = 0
+    before: Decimal = EMPTY
+    after: Decimal = EMPTY
+
+    @property
+    def measured(self) -> bool:
+        """Whether anything was scored. Keeps "not measured" apart from "no change"."""
+        return self.scored > 0
+
+    @property
+    def absolute(self) -> Decimal:
+        """How much the error fell. Negative means the correction hurt."""
+        return (self.before - self.after).quantize(RATE_PLACES)
+
+    @property
+    def relative(self) -> Decimal:
+        """The same as a share of the error there was to remove.
+
+        Zero when there was none -- an improvement on no error is undefined.
+        """
+        if self.before == 0:
+            return _quantized(EMPTY)
+        return _quantized((self.before - self.after) / self.before)
+
+
+def mae_improvement(backtest: Backtest) -> MaeImprovement:
+    """Read a prequential walk's two errors as the brief's metric."""
+    return MaeImprovement(
+        scored=backtest.scored, before=backtest.raw_error, after=backtest.corrected_error
+    )

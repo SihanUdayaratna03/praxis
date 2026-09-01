@@ -740,3 +740,13 @@ been confirmed and passed over, and the answer has not changed.
   **0 of 3** against 28 edges written, which is the honest reading: the mock's
   citations are coherent but the passage is still drawn at random, so no edge
   joins the right assumption to the right estimate.
+
+- **Calibration MAE improvement is a reading of the backtest, not new
+  arithmetic.** The brief names it; `Backtest` already carried `raw_error` and
+  `corrected_error` over the same scored rows, so `mae_improvement` reports the
+  gap both ways — absolute and as a share of the error there was to remove — and
+  keeps `measured` beside them. `scored == 0` has to stay distinguishable from a
+  correction that changed nothing, because offline no group reaches
+  `MINIMUM_SAMPLE` and both would print zero. The improvement is signed on
+  purpose: a calibrator that made estimates worse is the failure the metric
+  exists to catch.
