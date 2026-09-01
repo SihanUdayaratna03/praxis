@@ -1,0 +1,309 @@
+/* The dashboard. Layout follows docs/assets/phase-11-praxis-dashboard.webp:
+ * a fixed left rail, a header strip with status chips, and a dense grid. */
+
+body {
+  overflow: hidden;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  height: 100vh;
+}
+
+/* --- the left rail ------------------------------------------------------- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border-right: 1px solid var(--line);
+}
+
+.rail-head {
+  padding: var(--s5) var(--s5) var(--s6);
+}
+
+.rail nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--s3);
+}
+
+.rail a {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: 11px var(--s4);
+  border-radius: var(--radius);
+  border-left: 2px solid transparent;
+  color: var(--text-dim);
+  font-size: 14.5px;
+  transition: background 0.14s, color 0.14s;
+}
+
+.rail a:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.rail a.on {
+  background: var(--blue-wash);
+  border-left-color: var(--blue);
+  color: var(--text);
+  font-weight: 550;
+}
+
+.rail a svg {
+  flex: none;
+  opacity: 0.85;
+}
+
+.rail-foot {
+  margin-top: auto;
+  padding: var(--s5);
+  border-top: 1px solid var(--line);
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+/* --- the header ---------------------------------------------------------- */
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  padding: var(--s5) var(--s6);
+  border-bottom: 1px solid var(--line);
+}
+
+.top h1 {
+  font-size: 21px;
+}
+
+.top .sub {
+  margin-top: 3px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.chips {
+  display: flex;
+  gap: var(--s2);
+  margin-left: auto;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--blue-wash);
+  border: 1px solid rgba(43, 127, 255, 0.4);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* --- the scrolling body -------------------------------------------------- */
+
+.view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s5) var(--s6) var(--s7);
+}
+
+.view h2 {
+  font-size: 17px;
+  margin-bottom: var(--s4);
+}
+
+.loading {
+  padding: var(--s7);
+  color: var(--text-faint);
+}
+
+/* --- KPI cards ----------------------------------------------------------- */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s4);
+  margin-bottom: var(--s5);
+}
+
+@media (max-width: 1180px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.kpi {
+  position: relative;
+  padding: var(--s5);
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.kpi-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.kpi-glyph {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0.9;
+}
+
+.kpi .n {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.kpi .k {
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.kpi .spark {
+  display: block;
+  margin-top: var(--s5);
+}
+
+/* --- the panel grid ------------------------------------------------------ */
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr) minmax(0, 0.85fr);
+  gap: var(--s4);
+  align-items: start;
+}
+
+@media (max-width: 1500px) {
+  .grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+
+  .grid > .span-rest {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1080px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stack {
+  display: grid;
+  gap: var(--s4);
+}
+
+.panel-body {
+  padding: var(--s5);
+}
+
+.panel-note {
+  padding: var(--s5);
+  color: var(--text-faint);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.view-all {
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+.view-all:hover {
+  color: var(--teal);
+}
+
+/* --- rows ---------------------------------------------------------------- */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: 13px var(--s5);
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row .count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+a.row {
+  color: inherit;
+  transition: background 0.14s;
+}
+
+a.row:hover {
+  background: var(--bg-hover);
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.tag-high,
+.tag-critical {
+  background: var(--red-wash);
+  color: var(--red);
+}
+
+.tag-medium {
+  background: var(--amber-wash);
+  color: var(--amber);
+}
+
+.tag-low {
+  background: var(--bg-hover);
+  color: var(--text-dim);
+}
+
+.empty {
+  padding: var(--s6) var(--s5);
+  color: var(--text-faint);
+  font-size: 13.5px;
+  text-align: center;
+}
