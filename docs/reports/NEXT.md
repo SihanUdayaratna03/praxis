@@ -1202,3 +1202,42 @@ invalidated by real evidence. Surface that as the headline finding.
    landing outside `reports.py` because of the 400-line rule; ADR 0037's
    revision; and that no fusion flip occurs on this corpus, with the reason.
 6. Close `OUT-0012`.
+
+- **The demo dataset is Praxis's own history, and it seeds 603 records.** 36
+  ADRs become decisions carrying their 149 assumption rows; `docs/dogfood/`
+  becomes 12 estimates and 11 outcomes; 149 `assumes` edges join them. No
+  second hand-crafted dataset, and Phase 10's corpus was not used — it grades
+  extraction and populates almost nothing offline.
+
+  **Nothing is invented, and a test proves it rather than claiming it.** Every
+  span is replayed against its document's bytes and asserted equal (invariant
+  6), every decision's `chosen` is asserted to be the span text, every
+  predicate is asserted to appear in the table row it cites, and `3.1` is
+  asserted to still be `3.1` (invariant 4). The one field with no source is
+  `confidence`, which `Decision` and `Assumption` require and an ADR does not
+  carry — it is a single named constant with the reason written down, rather
+  than a different invented number per record.
+
+- **`docs/dogfood/facts.json` gives the monitor something real to evaluate.**
+  Eighteen measurements this project has actually published — Phase 10's
+  `segmenter_f1` and `paragraph_floor_f1` at `0.1250` each, the ADR predicate
+  counts, and the web-layer facts this phase's own tests assert — plus two
+  events that really happened.
+
+  **It produces exactly one breach, and it is the right one.** ADR 0011
+  assumption 1, `segmenter_f1 - paragraph_floor_f1 >= 0.05`, evaluates false
+  and the finding names `D-0011` as resting on it. 15 assumptions hold, 17 have
+  expired, 116 are unverified because nothing measured them. That last number
+  is the honest majority and the dashboard must show it as such.
+
+- **Calibration speaks on this store.** `agent-implementation` is **1.5305×
+  over at n=8, confidence 0.4476**; `data-modelling`, `llm-integration` and
+  `scaffolding` are each refused at n=1 with the sentence saying how far short
+  they are. One speaking group beside three refusals is a better demo of the
+  discipline than four factors would have been.
+
+- **No fusion flip, as predicted before the pause.** There are 0 `estimated_as`
+  edges, because no real ADR assumption is one of the dogfood estimates —
+  those edges are written by `praxis extract` (ADR 0016), not by a seeder, and
+  inventing them is exactly the rigging that was ruled out. `/api/fusion`
+  returns the honest refusal and the dashboard will render it with its reason.
