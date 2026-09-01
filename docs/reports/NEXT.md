@@ -877,3 +877,49 @@ been confirmed and passed over, and the answer has not changed.
   `migrate` throws — and they are covered now. A leaked connection holds a lock
   nothing releases, so it is exactly the kind of branch this project does not
   leave to inspection.
+
+- **Phase 10 is merged, tagged and verified on the remote.** PR #21 merged as
+  `feb4aca` with a merge commit, five CI checks green, branch deleted,
+  `v0.10-phase-10` pushed and confirmed against `git ls-remote` rather than
+  assumed. 21 commits. Schema stays at version 4 — no migration, for the fifth
+  phase running.
+
+- **`OUT-0011` closed, and it is the first under-estimate in the record.**
+  3.6h active against 3.1h predicted: ratio **1.1613**, `CLOSE`, computed by
+  `quality_for` rather than labelled by hand. Every one of the seven
+  agent-implementation outcomes before it was **over**, from 1.0286x to 2.6190x.
+  `EST-0011` took a raw 6.0h, applied the then-current 0.6019 factor to log
+  3.1h, and the phase came in at 3.6h — so the raw figure would have been
+  1.6667x over and the corrected one was 1.1613x *under*. The correction did not
+  fall short this time, it overshot and changed the sign.
+
+  **One sign flip is not evidence the bias has reversed**, and it is not being
+  read as one. At n=8 the confidence is 0.4476 and the band at a raw 6.0h ran
+  4.96h to 2.63h — the actual 3.6h is inside it. The mechanism did the right
+  thing on its own: the factor moved **0.6019 → 0.6534** (1.6614x → 1.5305x
+  over) without anybody deciding to adjust anything, which is ADR 0024's whole
+  argument arriving as arithmetic.
+
+  **Blocked time was badly under-predicted: 8.6h against 3.9h**, essentially all
+  of it a 5-hour session limit between 03:30 and 12:05. The estimate priced
+  blocked time as CI waits and review latency, which is what it had always been;
+  a hard interruption is a category that column had never had to hold. Recorded
+  rather than smoothed.
+
+- **Four pinned tests in `tests/agents/test_scoring.py` failed and were
+  repinned, which is the pin working.** Ten outcomes → eleven, the largest class
+  seven → eight, the backtest two scored rows → three. Every one still grades
+  the correction an *improvement*, `OUT-0011` included: 1.1613x under is a
+  smaller error than 1.6667x over.
+
+## Where Phase 11 starts
+
+Nothing in Phase 10 is left open. The ablation ladder runs from
+`praxis eval --ablate`, the report is written, and `BACKLOG.md` carries the
+three things this phase deliberately did not do: a rung per agent inside the
+memory pass, re-measuring ADR 0011 assumption 1 against a real provider, and the
+ten-rung ladder `EST-0011` priced.
+
+**The one thing worth carrying forward is the breach.** ADR 0011 assumption 1
+is measurably false on the only evidence that exists, and the evidence is the
+mock's. Whatever Phase 11 does, that number becomes real on the first live run.
