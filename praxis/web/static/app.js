@@ -183,16 +183,20 @@ async function overview() {
 
 const ROUTES = { overview };
 
+// A list view and its detail share a rail entry: #decisions and #decisions/D-1.
+const DETAIL = { decisions: "decision", estimates: "estimate" };
+
 async function route() {
-  const id = (location.hash.replace("#", "") || "overview").split("/")[0];
+  const [id, arg] = (location.hash.replace("#", "") || "overview").split("/");
   const known = VIEWS.find((v) => v.id === id) ? id : "overview";
   drawNav(known);
   title.textContent = VIEWS.find((v) => v.id === known).label;
   view.innerHTML = '<p class="loading">Reading the store…</p>';
-  const render = ROUTES[known] || window.views?.[known];
+  const name = arg && DETAIL[known] ? DETAIL[known] : known;
+  const render = ROUTES[name] || window.views?.[name];
   try {
     if (render) {
-      await render();
+      await render(arg);
     } else {
       view.innerHTML = empty("This view is not built yet.");
     }
