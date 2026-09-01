@@ -11,8 +11,17 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Final
 
-from praxis.domain.enums import AssumptionStatus
-from praxis.domain.records import AuditEvent, Decision
+from praxis.domain.enums import AssumptionStatus, Severity, Verdict
+from praxis.domain.ids import NodeId
+from praxis.domain.links import LinkType
+from praxis.domain.records import (
+    Assumption,
+    AuditEvent,
+    Decision,
+    Estimate,
+    Finding,
+    Outcome,
+)
 from praxis.store.errors import translating_sqlite_errors
 from praxis.store.mapping import from_row
 from praxis.store.repository import Repository
@@ -197,3 +206,171 @@ def assumption_health(repository: Repository) -> dict[AssumptionStatus, int]:
             for row in repository.connection.execute(_ASSUMPTION_HEALTH_SQL)
         }
     return {status: found.get(status, 0) for status in AssumptionStatus}
+
+
+# --- the review queue ------------------------------------------------------
+
+_SEVERITY_RANK: Final = {
+    Severity.CRITICAL: 0,
+    Severity.HIGH: 1,
+    Severity.MEDIUM: 2,
+    Severity.LOW: 3,
+}
+"""Most urgent first. A dict rather than the enum's declaration order, so
+reordering the enum cannot silently reorder the queue."""
+
+
+@dataclass(frozen=True, slots=True)
+class QueueItem:
+    """A finding as the review queue lists it.
+
+    Attributes:
+        finding: The finding itself.
+        subject_label: A human-readable name for what it is about.
+    """
+
+    finding: Finding
+    subject_label: str
+
+
+def finding_queue(
+    repository: Repository, *, limit: int | None = None, undecided_only: bool = False
+) -> tuple[QueueItem, ...]:
+    """Findings needing a person, most severe first, then newest.
+
+    Args:
+        repository: An open store.
+        limit: Page size, clamped to `MAX_PAGE`.
+        undecided_only: Keep only what the challenger has not ruled on.
+    """
+    findings = repository.list_all(Finding)
+    if undecided_only:
+        findings = tuple(f for f in findings if f.verdict is Verdict.UNDECIDED)
+    ordered = sorted(
+        findings, key=lambda f: (_SEVERITY_RANK[f.severity], -f.detected_at.timestamp())
+    )
+    labels = _subject_labels(repository)
+    return tuple(
+        QueueItem(finding=f, subject_label=labels.get(f.subject_id, f.subject_id))
+        for f in ordered[: _page_size(limit)]
+    )
+
+
+_SUBJECT_LABEL_SQL: Final = """
+    SELECT d.id AS id, d.title AS label FROM decision AS d
+    JOIN record_head AS h ON h.id = d.id AND h.version = d.version
+    UNION ALL
+    SELECT a.id AS id, a.predicate AS label FROM assumption AS a
+    JOIN record_head AS h ON h.id = a.id AND h.version = a.version
+    UNION ALL
+    SELECT e.id AS id, e.subject AS label FROM estimate AS e
+    JOIN record_head AS h ON h.id = e.id AND h.version = e.version
+"""
+"""One title per record a finding can be about.
+
+Read in one statement rather than one per finding: the queue renders every row
+at once and this is the only column of any of them it needs.
+"""
+
+
+def _subject_labels(repository: Repository) -> dict[str, str]:
+    """Titles for everything a finding can name as its subject."""
+    with translating_sqlite_errors():
+        return {
+            str(row["id"]): str(row["label"])
+            for row in repository.connection.execute(_SUBJECT_LABEL_SQL)
+        }
+
+
+def findings_for(repository: Repository, node_id: NodeId) -> tuple[Finding, ...]:
+    """Every current finding naming this record as its subject, most severe first."""
+    found = [f for f in repository.list_all(Finding) if f.subject_id == node_id]
+    return tuple(
+        sorted(found, key=lambda f: (_SEVERITY_RANK[f.severity], -f.detected_at.timestamp()))
+    )
+
+
+# --- the decision drill-down -----------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class AssumptionLine:
+    """One assumption a decision rests on, with whatever priced it.
+
+    Attributes:
+        assumption: The assumption.
+        estimate: What it turned out to be, if an `estimated_as` edge exists.
+        outcome: What happened to that estimate, resolved or not.
+        findings: Findings about this assumption.
+    """
+
+    assumption: Assumption
+    estimate: Estimate | None
+    outcome: Outcome | None
+    findings: tuple[Finding, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionDetail:
+    """A decision and the whole chain of argument under it.
+
+    Attributes:
+        decision: The decision.
+        lines: One per assumption, in the order the edges were written.
+        findings: Findings about the decision itself.
+        audit: Every write to the decision, oldest first.
+    """
+
+    decision: Decision
+    lines: tuple[AssumptionLine, ...]
+    findings: tuple[Finding, ...]
+    audit: tuple[AuditEvent, ...]
+
+    @property
+    def breached(self) -> tuple[AssumptionLine, ...]:
+        """The lines whose assumption has already failed."""
+        return tuple(
+            line for line in self.lines if line.assumption.status is AssumptionStatus.BREACHED
+        )
+
+
+def decision_detail(repository: Repository, decision_id: NodeId) -> DecisionDetail | None:
+    """One decision with its assumptions, their estimates and their outcomes.
+
+    Returns `None` when no current decision has that id, so a route can answer
+    404 without a second lookup.
+    """
+    decision = repository.get(Decision, decision_id)
+    if decision is None:
+        return None
+    outcomes = {o.estimate_id: o for o in repository.list_all(Outcome)}
+    findings = repository.list_all(Finding)
+    lines = []
+    for edge in repository.links_from(decision_id, [LinkType.ASSUMES]):
+        assumption = repository.get(Assumption, edge.target_id)
+        if assumption is None:
+            continue
+        estimate = _estimate_behind(repository, assumption.id)
+        lines.append(
+            AssumptionLine(
+                assumption=assumption,
+                estimate=estimate,
+                outcome=outcomes.get(estimate.id) if estimate else None,
+                findings=tuple(f for f in findings if f.subject_id == assumption.id),
+            )
+        )
+    return DecisionDetail(
+        decision=decision,
+        lines=tuple(lines),
+        findings=tuple(f for f in findings if f.subject_id == decision_id),
+        audit=repository.audit_for(decision_id),
+    )
+
+
+def _estimate_behind(repository: Repository, assumption_id: NodeId) -> Estimate | None:
+    """The estimate an assumption turned out to be, if the fusion edge exists."""
+    for edge in repository.links_from(assumption_id, [LinkType.ESTIMATED_AS]):
+        estimate = repository.get(Estimate, edge.target_id)
+        if estimate is not None:
+            return estimate
+    return None

@@ -11,7 +11,8 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
-from praxis.domain.enums import AssumptionStatus, RecordKind
+from praxis.domain.enums import AssumptionStatus, RecordKind, Severity, Verdict
+from praxis.domain.ids import NodeId
 from praxis.domain.records import Assumption, Decision
 from praxis.store import dashboard
 from praxis.store.repository import Repository
@@ -159,3 +160,103 @@ def test_a_retracted_assumption_leaves_the_health_counts(store: Repository, worl
         at=WRITTEN_AT,
     )
     assert sum(dashboard.assumption_health(store).values()) == 0
+
+
+def test_the_drill_down_walks_decision_to_assumption_to_estimate_to_outcome(
+    store: Repository, world: World
+):
+    """The argument chain the dashboard renders as one strip."""
+    detail = dashboard.decision_detail(store, world.decision.id)
+    assert detail is not None
+    assert detail.decision.id == world.decision.id
+    assert len(detail.lines) == 1
+    line = detail.lines[0]
+    assert line.assumption.id == world.assumption.id
+    assert line.estimate is not None
+    assert line.estimate.id == world.estimate.id
+    assert line.outcome is not None
+    assert line.outcome.id == world.outcome.id
+    assert [f.id for f in line.findings] == [world.finding.id]
+
+
+def test_the_drill_down_carries_the_audit_trail_for_the_decision(store: Repository, world: World):
+    detail = dashboard.decision_detail(store, world.decision.id)
+    assert detail is not None
+    assert [event.entity_id for event in detail.audit] == [world.decision.id]
+
+
+def test_a_decision_with_no_assumes_edge_has_no_lines(store: Repository, world: World):
+    detail = dashboard.decision_detail(store, world.other_decision.id)
+    assert detail is not None
+    assert detail.lines == ()
+
+
+def test_the_drill_down_is_none_for_an_id_the_store_does_not_hold(store: Repository, world: World):
+    assert dashboard.decision_detail(store, NodeId("D-9999")) is None
+
+
+def test_the_drill_down_names_which_lines_are_breached(store: Repository, world: World):
+    first = dashboard.decision_detail(store, world.decision.id)
+    assert first is not None
+    assert first.breached == ()
+    store.revise(
+        world.assumption.model_copy(
+            update={"status": AssumptionStatus.BREACHED, "last_evaluated_at": WRITTEN_AT}
+        ),
+        actor=ACTOR,
+        reason="the monitor found the predicate false",
+        at=WRITTEN_AT,
+    )
+    detail = dashboard.decision_detail(store, world.decision.id)
+    assert detail is not None
+    assert [line.assumption.id for line in detail.breached] == [world.assumption.id]
+
+
+def test_the_queue_orders_by_severity_then_newest(store: Repository, world: World):
+    for severity, minutes in ((Severity.LOW, 1), (Severity.CRITICAL, 2), (Severity.MEDIUM, 3)):
+        store.add(
+            world.finding.model_copy(
+                update={
+                    "id": store.next_id(RecordKind.FINDING),
+                    "severity": severity,
+                    "detected_at": WRITTEN_AT + timedelta(minutes=minutes),
+                }
+            ),
+            actor=ACTOR,
+            reason="written by the test",
+            at=WRITTEN_AT,
+        )
+    ordered = [item.finding.severity for item in dashboard.finding_queue(store)]
+    assert ordered == [
+        Severity.CRITICAL,
+        Severity.HIGH,
+        Severity.MEDIUM,
+        Severity.LOW,
+    ]
+
+
+def test_the_queue_labels_a_finding_with_its_subject(store: Repository, world: World):
+    item = dashboard.finding_queue(store)[0]
+    assert item.finding.subject_id == world.assumption.id
+    assert item.subject_label == world.assumption.predicate
+
+
+def test_the_queue_can_keep_only_what_the_challenger_has_not_ruled_on(
+    store: Repository, world: World
+):
+    assert len(dashboard.finding_queue(store, undecided_only=True)) == 1
+    store.revise(
+        world.finding.model_copy(
+            update={"verdict": Verdict.UPHELD, "challenge": "the counter-argument failed"}
+        ),
+        actor=ACTOR,
+        reason="challenged",
+        at=WRITTEN_AT,
+    )
+    assert dashboard.finding_queue(store, undecided_only=True) == ()
+    assert len(dashboard.finding_queue(store)) == 1
+
+
+def test_findings_for_selects_only_the_named_subject(store: Repository, world: World):
+    assert [f.id for f in dashboard.findings_for(store, world.assumption.id)] == [world.finding.id]
+    assert dashboard.findings_for(store, world.decision.id) == ()
