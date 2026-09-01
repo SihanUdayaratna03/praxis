@@ -1005,3 +1005,42 @@ product owner put them in scope for this phase, so they are committed.
 - **The ADR index was stale since 0020 and is rebuilt from the files.**
   Fifteen ADRs were missing from it. Regenerating was mechanical and the
   alternative was adding two rows to a table that was already wrong.
+
+- **The store reads the dashboard needs are written, and there are fewer than
+  `EST-0012` priced.** Nine were estimated; **six** were built, because two of
+  the nine already existed and one was a duplicate of a third.
+
+  `calibration_groups` was never written. `BiasDetective.all_factors()` has
+  returned exactly what the calibration charts need since Phase 7, and
+  `reports.calibration_history()` returns the scatter behind the curves. Adding
+  a store read that recomputed either would have been the "parallel query path
+  around the repository layer" the brief warns about, so the dashboard calls
+  the agent. `findings_for` collapsed into the review queue's own read.
+
+  What is new: `audit_timeline`, `decision_index`, `assumption_health`,
+  `finding_queue` and `findings_for` in `praxis/store/dashboard.py`;
+  `decision_detail` and `estimate_detail` in `praxis/store/drilldown.py`;
+  `trace_index`, `runs` and `sequence_of` in `praxis/store/traces.py`.
+
+  **Not in `reports.py`, which the brief asked for.** That file was already at
+  364 lines against a ~400 rule and these would have taken it past 900. Same
+  package, same invariant — no SQL leaves `praxis.store` — and
+  `test_only_the_store_knows_the_database_driver` still enforces it. The split
+  happened a second time mid-strand when `dashboard.py` itself hit 420 lines,
+  which is where `drilldown.py` came from.
+
+  **Both paged reads page by an allocation counter, not by OFFSET.** `ordinal`
+  for audit events and `seq` for traces. `occurred_at` is not unique — writes
+  in one run share a timestamp — so an OFFSET page can repeat or skip a row,
+  and a test walks each cursor to the end and asserts it saw every row exactly
+  once.
+
+  **Every count narrows to the current unretracted version**, which on an
+  append-only schema is the easy thing to get wrong rather than the unlikely
+  one. One test revises an assumption three times and asserts the breach count
+  stays 1; another retracts a decision and asserts it leaves the index.
+
+- **`trace_index` is the read that makes Phase 2 visible.** Every model call
+  has been recorded since the first agent ran nine phases ago and nothing has
+  ever displayed one. The reasoning panel is the first thing to read that
+  table, which is why the read is new when the data is not.
