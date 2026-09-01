@@ -326,6 +326,13 @@ def _governance_lines(governance: GovernanceScore) -> list[str]:
         if governance.decided
         else "**no measurement** -- nothing was decided"
     )
+    withheld = (
+        f"**{governance.abstention_precision}** -- "
+        f"{governance.abstained_with_cause} of {governance.abstained} abstentions "
+        f"really fail a rule"
+        if governance.abstained
+        else "**no measurement** -- nothing was withheld"
+    )
     return [
         "## Adversarial and governance",
         "",
@@ -337,6 +344,8 @@ def _governance_lines(governance: GovernanceScore) -> list[str]:
         f"Abstention rate: **{governance.abstention_rate}** "
         f"({governance.abstained} withheld, {governance.emitted} concluded). "
         f"Concede rate: {decided}.",
+        "",
+        f"Abstention precision: {withheld}.",
         "",
         *_insufficiency_lines(governance.by_insufficiency),
         f"Assumptions curated: **{governance.assumptions}**, retirement rate "
@@ -394,6 +403,8 @@ def _governance_data(governance: GovernanceScore) -> dict[str, Any]:
         "emitted": governance.emitted,
         "abstained": governance.abstained,
         "abstention_rate": str(governance.abstention_rate),
+        "abstained_with_cause": governance.abstained_with_cause,
+        "abstention_precision": str(governance.abstention_precision),
         "by_insufficiency": dict(governance.by_insufficiency),
         "verdicts_hold": governance.verdicts_hold,
         "retirements_hold": governance.retirements_hold,

@@ -750,3 +750,10 @@ been confirmed and passed over, and the answer has not changed.
   `MINIMUM_SAMPLE` and both would print zero. The improvement is signed on
   purpose: a calibrator that made estimates worse is the failure the metric
   exists to catch.
+
+- **Abstention precision is `abstentions_hold` as a number.** The brief names
+  it and the gate's boolean already asserted it: of the findings routed to a
+  person, how many really fail at least one rule. The boolean says whether the
+  gate contradicted itself; the rate says by how much, which is what a table
+  rung needs. Nothing withheld reports **no measurement** rather than zero, the
+  same convention `concede_rate` uses for nothing decided.
