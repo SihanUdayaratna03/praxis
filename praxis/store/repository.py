@@ -491,7 +491,9 @@ def _timestamp(at: datetime | None) -> datetime:
     return datetime.now(UTC) if at is None else at
 
 
-def open_repository(settings: Settings, *, create: bool = True) -> Repository:
+def open_repository(
+    settings: Settings, *, create: bool = True, cross_thread: bool = False
+) -> Repository:
     """Open the configured store, migrating it to the current schema.
 
     Args:
@@ -499,10 +501,12 @@ def open_repository(settings: Settings, *, create: bool = True) -> Repository:
         create: Whether to bring a missing database into existence. `praxis
             init` passes true; commands that only read pass false, so a mistyped
             `PRAXIS_DATA_DIR` is reported rather than created.
+        cross_thread: Only `praxis serve` passes true, and it holds a lock
+            across every request. See `praxis.store.connection.connect`.
     """
     if create:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
-    connection = connect_from_settings(settings, create=create)
+    connection = connect_from_settings(settings, create=create, cross_thread=cross_thread)
     try:
         migrate(connection)
     except BaseException:

@@ -1044,3 +1044,60 @@ product owner put them in scope for this phase, so they are committed.
   has been recorded since the first agent ran nine phases ago and nothing has
   ever displayed one. The reasoning panel is the first thing to read that
   table, which is why the read is new when the data is not.
+
+- **The web shell is up: four packages, eleven GET routes, one command.**
+  `fastapi`, `starlette`, `uvicorn` and `click` reach the lock and nothing
+  else does — the resolver's answer, not a recollection. `praxis serve` opens
+  the store read-only, binds `127.0.0.1`, and warns out loud when told to bind
+  anything else.
+
+  **The API's read-only claim is checked as a property, not promised.** One
+  test reads the app's own OpenAPI schema and asserts the set of methods across
+  every path is exactly `{"get"}`; another walks nine routes and asserts
+  `StoreStats` is identical before and after. So ADR 0003 assumption 3 —
+  expiring `on_event("Phase 11 dashboard gains write endpoints")` — is checked
+  rather than left standing on good intentions. It does not expire this phase.
+
+  **A refusal survives the HTTP boundary as a refusal.** `FactorOut` carries
+  `speaks`, and a group below `MINIMUM_SAMPLE` serialises with `factor: null`
+  and its reason rather than as a zero. A test asserts that, because "1.0x, no
+  bias" and "two outcomes short of being able to say" are the two readings this
+  whole product exists to keep apart.
+
+  **Decimals cross as strings.** Invariant 4 does not stop at HTTP, and a test
+  asserts `active_quantity` arrives as `"6.5"` rather than as a float.
+
+- **Two things the plan did not see, both found by running the code.**
+
+  **The store's handle is bound to one thread on purpose, and Starlette hands
+  every request to a threadpool.** The first API test failed with SQLite's own
+  cross-thread error. `connection.py`'s comment had anticipated exactly this
+  and refused it — *"a handle that quietly works from two threads is a race"* —
+  so the fix is an explicit `cross_thread` flag, documented, threaded through
+  `connect_from_settings` and `open_repository`, set by one caller, with the
+  web layer holding a `threading.Lock` for the length of each request. Reads
+  only, so a lock is enough and a connection pool would be a write path nobody
+  asked for.
+
+  **ADR 0037's first draft did not survive implementation, and is revised
+  rather than quietly fixed.** It put `fastapi`, `starlette` and `uvicorn` all
+  in `NETWORK_MODULES` and allowed them only in `server.py`. But `APIRouter` is
+  a FastAPI import, so that rule makes a routes module impossible and forces
+  every handler into the file that binds the socket — a rule enforcing a file
+  layout rather than a boundary. The shipped version is two rules: `uvicorn`
+  joins `NETWORK_MODULES` and is seam-only, while `fastapi` and `starlette` are
+  confined to `praxis/web/`. Both are watched failing on a synthetic offender,
+  the way the original detector already was. An ADR corpus that only records
+  the decisions that survived contact is a worse corpus than one that says
+  which did not.
+
+- **`httpx2` joins the dev group rather than an ignore being added.** Starlette
+  1.6 deprecates `httpx` for its `TestClient` and names the replacement, and
+  `filterwarnings = ["error"]` turns that notice into a red suite. The library
+  was the fix; silencing it would have been the other kind.
+
+- **`.codex/` still carries 14 ruff findings and still cannot reach CI.**
+  Noticed because `ruff check .` from a shell walks it. Untracked, not
+  gitignored, never staged, and `actions/checkout` materialises committed files
+  only — so the project gate reads `praxis` and `tests`, as pre-commit already
+  does. Left alone for the fourth phase running.

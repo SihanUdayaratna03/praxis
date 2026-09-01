@@ -33,6 +33,7 @@ from praxis.cli_eval import eval_corpus, extract
 from praxis.cli_fuse import fuse
 from praxis.cli_govern import govern
 from praxis.cli_monitor import contradictions, formalize, monitor, why
+from praxis.cli_serve import serve
 from praxis.cli_tables import configuration_table, links_table, records_table, routing_table
 from praxis.config.models import (
     NON_LLM_AGENTS,
@@ -292,6 +293,10 @@ app.command(name="fuse")(fuse)
 # `formalize` wrote, and refuses to conclude where the evidence is thin. It
 # is the only command whose headline output is a count of refusals.
 app.command(name="govern")(govern)
+
+# `praxis serve`, from `praxis.cli_serve`, last because it shows what all of
+# the above wrote. Read-only, and the only command that opens a socket.
+app.command(name="serve")(serve)
 
 
 @corpus_app.command(name="generate")
