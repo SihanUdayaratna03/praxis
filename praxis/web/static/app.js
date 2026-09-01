@@ -60,19 +60,22 @@ function empty(message) {
   return `<p class="empty">${esc(message)}</p>`;
 }
 
-// How this kind of record accumulated, in the order the store wrote it.
+// Cumulative count by day, from the dates the records themselves carry.
 //
-// Over write order rather than over dates: a seeded store writes everything in
-// one instant, and bucketing by day would give one point and no line. This is
-// the store growing, which is what it says it is.
-function seriesFrom(events, kind) {
-  const matching = events.filter((e) => e.entity_kind === kind).reverse();
-  if (matching.length < 2) return [];
-  const buckets = Math.min(28, matching.length);
-  const size = matching.length / buckets;
-  const series = [];
-  for (let i = 1; i <= buckets; i += 1) series.push(Math.round(i * size));
-  return series;
+// Not from audit timestamps: a seeded store writes everything in one instant,
+// so those would give a straight line that looks like data and is not. An ADR
+// has a decided_at and an estimate has an estimated_at, and those are real.
+// Fewer than two distinct days means there is no series, and the card then
+// draws no line rather than a flat one.
+function seriesByDay(records, field) {
+  const perDay = new Map();
+  for (const record of records) {
+    const day = String(record[field] ?? "").slice(0, 10);
+    if (day) perDay.set(day, (perDay.get(day) || 0) + 1);
+  }
+  if (perDay.size < 2) return [];
+  let running = 0;
+  return [...perDay.keys()].sort().map((day) => (running += perDay.get(day)));
 }
 
 // --- the Overview ----------------------------------------------------------
@@ -91,10 +94,12 @@ function kpi(glyphColour, value, label, series, glyph) {
 }
 
 async function overview() {
-  const [data, timeline, queue] = await Promise.all([
+  const [data, timeline, queue, decisions, estimates] = await Promise.all([
     api("/api/overview"),
     api("/api/timeline?limit=500"),
     api("/api/queue"),
+    api("/api/decisions"),
+    api("/api/estimates"),
   ]);
   document.getElementById("provider").textContent = `${data.provider} · offline`;
   document.getElementById("schema").textContent = data.schema_version;
@@ -104,12 +109,17 @@ async function overview() {
   const events = timeline.events;
   const valid = data.assumptions ? `${Math.round(data.assumptions_valid * 100)}%` : "—";
   const bias = data.calibration_bias ? `${Number(data.calibration_bias).toFixed(2)}×` : "n/a";
+  const decided = seriesByDay(
+    decisions.map((s) => s.decision),
+    "decided_at",
+  );
+  const logged = seriesByDay(estimates, "estimated_at");
 
   const cards = `<div class="kpis">
-      ${kpi("var(--teal)", data.decisions, "Decisions", seriesFrom(events, "decision"), GLYPH.graph)}
-      ${kpi("var(--red)", data.at_risk, "At risk", seriesFrom(events, "finding"), GLYPH.warn)}
-      ${kpi("var(--blue)", valid, "Assumptions valid", seriesFrom(events, "assumption"), GLYPH.shield)}
-      ${kpi("var(--violet)", bias, `Calibration bias (n=${data.calibration_n})`, seriesFrom(events, "estimate"), GLYPH.target)}
+      ${kpi("var(--teal)", data.decisions, "Decisions recorded", decided, GLYPH.graph)}
+      ${kpi("var(--red)", data.at_risk, "Decisions at risk", [], GLYPH.warn)}
+      ${kpi("var(--blue)", valid, "Assumptions valid", [], GLYPH.shield)}
+      ${kpi("var(--violet)", bias, `Calibration bias (n=${data.calibration_n})`, logged, GLYPH.target)}
     </div>`;
 
   const health = Object.entries(data.assumption_health)
@@ -193,5 +203,9 @@ async function route() {
 
 window.addEventListener("hashchange", route);
 window.praxisApi = api;
-window.praxisUi = { panel, empty, api };
-route();
+window.praxisUi = { panel, empty, api, icon, GLYPH };
+
+// On DOMContentLoaded rather than immediately: the view modules load after this
+// file and register themselves on window.views, and a first render that raced
+// them would silently show "not built yet".
+document.addEventListener("DOMContentLoaded", route);
