@@ -77,7 +77,9 @@ from praxis.eval.metrics import (
     fusion_recall,
     score,
 )
+from praxis.eval.stages import Stages
 from praxis.ingest.pipeline import IngestionPipeline
+from praxis.ingest.segmenter import SegmenterAgent
 from praxis.llm.provider import LLMProvider
 from praxis.monitor.facts import FactsFile
 from praxis.monitor.run import monitor_store
@@ -268,13 +270,14 @@ def grade(  # noqa: PLR0913 -- one argument per source the table reads from
     )
 
 
-def evaluate(
+def evaluate(  # noqa: PLR0913 -- a store, a seam, a corpus, and three knobs
     repository: Repository,
     provider: LLMProvider,
     corpus: Path,
     *,
     at: datetime | None = None,
     run_id: str | None = None,
+    stages: Stages | None = None,
 ) -> EvalResult:
     """Ingest a corpus, extract from it, and grade the result.
 
@@ -289,31 +292,42 @@ def evaluate(
             answer key beside it.
         at: When this ran. Defaults to now, in UTC, per stage.
         run_id: Recorded on every audit row this writes.
+        stages: Which stages to run. Defaults to all of them; an ablation rung
+            turns them off from the top down.
 
     Returns:
         The graded result.
     """
+    stages = stages if stages is not None else Stages()
     truth = load_ground_truth(corpus)
-    ingestion = IngestionPipeline(repository, provider).ingest_directory(
-        corpus / DOCUMENTS_DIRNAME, at=at
-    )
+    ingestion = IngestionPipeline(
+        repository,
+        provider,
+        segmenter=SegmenterAgent(provider, floor_only=True) if stages.floor_only else None,
+    ).ingest_directory(corpus / DOCUMENTS_DIRNAME, at=at)
     run = ExtractionPipeline(repository, provider).extract_store(at=at, run_id=run_id)
-    estimation = estimate_store(repository, provider, at=at, run_id=run_id)
-    memory = _remember(repository, provider, truth, at=at, run_id=run_id)
+    estimation = (
+        estimate_store(repository, provider, at=at, run_id=run_id) if stages.estimation else None
+    )
+    memory = _remember(repository, provider, truth, at=at, run_id=run_id) if stages.memory else None
     # Last, and it could run anywhere after `estimate_store`: calibration reads
     # accumulated `Outcome` rows and feeds nothing downstream, which is exactly
     # what makes it a store pass rather than a stage. It costs no model call, so
     # its position cannot move the cost column either.
-    calibrate_store(repository, at=at, run_id=run_id)
+    if stages.calibration:
+        calibrate_store(repository, at=at, run_id=run_id)
     # After calibration, and this one genuinely cannot move: the fusion pass
     # asks `BiasDetective` for a factor per group, so it has to run once the
     # outcomes calibration reads are in place. It costs no model call either.
-    fuse_store(repository, at=at, run_id=run_id)
+    if stages.fusion:
+        fuse_store(repository, at=at, run_id=run_id)
     # Last, and this one genuinely cannot move either: governance argues against
     # the findings every stage above it filed, so it has to run once they exist.
     # It is also the only stage after ingestion whose cost is a `reason`-tier
     # call per batch of findings rather than per document.
-    governance = govern_store(repository, provider, at=at, run_id=run_id)
+    governance = (
+        govern_store(repository, provider, at=at, run_id=run_id) if stages.governance else None
+    )
     _log.info(
         "eval_run",
         documents=len(ingestion.ingested),
@@ -321,14 +335,20 @@ def evaluate(
         decisions=run.decisions,
         assumptions=run.assumptions,
         estimates=run.estimates,
-        outcomes=estimation.outcomes,
-        calls=(ingestion.calls + run.calls + estimation.calls + memory.calls + governance.calls),
+        outcomes=estimation.outcomes if estimation is not None else 0,
+        calls=(
+            ingestion.calls
+            + run.calls
+            + (estimation.calls if estimation is not None else 0)
+            + (memory.calls if memory is not None else 0)
+            + (governance.calls if governance is not None else 0)
+        ),
     )
     return grade(
         repository,
         truth,
         run,
-        detection=memory.detection,
+        detection=memory.detection if memory is not None else None,
         estimation=estimation,
         run_id=run_id,
         mock_provider=provider.name is ProviderName.MOCK,

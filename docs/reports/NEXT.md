@@ -757,3 +757,12 @@ been confirmed and passed over, and the answer has not changed.
   gate contradicted itself; the rate says by how much, which is what a table
   rung needs. Nothing withheld reports **no measurement** rather than zero, the
   same convention `concede_rate` uses for nothing decided.
+
+- **`evaluate` takes a `Stages`, so a rung is a configuration rather than a
+  second harness.** Six flags — the floor segmenter and the five passes above
+  extraction — each gating one call in the function that already ordered them.
+  All on is asserted byte-identical to what Phases 4–9 ran, because a default
+  that drifted would have moved every number those phases reported. `Stages`
+  lives in its own module so `harness` and `ablation` can share it without
+  importing each other. The floor rung spends nothing on the segmenter, which
+  is what keeps the cost column comparable between rungs.

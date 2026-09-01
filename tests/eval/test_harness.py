@@ -52,6 +52,7 @@ from praxis.domain.records import Decision, Document, RejectedOption, Span
 from praxis.eval.harness import GRADED_KINDS, EvalResult, claims_in, evaluate, grade
 from praxis.eval.matching import SET_SEPARATOR
 from praxis.eval.report import as_json
+from praxis.eval.stages import Stages
 from praxis.ingest.pipeline import IngestionPipeline
 from praxis.llm.mock import MockProvider
 from praxis.llm.trace import MemoryTraceSink
@@ -112,13 +113,13 @@ def a_provider() -> MockProvider:
     return MockProvider(sink=MemoryTraceSink(), settings=Settings())
 
 
-def evaluated(corpus: Path) -> EvalResult:
+def evaluated(corpus: Path, stages: Stages | None = None) -> EvalResult:
     """A whole run, in a store that closes with it."""
     connection = connect(MEMORY)
     migrate(connection)
     repository = Repository(connection)
     try:
-        return evaluate(repository, a_provider(), corpus, at=AT)
+        return evaluate(repository, a_provider(), corpus, at=AT, stages=stages)
     finally:
         repository.close()
 
@@ -446,3 +447,28 @@ def test_cost_is_reported_per_agent_per_document(corpus):
         "SegmenterAgent",
     }
     assert all(isinstance(spent, Decimal) for spent in result.cost.values())
+
+
+def test_the_floor_rung_runs_extraction_and_nothing_after_it(corpus):
+    """The baseline the ablation is read against.
+
+    Every stage above extraction is off, so their numbers are absent rather
+    than bad -- which is what makes the rung above each one a difference.
+    """
+    result = evaluated(corpus, Stages.floor())
+
+    assert result.documents == DOCUMENTS
+    assert result.estimation.resolution.true_positives == 0
+    assert result.memory.formalization.checkable == 0
+    assert result.governance.findings == 0
+    assert result.fusion_written == 0
+
+
+def test_the_floor_rung_spends_nothing_on_the_segmenter(corpus):
+    """ADR 0011's floor makes no call, so the rung above it is priced honestly."""
+    assert "SegmenterAgent" not in evaluated(corpus, Stages.floor()).cost
+
+
+def test_stages_all_on_is_what_an_ordinary_run_already_did(corpus):
+    """The default has to be byte-identical or every earlier number moved."""
+    assert as_json(evaluated(corpus)) == as_json(evaluated(corpus, Stages()))
