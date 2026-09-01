@@ -1133,8 +1133,98 @@ product owner put them in scope for this phase, so they are committed.
 
 ## Phase 11 paused, and then finished
 
-The pause is left in the log above rather than edited out. What follows is
-the close.
+The pause is left in the log rather than edited out; the state table it
+carried is superseded by the close below. The entries that follow were
+written after work resumed.
+
+
+- **The demo dataset is Praxis's own history, and it seeds 603 records.** 36
+  ADRs become decisions carrying their 149 assumption rows; `docs/dogfood/`
+  becomes 12 estimates and 12 outcomes; 149 `assumes` edges join them. No
+  second hand-crafted dataset, and Phase 10's corpus was not used — it grades
+  extraction and populates almost nothing offline.
+
+  **Nothing is invented, and a test proves it rather than claiming it.** Every
+  span is replayed against its document's bytes and asserted equal (invariant
+  6), every decision's `chosen` is asserted to be the span text, every
+  predicate is asserted to appear in the table row it cites, and `3.1` is
+  asserted to still be `3.1` (invariant 4). The one field with no source is
+  `confidence`, which `Decision` and `Assumption` require and an ADR does not
+  carry — it is a single named constant with the reason written down, rather
+  than a different invented number per record.
+
+- **`docs/dogfood/facts.json` gives the monitor something real to evaluate.**
+  Eighteen measurements this project has actually published — Phase 10's
+  `segmenter_f1` and `paragraph_floor_f1` at `0.1250` each, the ADR predicate
+  counts, and the web-layer facts this phase's own tests assert — plus two
+  events that really happened.
+
+  **It produces exactly one breach, and it is the right one.** ADR 0011
+  assumption 1, `segmenter_f1 - paragraph_floor_f1 >= 0.05`, evaluates false
+  and the finding names `D-0011` as resting on it. 15 assumptions hold, 17 have
+  expired, 116 are unverified because nothing measured them. That last number
+  is the honest majority and the dashboard must show it as such.
+
+- **Calibration speaks on this store.** `agent-implementation` is **1.5305×
+  over at n=8, confidence 0.4476**; `data-modelling`, `llm-integration` and
+  `scaffolding` are each refused at n=1 with the sentence saying how far short
+  they are. One speaking group beside three refusals is a better demo of the
+  discipline than four factors would have been.
+
+- **No fusion flip, as predicted before the pause.** There are 0 `estimated_as`
+  edges, because no real ADR assumption is one of the dogfood estimates —
+  those edges are written by `praxis extract` (ADR 0016), not by a seeder, and
+  inventing them is exactly the rigging that was ruled out. `/api/fusion`
+  returns the honest refusal and the dashboard will render it with its reason.
+
+- **The dashboard shell is built to `docs/assets/phase-11-praxis-dashboard.webp`.**
+  A 232px left rail with eight views, the header with its three status chips,
+  four KPI cards over a three-column grid. `charts.js` had to be wrapped in an
+  IIFE — classic scripts share one global scope and it was redeclaring `esc`,
+  which blanked the page — and the boot moved to `DOMContentLoaded`, because
+  the view modules register themselves after `app.js` and a first render that
+  raced them silently showed "not built yet".
+
+  **The sparklines were rewritten once for honesty.** The first version drew
+  cumulative writes over the audit trail; a seeded store writes everything in
+  one instant, so that was a straight line dressed as data. They now come from
+  `decided_at` and `estimated_at`, which are real and span 2026-08-09 to
+  2026-09-01, and the two cards with no time series draw no line at all.
+
+- **The payoff renders, and it is the breach rather than a flip.** Four linked
+  cards — `D-0011` · `segmenter_f1 - paragraph_floor_f1 >= 0.05` · the evidence
+  · **breached** — then the amber *Re-examine this decision* callout, then the
+  finding's own prosecution verbatim. `provenance.js` renders a fusion flip the
+  same way when one exists, and says why it cannot when neither does. Checked
+  in a browser against `docs/design/`.
+
+- **Every view is built and was checked in a browser, not just in tests.**
+  Decisions index and drill-down (the chosen paragraph, the chain as
+  assumption → predicate → status → estimate → actual, the rejected options,
+  the audit trail); assumptions; estimates and their drill-down; calibration;
+  the review queue; the reasoning panel; the audit trail. Two defects the
+  browser caught that no test would have: the drill-down's Findings panel said
+  "nothing alleged" while the chain beside it showed a breach, and the header
+  and rail footer stayed blank on any deep link because only the Overview
+  filled them.
+
+- **The Calibration Lens shows quantities, not multipliers.** Raw **5.3h**,
+  corrected **3.4h**, band **2.4–5.0**, n **8**, confidence **0.45**, with the
+  two overlaid curves the asset draws. The factor is applied to the median
+  estimate of its own group, so both numbers are hours. A refused group draws
+  **no bar at all** — a zero-length one would read as "no bias" rather than
+  "not enough evidence".
+
+- **`tests/web/test_static.py` caught a real gap and was widened for it.**
+  `app.js` writes to `#provenance-slot`, which no page declares because the
+  view creates it. The check now collects ids from script templates too, and
+  the new detector is watched failing like the others.
+
+- **The reasoning panel was verified with real traces.** The demo store has
+  none — `praxis demo seed` calls no model, and the panel says so and names the
+  command that fills it. Three traces were written into a scratch store to
+  confirm the populated state renders: each row expands to the exact request
+  and the raw answer. Two API tests now cover it.
 
 ## Where Phase 12 starts
 
