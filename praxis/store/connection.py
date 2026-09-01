@@ -82,6 +82,7 @@ def connect(
     journal_mode: JournalMode = JournalMode.WAL,
     busy_timeout_ms: int = 5_000,
     create: bool = True,
+    cross_thread: bool = False,
 ) -> sqlite3.Connection:
     """Open a configured connection to the store.
 
@@ -92,6 +93,10 @@ def connect(
         create: When false, refuse to bring a database into existence. The
             reading commands pass false so that a mistyped path is reported as
             a missing store instead of being created as an empty one.
+        cross_thread: Allow the handle to be used from a thread other than the
+            one that opened it. Only the read-only dashboard passes true, and
+            it serialises every read behind a lock. Never pass it for anything
+            that writes.
 
     Returns:
         A connection in manual transaction mode, with `sqlite3.Row` rows.
@@ -111,9 +116,13 @@ def connect(
 
     with translating_sqlite_errors():
         # isolation_level=None: see the module docstring. check_same_thread is
-        # left at its default -- this is a single-writer store, and a handle
-        # that quietly works from two threads is a race waiting for Phase 4.
-        connection = sqlite3.connect(dsn, uri=is_uri, isolation_level=None)
+        # on by default -- this is a single-writer store, and a handle that
+        # quietly works from two threads is a race. `cross_thread` turns it off
+        # only where a caller has said why in writing: the dashboard's server
+        # hands requests to a threadpool and holds a lock across each one.
+        connection = sqlite3.connect(
+            dsn, uri=is_uri, isolation_level=None, check_same_thread=not cross_thread
+        )
     connection.row_factory = sqlite3.Row
     try:
         _apply_pragmas(connection, journal_mode=journal_mode, busy_timeout_ms=busy_timeout_ms)

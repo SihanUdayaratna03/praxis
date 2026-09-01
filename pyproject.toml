@@ -44,6 +44,10 @@ live = [
 [dependency-groups]
 dev = [
   "anthropic>=0.116",
+  # Starlette 1.6 deprecates httpx for its TestClient and names this as
+  # the replacement. filterwarnings = ["error"] turns that notice into a
+  # failing suite, so the fix is the library rather than an ignore.
+  "httpx2>=2.12",
   "hypothesis>=6.112",
   "mypy>=1.11",
   "pre-commit>=3.8",
