@@ -65,6 +65,13 @@ before opening a PR rather than pasting a passing test run into the context.
 - Absolute imports only (`ban-relative-imports = "all"`).
 - Docstrings on every public module, class and function, Google convention.
 
+**Keep comments and docstrings short from Phase 10 — one or two plain lines,
+the way a working engineer writes them day to day.** Depth belongs in an ADR or
+in `docs/`, and a short comment points at it rather than repeating it. This is
+the second stage of the Phase 9 style change: commits, comments and docstrings
+now all read the same way. Phases 0–9 keep their long prose and are never
+restyled. See [ADR 0033](docs/adr/0033-short-comments-and-docstrings-from-phase-10.md).
+
 ## Commits
 
 Conventional Commits, enforced by a `commit-msg` hook. 8–20 commits per phase,

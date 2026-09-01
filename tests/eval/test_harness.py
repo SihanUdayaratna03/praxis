@@ -36,7 +36,7 @@ import pytest
 from praxis.agents.errors import Refusal
 from praxis.agents.results import DocumentExtraction, ExtractionRun, Refused, Stage
 from praxis.config.settings import Settings
-from praxis.corpus.generator import generate_corpus
+from praxis.corpus.generator import Controls, generate_corpus
 from praxis.corpus.groundtruth import (
     DOCUMENTS_DIRNAME,
     CorpusGroundTruth,
@@ -52,6 +52,7 @@ from praxis.domain.records import Decision, Document, RejectedOption, Span
 from praxis.eval.harness import GRADED_KINDS, EvalResult, claims_in, evaluate, grade
 from praxis.eval.matching import SET_SEPARATOR
 from praxis.eval.report import as_json
+from praxis.eval.stages import Stages
 from praxis.ingest.pipeline import IngestionPipeline
 from praxis.llm.mock import MockProvider
 from praxis.llm.trace import MemoryTraceSink
@@ -80,7 +81,16 @@ def corpus(tmp_path_factory: pytest.TempPathFactory) -> Path:
     root = tmp_path_factory.mktemp("corpus")
     # revisions=0: this file grades Half A's extraction, and the revision
     # notes are ground truth for ContradictionDetector rather than for it.
-    generate_corpus(root, documents=DOCUMENTS, revisions=0, seed=SEED, generated_at=AT)
+    # Phase 10's controls are off here for the same reason, and are graded in
+    # tests/eval/test_ablation.py where they are the subject.
+    generate_corpus(
+        root,
+        documents=DOCUMENTS,
+        revisions=0,
+        controls=Controls(clean=0, adversarial=0, orphans=0),
+        seed=SEED,
+        generated_at=AT,
+    )
     return root
 
 
@@ -103,13 +113,13 @@ def a_provider() -> MockProvider:
     return MockProvider(sink=MemoryTraceSink(), settings=Settings())
 
 
-def evaluated(corpus: Path) -> EvalResult:
+def evaluated(corpus: Path, stages: Stages | None = None) -> EvalResult:
     """A whole run, in a store that closes with it."""
     connection = connect(MEMORY)
     migrate(connection)
     repository = Repository(connection)
     try:
-        return evaluate(repository, a_provider(), corpus, at=AT)
+        return evaluate(repository, a_provider(), corpus, at=AT, stages=stages)
     finally:
         repository.close()
 
@@ -272,6 +282,21 @@ def test_the_fusion_denominator_is_the_edges_the_corpus_labels(corpus, truth):
     assert result.fusion_expected == labelled > 0
 
 
+def test_the_fusion_numerator_counts_only_labelled_pairs(corpus):
+    """A recall over 1 is not a recall.
+
+    The numerator used to be every `estimated_as` edge in the store, which was
+    invisible for six phases because no offline run ever wrote more edges than
+    the key holds. Phase 10's coherently-citing mock writes plenty, and the
+    ratio came out at 9.3333.
+    """
+    result = evaluated(corpus)
+
+    assert result.fusion_found <= result.fusion_expected
+    assert result.fusion_found <= result.fusion_written
+    assert result.fusion_recall <= 1
+
+
 def test_the_offline_provider_is_refused_more_often_than_it_is_believed(corpus):
     """ADR 0016's claim, asserted rather than left to the report's caveat.
 
@@ -422,3 +447,28 @@ def test_cost_is_reported_per_agent_per_document(corpus):
         "SegmenterAgent",
     }
     assert all(isinstance(spent, Decimal) for spent in result.cost.values())
+
+
+def test_the_floor_rung_runs_extraction_and_nothing_after_it(corpus):
+    """The baseline the ablation is read against.
+
+    Every stage above extraction is off, so their numbers are absent rather
+    than bad -- which is what makes the rung above each one a difference.
+    """
+    result = evaluated(corpus, Stages.floor())
+
+    assert result.documents == DOCUMENTS
+    assert result.estimation.resolution.true_positives == 0
+    assert result.memory.formalization.checkable == 0
+    assert result.governance.findings == 0
+    assert result.fusion_written == 0
+
+
+def test_the_floor_rung_spends_nothing_on_the_segmenter(corpus):
+    """ADR 0011's floor makes no call, so the rung above it is priced honestly."""
+    assert "SegmenterAgent" not in evaluated(corpus, Stages.floor()).cost
+
+
+def test_stages_all_on_is_what_an_ordinary_run_already_did(corpus):
+    """The default has to be byte-identical or every earlier number moved."""
+    assert as_json(evaluated(corpus)) == as_json(evaluated(corpus, Stages()))

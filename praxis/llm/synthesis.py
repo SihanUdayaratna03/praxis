@@ -233,6 +233,24 @@ def ordinals_in(text: str) -> tuple[int, ...]:
     return tuple(dict.fromkeys(int(found) for found in _ORDINAL_LABEL.findall(text)))
 
 
+def passages_in(text: str) -> dict[int, tuple[str, ...]]:
+    """Map each bracketed ordinal in a prompt to the sentences under it.
+
+    Only used by the coherent mode (ADR 0034), which quotes from the passage it
+    cites instead of from the prompt as a whole. An ordinal with no sentence
+    long enough to quote is left out, so a caller cannot pin one it then cannot
+    quote from.
+    """
+    parts = _ORDINAL_LABEL.split(text)
+    found: dict[int, tuple[str, ...]] = {}
+    # split() puts the prefix first, then alternating label and body.
+    for label, body in zip(parts[1::2], parts[2::2], strict=False):
+        sentences = sentences_of(body)
+        if sentences:
+            found.setdefault(int(label), sentences)
+    return found
+
+
 def predicates_in(text: str) -> tuple[str, ...]:
     """Return the predicate-shaped code spans a prompt presents, deduplicated.
 
@@ -262,7 +280,9 @@ def expiries_in(text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(found.strip() for found in _EXPIRY_CALL.findall(text)))
 
 
-def synthesise_answer(schema: ResponseSchema | None, source_text: str, seed: str) -> str:
+def synthesise_answer(
+    schema: ResponseSchema | None, source_text: str, seed: str, *, cite_coherently: bool = False
+) -> str:
     """Answer one request as text, structured or free.
 
     Args:
@@ -271,6 +291,9 @@ def synthesise_answer(schema: ResponseSchema | None, source_text: str, seed: str
         seed: Any stable string identifying the request -- in practice its
             replay key, which is what makes the answer a function of the
             question.
+        cite_coherently: Draw a claim's quotation from the passage it cites,
+            instead of from the prompt as a whole. Off by default, which is the
+            behaviour Phases 2 to 9 measured. ADR 0034.
 
     Returns:
         Canonical JSON satisfying the schema, or a short prose answer. Rendered
@@ -282,16 +305,19 @@ def synthesise_answer(schema: ResponseSchema | None, source_text: str, seed: str
     """
     if schema is None:
         return synthesise_prose(source_text, seed)
-    return canonical_json(synthesise_value(schema.json_schema, source_text, seed))
+    value = synthesise_value(schema.json_schema, source_text, seed, cite_coherently=cite_coherently)
+    return canonical_json(value)
 
 
-def synthesise_value(json_schema: Mapping[str, Any], source_text: str, seed: str) -> Any:
+def synthesise_value(
+    json_schema: Mapping[str, Any], source_text: str, seed: str, *, cite_coherently: bool = False
+) -> Any:
     """Build a Python value satisfying `json_schema` out of `source_text`.
 
     Raises:
         SchemaNotSupportedError: if the schema nests past `MAX_DEPTH`.
     """
-    return _Answerer(source_text, seed).value(json_schema)
+    return _Answerer(source_text, seed, cite_coherently=cite_coherently).value(json_schema)
 
 
 def synthesise_prose(source_text: str, seed: str) -> str:
@@ -307,7 +333,7 @@ def synthesise_prose(source_text: str, seed: str) -> str:
 class _Answerer:
     """One request's worth of synthesis: a seeded generator over a prompt."""
 
-    def __init__(self, source_text: str, seed: str) -> None:
+    def __init__(self, source_text: str, seed: str, *, cite_coherently: bool = False) -> None:
         """Seed the generator from the request and index what can be quoted."""
         self._rng = random.Random(_seed_int(seed))  # noqa: S311 -- reproducibility, not secrecy
         self._sentences = sentences_of(source_text) or (_NOTHING_TO_QUOTE,)
@@ -316,6 +342,8 @@ class _Answerer:
         self._predicates = predicates_in(source_text)
         self._expiries = expiries_in(source_text)
         self._defs: Mapping[str, Any] = {}
+        self._passages = passages_in(source_text) if cite_coherently else {}
+        self._pinned: tuple[int, tuple[str, ...]] | None = None
 
     def value(self, schema: Mapping[str, Any], *, name: str = "", depth: int = 0) -> Any:
         """Synthesise one value for one node of a schema."""
@@ -360,10 +388,19 @@ class _Answerer:
         happy path the thing that is never covered.
         """
         properties: Mapping[str, Any] = schema.get("properties") or {}
-        return {
-            field: self.value(subschema, name=field, depth=depth + 1)
-            for field, subschema in properties.items()
-        }
+        # One passage per object, chosen before any field is filled, so an
+        # ordinal and a quotation in the same claim agree however the schema
+        # orders them. Restored afterwards because an extraction answer is a
+        # list of claims and each cites its own passage.
+        outer = self._pinned
+        self._pinned = self._pick_passage()
+        try:
+            return {
+                field: self.value(subschema, name=field, depth=depth + 1)
+                for field, subschema in properties.items()
+            }
+        finally:
+            self._pinned = outer
 
     def _array(self, schema: Mapping[str, Any], name: str, depth: int) -> list[Any]:
         """Build a list of the length the schema allows, without repeats."""
@@ -423,8 +460,27 @@ class _Answerer:
             return self.prose()
         return None
 
+    def _pick_passage(self) -> tuple[int, tuple[str, ...]] | None:
+        """One offered passage and its sentences, or `None` outside coherent mode.
+
+        Also `None` when the prompt offered no passage worth quoting from --
+        not every agent is shown a listing, and a passage can be too short.
+        Then both draws fall back to the default, which is the Phase 2 to 9
+        behaviour.
+        """
+        if not self._passages:
+            return None
+        ordinal = self._pick(sorted(self._passages))
+        return ordinal, self._passages[ordinal]
+
     def _quote(self) -> str:
-        """A sentence that really occurs in the prompt."""
+        """A sentence that really occurs in the prompt.
+
+        In coherent mode it comes from the pinned passage, so the quotation is
+        in the passage the same claim cites. ADR 0034.
+        """
+        if self._pinned is not None:
+            return self._pick(self._pinned[1])
         return self._pick(self._sentences)
 
     def _ordinal(self) -> int:
@@ -434,7 +490,13 @@ class _Answerer:
         likely to be reversed as ordered. A mock that emitted well-formed
         ranges would be imitating a competent model rather than a model, and
         the code that refuses a reversed range would never run offline.
+
+        In coherent mode it is the pinned passage's label instead, so a claim's
+        ordinal and its quotation name the same passage. Only the *agreement*
+        is arranged -- which passage was pinned is still a coin toss. ADR 0034.
         """
+        if self._pinned is not None:
+            return self._pinned[0]
         return self._pick(self._ordinals)
 
     def _label(self) -> str:

@@ -42,8 +42,12 @@ from praxis.config.models import (
 )
 from praxis.config.settings import ProviderName, Settings, get_settings
 from praxis.corpus.generator import (
+    DEFAULT_ADVERSARIAL,
+    DEFAULT_CONTROLS,
     DEFAULT_DOCUMENTS,
+    DEFAULT_ORPHANS,
     DEFAULT_REVISIONS,
+    Controls,
     CorpusError,
     generate_corpus,
 )
@@ -291,7 +295,7 @@ app.command(name="govern")(govern)
 
 
 @corpus_app.command(name="generate")
-def corpus_generate(
+def corpus_generate(  # noqa: PLR0913, PLR0917 -- one option per pass the generator makes
     root: Annotated[Path, typer.Argument(help="Directory to write the corpus into.")],
     documents: Annotated[
         int, typer.Option(help="How many documents to write.")
@@ -300,9 +304,18 @@ def corpus_generate(
         int,
         typer.Option(help="Revision notes overturning an earlier assumption."),
     ] = DEFAULT_REVISIONS,
+    controls: Annotated[
+        int, typer.Option(help="Operational documents with nothing to extract.")
+    ] = DEFAULT_CONTROLS,
+    adversarial: Annotated[
+        int, typer.Option(help="Memos whose every extractable-looking line is a negative.")
+    ] = DEFAULT_ADVERSARIAL,
+    orphans: Annotated[
+        int, typer.Option(help="Notes stating an assumption no decision rests on.")
+    ] = DEFAULT_ORPHANS,
     seed: Annotated[int | None, typer.Option(help="Overrides PRAXIS_SEED for this corpus.")] = None,
 ) -> None:
-    """Write the synthetic corpus and the answer key Phase 10 grades against.
+    """Write the synthetic corpus and the answer key `praxis eval` grades against.
 
     Deterministic: the same seed produces the same bytes, so regenerating is
     safe and a corpus in version control has a legible diff. The generated
@@ -310,8 +323,10 @@ def corpus_generate(
 
     Revision notes are written after the main pass and each overturns an
     assumption an earlier document stated, which is the `contradicts` ground
-    truth `ContradictionDetector` is graded against. `--revisions 0` writes the
-    Phase 3 corpus and nothing else.
+    truth `ContradictionDetector` is graded against. The three control passes
+    come last and are what makes a false positive visible: a control document
+    has no answers in it, an adversarial memo has only labelled negatives, and
+    an orphan note states an assumption no decision rests on.
     """
     settings = get_settings()
     configure_logging(settings)
@@ -321,6 +336,7 @@ def corpus_generate(
             root,
             documents=documents,
             revisions=revisions,
+            controls=Controls(clean=controls, adversarial=adversarial, orphans=orphans),
             seed=settings.seed if seed is None else seed,
             generated_at=datetime.now(UTC),
         )
@@ -330,11 +346,12 @@ def corpus_generate(
 
     counts = truth.counts()
     distractors = sum(1 for item in truth.items if item.is_distractor)
+    silent = sum(1 for document in truth.documents if not document.items)
     console.print("[bold green]praxis corpus generate: OK[/bold green]")
     console.print(f"  corpus     {root}")
     console.print(f"  documents  {len(truth.documents)}, seed {truth.seed}")
     console.print(f"  items      {', '.join(f'{n} {k.value}' for k, n in counts.items())}")
-    console.print(f"  negatives  {distractors} distractors")
+    console.print(f"  negatives  {distractors} distractors, {silent} documents with no answers")
     console.print(
         f"  edges      {_edges(truth, LinkType.CONTRADICTS)} contradicts, "
         f"{_edges(truth, LinkType.SUPERSEDES)} supersedes pairs planted"

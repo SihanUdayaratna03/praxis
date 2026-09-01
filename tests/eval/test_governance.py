@@ -234,6 +234,32 @@ class TestTheRates:
         assert score.abstained == 1
         assert score.abstention_rate == Decimal("0.5000")
 
+    def test_abstention_precision_is_one_when_every_abstention_names_a_rule(
+        self, store: Repository, span: Span
+    ) -> None:
+        """The number behind `abstentions_hold`. It says by how much, not whether."""
+        write_assumption(store, span)
+        write_finding(store, span, number=1, verdict=Verdict.UPHELD, challenge="held")
+        write_finding(store, span, number=2)
+
+        score = grade_governance(store)
+
+        assert score.abstained == 1
+        assert score.abstained_with_cause == 1
+        assert score.abstention_precision == Decimal("1.0000")
+        assert score.abstentions_hold
+
+    def test_nothing_withheld_is_no_measurement_rather_than_a_precision_of_zero(
+        self, store: Repository, span: Span
+    ) -> None:
+        write_assumption(store, span)
+        write_finding(store, span, verdict=Verdict.UPHELD, challenge="held")
+
+        score = grade_governance(store)
+
+        assert score.abstained == 0
+        assert score.abstention_precision == Decimal(0)
+
     def test_the_retirement_rate_is_over_live_assumptions(
         self, store: Repository, span: Span
     ) -> None:
@@ -256,6 +282,7 @@ class TestTheRates:
         assert score.concede_rate == Decimal(0)
         assert score.retirement_rate == Decimal(0)
         assert score.abstention_rate == Decimal(0)
+        assert score.abstention_precision == Decimal(0)
         assert score.merge_recall == Decimal(0)
 
 

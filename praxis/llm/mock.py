@@ -62,7 +62,7 @@ class MockProvider(LLMProvider):
     name = ProviderName.MOCK
     bills = False
 
-    def __init__(  # noqa: PLR0913 -- four inherited wires plus two behaviour knobs
+    def __init__(  # noqa: PLR0913 -- four inherited wires plus three behaviour knobs
         self,
         *,
         sink: TraceSink | None = None,
@@ -71,6 +71,7 @@ class MockProvider(LLMProvider):
         settings: Settings | None = None,
         malformed_share: float = 0.0,
         refusal_share: float = 0.0,
+        cite_coherently: bool = False,
     ) -> None:
         """Wire the provider and choose how often it misbehaves.
 
@@ -85,6 +86,11 @@ class MockProvider(LLMProvider):
                 and a bug found offline is reproducible from the trace row.
             refusal_share: The share of calls the model declines, decided the
                 same way.
+            cite_coherently: Quote from the passage a claim cites rather than
+                from the prompt as a whole. Off by default -- the default draw
+                is what Phases 2 to 9 measured, and it is the only offline
+                exercise the citation gate's refusal branches get. `praxis
+                eval` turns it on. ADR 0034.
 
         Raises:
             ValueError: if either share is outside 0 to 1, which would silently
@@ -100,6 +106,7 @@ class MockProvider(LLMProvider):
                 raise ValueError(message)
         self.malformed_share = malformed_share
         self.refusal_share = refusal_share
+        self.cite_coherently = cite_coherently
 
     def _invoke(self, request: LLMRequest, spec: ModelSpec) -> LLMResponse:
         """Synthesise one answer, or one of the two failures worth imitating.
@@ -119,7 +126,9 @@ class MockProvider(LLMProvider):
         if _drawn(key, "refusal") < self.refusal_share:
             return self._respond(request, spec, text="", stop_reason=StopReason.REFUSAL)
 
-        text = synthesise_answer(request.schema, request.source_text, key)
+        text = synthesise_answer(
+            request.schema, request.source_text, key, cite_coherently=self.cite_coherently
+        )
         if request.schema is not None and _drawn(key, "malformed") < self.malformed_share:
             cut = max(1, int(len(text) * _TRUNCATION_SHARE))
             return self._respond(request, spec, text=text[:cut], stop_reason=StopReason.MAX_TOKENS)

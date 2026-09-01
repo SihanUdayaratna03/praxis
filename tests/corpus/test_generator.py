@@ -20,6 +20,7 @@ from decimal import Decimal
 
 import pytest
 from praxis.corpus.generator import (
+    DEFAULT_CONTROL_MIX,
     DEFAULT_DOCUMENTS,
     DEFAULT_REVISIONS,
     GENERATOR_VERSION,
@@ -50,9 +51,16 @@ from praxis.predicates.world import WorldState
 AT = datetime(2026, 8, 17, 9, 0, tzinfo=UTC)
 
 
-@pytest.fixture
-def corpus(tmp_path):
-    root = tmp_path / "corpus"
+@pytest.fixture(scope="module")
+def corpus(tmp_path_factory):
+    """The default corpus, generated once for the whole module.
+
+    Module-scoped since Phase 10 took the default to 82 documents. Every test
+    here reads it, and the one that regenerates in place asserts the bytes do
+    not move -- so sharing it is safe and generating it per test was 30 seconds
+    of the suite.
+    """
+    root = tmp_path_factory.mktemp("corpus") / "corpus"
     generate_corpus(root, seed=20260809, generated_at=AT)
     return root
 
@@ -156,7 +164,9 @@ def test_the_documents_are_named_in_the_key_and_present_on_disk(corpus):
     # The main pass plus the revision notes, which are a second pass rather
     # than a fifth template -- a revision is a reply to a document that already
     # exists, so it cannot be scheduled alongside the thing it replies to.
-    assert len(truth.documents) == DEFAULT_DOCUMENTS + DEFAULT_REVISIONS
+    # Phase 10's three control passes come after both.
+    expected = DEFAULT_DOCUMENTS + DEFAULT_REVISIONS + DEFAULT_CONTROL_MIX.total()
+    assert len(truth.documents) == expected
     for entry in truth.documents:
         assert (corpus / entry.path).is_file()
 

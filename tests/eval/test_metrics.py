@@ -22,6 +22,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from praxis.agents.errors import Refusal
 from praxis.agents.results import Refused, Stage
+from praxis.agents.scoring import Backtest
 from praxis.corpus.groundtruth import ItemKind
 from praxis.domain.enums import AssumptionStatus as Status
 from praxis.domain.enums import RecordKind
@@ -37,6 +38,7 @@ from praxis.eval.metrics import (
     citation_integrity,
     cost_per_document,
     fusion_recall,
+    mae_improvement,
     monitoring_score,
     pair_score,
     score,
@@ -367,3 +369,43 @@ class TestAPairScoreThatFoundNothingRight:
         score = pair_score("contradiction", [("a", "b")], [("c", "d")])
         assert (score.precision, score.recall) == (ZERO, ZERO)
         assert score.f1 == ZERO
+
+
+class TestMaeImprovement:
+    def test_a_correction_that_halved_the_error_reports_both_readings(self):
+        found = mae_improvement(
+            Backtest(scored=4, raw_error=Decimal("0.40"), corrected_error=Decimal("0.20"))
+        )
+        assert found.measured
+        assert found.absolute == Decimal("0.2000")
+        assert found.relative == Decimal("0.5000")
+
+    def test_a_correction_that_hurt_reports_a_negative_improvement(self):
+        # Signed on purpose. A calibrator that made the estimates worse is the
+        # failure the metric exists to catch, and an absolute value would hide it.
+        found = mae_improvement(
+            Backtest(scored=2, raw_error=Decimal("0.10"), corrected_error=Decimal("0.30"))
+        )
+        assert found.absolute == Decimal("-0.2000")
+        assert found.relative == Decimal("-2.0000")
+
+    def test_nothing_scored_is_not_measured_rather_than_no_improvement(self):
+        # The distinction the whole class exists for: no group in a corpus this
+        # size reaches MINIMUM_SAMPLE, and that zero is not a flat calibrator.
+        found = mae_improvement(Backtest())
+        assert not found.measured
+        assert found.absolute == ZERO
+
+    def test_no_error_to_remove_reports_zero_rather_than_perfect(self):
+        found = mae_improvement(Backtest(scored=3, raw_error=EMPTY, corrected_error=EMPTY))
+        assert found.measured
+        assert found.relative == ZERO
+
+    @settings(max_examples=50)
+    @given(
+        raw=st.decimals(min_value=0, max_value=5, places=4),
+        corrected=st.decimals(min_value=0, max_value=5, places=4),
+    )
+    def test_the_absolute_improvement_is_always_the_gap_between_the_two(self, raw, corrected):
+        found = mae_improvement(Backtest(scored=1, raw_error=raw, corrected_error=corrected))
+        assert found.absolute == (raw - corrected).quantize(RATE_PLACES)

@@ -152,7 +152,7 @@ def architecture_record(topic: Topic, draft: Draft, rng: Random, index: int) -> 
         hypothetical,
         note="A hypothetical under a heading that says it was not decided.",
     )
-    return _as_text(draft, f"{index:02d}-{topic.slug}-adr.md", SourceKind.MARKDOWN)
+    return as_text(draft, f"{index:02d}-{topic.slug}-adr.md", SourceKind.MARKDOWN)
 
 
 def meeting_notes(topic: Topic, draft: Draft, rng: Random, index: int) -> Written:
@@ -194,7 +194,7 @@ def meeting_notes(topic: Topic, draft: Draft, rng: Random, index: int) -> Writte
         hypothetical,
         note="An open question phrased as if it were settled.",
     )
-    return _as_text(draft, f"{index:02d}-{topic.slug}-notes.md", SourceKind.MARKDOWN)
+    return as_text(draft, f"{index:02d}-{topic.slug}-notes.md", SourceKind.MARKDOWN)
 
 
 def status_update(topic: Topic, draft: Draft, rng: Random, index: int) -> Written:
@@ -222,7 +222,7 @@ def status_update(topic: Topic, draft: Draft, rng: Random, index: int) -> Writte
         hypothetical,
         note="Something that might happen, under a heading about what is next.",
     )
-    return _as_text(draft, f"{index:02d}-{topic.slug}-status.txt", SourceKind.TEXT)
+    return as_text(draft, f"{index:02d}-{topic.slug}-status.txt", SourceKind.TEXT)
 
 
 def issue_export(topic: Topic, draft: Draft, rng: Random, index: int) -> Written:
@@ -349,13 +349,13 @@ def revision_note(topic: Topic, draft: Draft, rng: Random, index: int) -> Writte
         hypothetical,
         note="A sentence saying what is NOT being decided, under a heading that says so.",
     )
-    return _as_text(draft, f"{index:02d}-{topic.slug}-revision.md", SourceKind.MARKDOWN)
+    return as_text(draft, f"{index:02d}-{topic.slug}-revision.md", SourceKind.MARKDOWN)
 
 
 TEMPLATES: Final = (architecture_record, meeting_notes, status_update, issue_export)
 
 
-def _as_text(draft: Draft, filename: str, source_kind: SourceKind) -> Written:
+def as_text(draft: Draft, filename: str, source_kind: SourceKind) -> Written:
     """Finish a document whose file is its own content."""
     content = draft.text()
     return Written(

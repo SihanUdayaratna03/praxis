@@ -158,6 +158,7 @@ class SegmenterAgent:
         *,
         window_blocks: int = DEFAULT_WINDOW_BLOCKS,
         max_attempts: int = REPAIR_ATTEMPTS,
+        floor_only: bool = False,
     ) -> None:
         """Wire the agent to a provider it did not choose.
 
@@ -166,6 +167,9 @@ class SegmenterAgent:
                 implementation -- ADR 0005's first assumption.
             window_blocks: Blocks per call.
             max_attempts: Attempts per call, repairs included.
+            floor_only: Skip the model and take the floor for every window.
+                What the ablation's baseline rung runs on. It costs no call, so
+                the cost column stays honest about a rung that made none.
 
         Raises:
             ValueError: if the window is not positive, which would make a
@@ -177,6 +181,7 @@ class SegmenterAgent:
         self._provider = provider
         self._window_blocks = window_blocks
         self._max_attempts = max_attempts
+        self._floor_only = floor_only
 
     def segment(self, document: Document, *, at: datetime) -> Segmentation:
         """Cut a document into spans.
@@ -223,6 +228,8 @@ class SegmenterAgent:
         self, document: Document, window: tuple[Block, ...]
     ) -> tuple[SegmentationPlan | None, int]:
         """Ask for one window's groups, returning `None` if the answer was unusable."""
+        if self._floor_only:
+            return None, 0
         prompt = _prompt()
         request = LLMRequest(
             agent=self.name,

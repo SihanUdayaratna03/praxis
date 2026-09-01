@@ -101,6 +101,8 @@ class GovernanceScore:
             because it is the one that is a finding rather than housekeeping.
         emitted: Findings the gate concluded on.
         abstained: Findings it routed to a person instead.
+        abstained_with_cause: Abstentions that really fail at least one rule.
+            The numerator of `abstention_precision`.
         by_insufficiency: How many abstentions each rule caused. A finding
             failing two rules contributes to both, so these sum to at least the
             abstention count.
@@ -124,6 +126,7 @@ class GovernanceScore:
     kept_under_a_decision: int = 0
     emitted: int = 0
     abstained: int = 0
+    abstained_with_cause: int = 0
     by_insufficiency: Mapping[str, int] = field(default_factory=dict)
     verdicts_hold: bool = True
     retirements_hold: bool = True
@@ -141,6 +144,18 @@ class GovernanceScore:
         if not self.decided:
             return Decimal(0)
         return (Decimal(self.conceded) / Decimal(self.decided)).quantize(RATE_PLACES)
+
+    @property
+    def abstention_precision(self) -> Decimal:
+        """Share of abstentions that really fail a rule. The brief's metric.
+
+        Zero when nothing abstained, which is no measurement -- `abstained` is
+        reported beside it. `abstentions_hold` is the same claim as a boolean,
+        and this is the number that says by how much it missed.
+        """
+        if not self.abstained:
+            return Decimal(0)
+        return (Decimal(self.abstained_with_cause) / Decimal(self.abstained)).quantize(RATE_PLACES)
 
     @property
     def retirement_rate(self) -> Decimal:
@@ -223,6 +238,7 @@ def grade_governance(
         ),
         emitted=len(gate.emitted),
         abstained=len(gate.abstained),
+        abstained_with_cause=sum(1 for routing in gate.abstained if routing.insufficiencies),
         by_insufficiency={
             insufficiency.value: count
             for insufficiency, count in gate.by_insufficiency().items()

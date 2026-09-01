@@ -125,6 +125,16 @@ AGED_NOTE: Final = (
 """Printed beside the count, because a zero with no explanation reads as a
 column nobody filled in."""
 
+UNLABELLED_EDGE_NOTE: Final = (
+    "An edge the key does not label is unjudgeable rather than wrong -- the corpus "
+    "labels the fusion edges it constructed, not every one that could truthfully be "
+    "asserted. So the recall above counts only the labelled pairs an edge really "
+    "reached, and this counts everything the layer wrote."
+)
+"""Why the two fusion numbers differ. Before Phase 10 the recall's numerator was
+this count, which made it a ratio that could exceed 1 -- and did, the first time
+a run wrote more edges than the key holds."""
+
 UNNAMED_NOTE: Final = (
     "not false positives. The corpus labels the contradictions it planted, so a "
     "pair it never labelled is unjudgeable rather than wrong."
@@ -164,8 +174,8 @@ def as_markdown(
     if provenance:
         lines += [_provenance(provenance), ""]
     lines += [
-        _row(SCORE_HEADINGS),
-        _row(["---"] * len(SCORE_HEADINGS)),
+        table_row(SCORE_HEADINGS),
+        table_row(["---"] * len(SCORE_HEADINGS)),
         *(_score_row(kind) for kind in result.kinds),
         "",
         "## Citation integrity",
@@ -177,6 +187,8 @@ def as_markdown(
         f"`estimated_as` edges found: **{result.fusion_found}** of "
         f"{result.fusion_expected} the corpus labels "
         f"(recall **{result.fusion_recall}**).",
+        "",
+        f"Edges written in total: **{result.fusion_written}**. {UNLABELLED_EDGE_NOTE}",
         "",
         f"Documents graded: {result.documents}. "
         f"Model calls: {result.run.calls}. "
@@ -223,6 +235,7 @@ def as_json(result: EvalResult, *, provenance: Mapping[str, str] | None = None) 
         # conclude the other was not measured.
         "fusion": {
             "found": result.fusion_found,
+            "written": result.fusion_written,
             "expected": result.fusion_expected,
             "recall": str(result.fusion_recall),
             **_fusion_data(result.fusion),
@@ -313,6 +326,13 @@ def _governance_lines(governance: GovernanceScore) -> list[str]:
         if governance.decided
         else "**no measurement** -- nothing was decided"
     )
+    withheld = (
+        f"**{governance.abstention_precision}** -- "
+        f"{governance.abstained_with_cause} of {governance.abstained} abstentions "
+        f"really fail a rule"
+        if governance.abstained
+        else "**no measurement** -- nothing was withheld"
+    )
     return [
         "## Adversarial and governance",
         "",
@@ -324,6 +344,8 @@ def _governance_lines(governance: GovernanceScore) -> list[str]:
         f"Abstention rate: **{governance.abstention_rate}** "
         f"({governance.abstained} withheld, {governance.emitted} concluded). "
         f"Concede rate: {decided}.",
+        "",
+        f"Abstention precision: {withheld}.",
         "",
         *_insufficiency_lines(governance.by_insufficiency),
         f"Assumptions curated: **{governance.assumptions}**, retirement rate "
@@ -352,10 +374,10 @@ def _insufficiency_lines(counted: Mapping[str, int]) -> list[str]:
     if not counted:
         return []
     return [
-        _row(("withheld because", "findings")),
-        _row(("---", "---")),
+        table_row(("withheld because", "findings")),
+        table_row(("---", "---")),
         *(
-            _row((rule, str(count)))
+            table_row((rule, str(count)))
             for rule, count in sorted(counted.items(), key=lambda pair: (-pair[1], pair[0]))
         ),
         "",
@@ -381,6 +403,8 @@ def _governance_data(governance: GovernanceScore) -> dict[str, Any]:
         "emitted": governance.emitted,
         "abstained": governance.abstained,
         "abstention_rate": str(governance.abstention_rate),
+        "abstained_with_cause": governance.abstained_with_cause,
+        "abstention_precision": str(governance.abstention_precision),
         "by_insufficiency": dict(governance.by_insufficiency),
         "verdicts_hold": governance.verdicts_hold,
         "retirements_hold": governance.retirements_hold,
@@ -507,8 +531,8 @@ def _estimation_lines(estimation: EstimationResult) -> list[str]:
         f"(match rate **{matching.match_rate}**), against "
         f"{estimation.expected_resolutions} the corpus resolves.",
         "",
-        _row(PAIR_HEADINGS),
-        _row(["---"] * len(PAIR_HEADINGS)),
+        table_row(PAIR_HEADINGS),
+        table_row(["---"] * len(PAIR_HEADINGS)),
         _pair_row(estimation.resolution),
         "",
         *_unmatched_lines(matching),
@@ -599,8 +623,8 @@ def _memory_lines(memory: MemoryResult) -> list[str]:
         "",
         "## Contradictions",
         "",
-        _row(PAIR_HEADINGS),
-        _row(["---"] * len(PAIR_HEADINGS)),
+        table_row(PAIR_HEADINGS),
+        table_row(["---"] * len(PAIR_HEADINGS)),
         *(
             _pair_row(found)
             for found in (memory.contradictions, memory.by_arithmetic, memory.by_model)
@@ -619,7 +643,7 @@ def _memory_lines(memory: MemoryResult) -> list[str]:
 
 def _pair_row(found: PairScore) -> str:
     """One contradiction stage as a table row."""
-    return _row(
+    return table_row(
         [
             found.label,
             str(found.true_positives),
@@ -639,9 +663,9 @@ def _cost_lines(cost: Mapping[str, Decimal]) -> list[str]:
     return [
         "## Cost per document",
         "",
-        _row(("Agent", "USD per document")),
-        _row(("---", "---")),
-        *(_row((agent, str(spent))) for agent, spent in sorted(cost.items())),
+        table_row(("Agent", "USD per document")),
+        table_row(("---", "---")),
+        *(table_row((agent, str(spent))) for agent, spent in sorted(cost.items())),
         "",
     ]
 
@@ -714,7 +738,7 @@ def _score_data(kind: KindResult) -> dict[str, Any]:
 
 def _score_row(kind: KindResult) -> str:
     """One kind as a table row."""
-    return _row(
+    return table_row(
         [
             kind.kind.value,
             str(kind.score.true_positives),
@@ -758,10 +782,10 @@ def _citation_lines(citations: CitationIntegrity) -> list[str]:
     ]
     if citations.by_refusal:
         lines.append("")
-        lines.append(_row(("Refusal", "Count")))
-        lines.append(_row(("---", "---")))
+        lines.append(table_row(("Refusal", "Count")))
+        lines.append(table_row(("---", "---")))
         lines += [
-            _row((refusal.value, str(count)))
+            table_row((refusal.value, str(count)))
             for refusal, count in sorted(
                 citations.by_refusal.items(), key=lambda entry: (-entry[1], entry[0].value)
             )
@@ -782,6 +806,6 @@ def _provenance(provenance: Mapping[str, str]) -> str:
     )
 
 
-def _row(cells: tuple[str, ...] | list[str]) -> str:
-    """One markdown table row."""
+def table_row(cells: tuple[str, ...] | list[str]) -> str:
+    """One markdown table row. Public so the ablation renders the same shape."""
     return "| " + " | ".join(cells) + " |"

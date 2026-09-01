@@ -610,3 +610,270 @@ by predicted lines, and see whether that procedure needs a smaller correction.
   rewritten.
 - Progress explanations to the product owner are in **Sinhala**; everything in
   the repository is in English.
+
+---
+
+## Phase 10 progress log
+
+Branch `feat/phase-10-eval-harness`, cut from `main` at `b43b21e`. One line per
+component, appended after it was committed and pushed.
+
+**The four untracked paths were checked again before the branch was cut and
+left alone again.** `.codex/`, `AGENTS.md`, `docs/assets/` and `docs/design/`
+are untracked and not gitignored either — `git check-ignore` exits 1 on all
+four. None can reach CI: `.github/workflows/ci.yml` starts every one of its
+three jobs with `actions/checkout@v7.0.1`, which materialises committed files
+only. Nothing was committed, moved, renamed or deleted, and no ruff exemption
+was widened for any of them. This is the second phase running that they have
+been confirmed and passed over, and the answer has not changed.
+
+- **`EST-0011` logged before any Phase 10 file was written.** 3.1h active
+  against a 6.0h raw bottom-up, corrected once by the fitted factor
+  (`agent-implementation`, n=7, 1.9670x over, factor 0.5084 — recomputed with
+  `BiasDetective` over `docs/dogfood/` rather than copied from the Phase 9
+  table, and it agrees). Blocked 3.9h, the geometric mean of all ten actuals
+  and not an engineering prediction. **Priced by refusal vocabulary (16 paths)
+  and integration points (20), with no line count predicted at all** — which is
+  what `OUT-0010` asked for, having been wrong on hours and volume in opposite
+  directions at once. The class decision is stated rather than inherited: no
+  new agents in this phase, but `EST-0004` and `EST-0008` are already in
+  `agent-implementation` on the same grounds, and splitting the class at n=0
+  would throw away the project's only calibration signal to make a taxonomic
+  point.
+
+- **ADR 0033 — the style change reaches comments and docstrings.** Second stage
+  of ADR 0029's decision, not a new one. Phase 10 code onward gets one or two
+  plain lines; depth goes to an ADR and the code points at it. Phases 0–9 are
+  never restyled, for the reason ADR 0007 gives about history. `CLAUDE.md`'s
+  Style section says so and names the ADR. All three of 0033's predicates parse
+  against the Phase 5 grammar, checked with `read_adr_predicates` rather than
+  assumed — the corpus is now 132 hand-written predicates at a 0.9924 parse
+  rate.
+
+- **Eight more corpus topics, taking it to sixteen.** Arithmetic, not taste:
+  eight topics across four templates is thirty-two document shapes, so the
+  sixty-document corpus the phase needs was repeating every shape twice and the
+  extra documents measured nothing. Sixteen gives sixty-four, and `--documents
+  60 --revisions 8` now writes 68 documents with **no repeated topic-and-template
+  pair at all**, checked by listing them rather than assumed. Eight
+  `contradicts` and eight `supersedes` pairs planted, up from four each. New
+  work classes (`frontend`, `security`, `ml`) and three owners who had only been
+  meeting attendees before, so calibration has more than one group to be silent
+  about. `tests/corpus/test_topics.py` is new and is where the risk actually
+  lived — it parametrises over every topic and checks that the reversal
+  predicate's satisfying witness names the same quantity the predicate's
+  violating witness does, which is what makes the planted contradiction settleable
+  by interval arithmetic instead of by a model.
+
+- **The corpus gained its controls, and the default corpus is now 82 documents.**
+  `praxis/corpus/controls.py` is new and holds three passes that run after the
+  revisions: six **clean controls** (an on-call handover, a deploy log) with
+  *zero* ground-truth items, so anything extracted from one is a false positive
+  outright; four **adversarial memos** where all five extractable-looking
+  sentences are labelled negatives — a conditional, a deferral, another team's
+  decision, a refused proposal and a question; and four **orphan notes**, each
+  stating one real assumption that no `assumes` edge anywhere points at, which
+  is the retirement candidate `CuratorAgent` has never had a denominator for.
+  `DEFAULT_DOCUMENTS` 12 → 60, `DEFAULT_REVISIONS` 4 → 8, and the counts are
+  grouped into a `Controls` object so `generate_corpus` keeps a signature a
+  person can read. `GENERATOR_VERSION` 3 → 4, because the generated text
+  changed. Two of the sixteen predicted refusal paths were real and are now
+  closed: a zero-item document is a shape `_document_problems` had never seen,
+  and a negative control count is refused rather than clamped. The other
+  prediction held too — `GroundTruthItem`'s validator does refuse fields on a
+  distractor, so the adversarial memo plants none.
+
+- **The segmenter can be told to run on the floor alone.** `floor_only=True`
+  skips the model for every window and takes one span per block, which is the
+  ablation's baseline rung. `BACKLOG.md` predicted this would be "a
+  configuration change rather than a rewrite when the harness exists" and it
+  was: one flag, one early return, and `IngestionPipeline` already accepted an
+  injected segmenter, so it cost none of the integration points priced for it.
+  The refusal path predicted as number 6 was real and is closed — the floor
+  makes **zero** calls rather than one it throws away, because the ablation
+  reports cost per document and a baseline that spent the scan tier would
+  misprice every rung above it.
+
+- **ADR 0034 — the eval harness runs a coherently-citing mock.** The blocker
+  the phase had to answer: offline the mock draws its cited ordinal and its
+  quotation independently, so the gate refuses 28 of 39 claims and every number
+  downstream is a correct zero. An ablation table cannot show a layer adding
+  anything to zero. The mode is opt-in, the default draw is untouched, and the
+  citation gate is *not* disabled — invariant 6 has no convenience exception, so
+  the gate's own contribution is computed counterfactually from the refusal
+  record instead. The ADR answers `BACKLOG.md`'s Phase 9 objection to
+  special-casing the mock rather than ignoring it, and three Phase 10 backlog
+  entries are added, including the honest alternative (recorded fixtures) and
+  why invariant 1 forbids it.
+
+- **The mock can draw its ordinal and its quotation together, and `praxis eval`
+  asks it to.** ADR 0034 built. `passages_in` indexes a prompt's `[N]` listing,
+  `_Answerer` pins one passage per object before filling any field — so an
+  ordinal and a quotation in the same claim agree however the schema orders them
+  — and restores the outer pin afterwards, because an extraction answer is a
+  list of claims each citing its own passage. **The measured effect is the
+  phase's turning point: citation integrity 0.2821 → 0.9075**, fabrications
+  0.3077 → 0.0000, and the pipeline now runs end to end offline for the first
+  time — 44 assumptions stored where there were 0, 18 predicates parsed, 73
+  estimates classified, 13 resolved, 28 fusion edges priced, 9 findings argued.
+  ADR 0034 assumption 2 (`>= 0.8`) holds on its first measurement. All three
+  refusal paths predicted for this component were real: a passage with nothing
+  quotable is left out of the index rather than pinned, a prompt with no listing
+  falls back to the default draw, and the flag off is asserted byte-identical to
+  the Phase 2–9 answer.
+- **One defect the coherent mock exposed, fixed in the next commit rather than
+  hidden here:** `fusion_recall` divides every `estimated_as` edge in the store
+  by the number the corpus labels, so now that spurious edges exist it reports
+  **9.3333**. A ratio over 1 is not a recall. It was latent for six phases
+  because nothing offline ever wrote more edges than the key had.
+
+- **Fusion recall counts only the labelled pairs an edge really reached.** The
+  defect the previous commit exposed. The numerator was every `estimated_as`
+  edge in the store and the denominator was the number the corpus labels, so
+  the two were over different sets — a ratio that can exceed 1, and did, at
+  **9.3333**. It joins through the assumption and estimate pairings now, which
+  is the same join `praxis.eval.memory` already makes for the same reason: the
+  store's ids and the key's ids are allocated independently and nothing relates
+  them but the passage both cite. The total edges written are still reported,
+  beside the recall rather than inside it, because an edge the key does not
+  label is unjudgeable rather than wrong. Recall on the probe corpus is now
+  **0 of 3** against 28 edges written, which is the honest reading: the mock's
+  citations are coherent but the passage is still drawn at random, so no edge
+  joins the right assumption to the right estimate.
+
+- **Calibration MAE improvement is a reading of the backtest, not new
+  arithmetic.** The brief names it; `Backtest` already carried `raw_error` and
+  `corrected_error` over the same scored rows, so `mae_improvement` reports the
+  gap both ways — absolute and as a share of the error there was to remove — and
+  keeps `measured` beside them. `scored == 0` has to stay distinguishable from a
+  correction that changed nothing, because offline no group reaches
+  `MINIMUM_SAMPLE` and both would print zero. The improvement is signed on
+  purpose: a calibrator that made estimates worse is the failure the metric
+  exists to catch.
+
+- **Abstention precision is `abstentions_hold` as a number.** The brief names
+  it and the gate's boolean already asserted it: of the findings routed to a
+  person, how many really fail at least one rule. The boolean says whether the
+  gate contradicted itself; the rate says by how much, which is what a table
+  rung needs. Nothing withheld reports **no measurement** rather than zero, the
+  same convention `concede_rate` uses for nothing decided.
+
+- **`evaluate` takes a `Stages`, so a rung is a configuration rather than a
+  second harness.** Six flags — the floor segmenter and the five passes above
+  extraction — each gating one call in the function that already ordered them.
+  All on is asserted byte-identical to what Phases 4–9 ran, because a default
+  that drifted would have moved every number those phases reported. `Stages`
+  lives in its own module so `harness` and `ablation` can share it without
+  importing each other. The floor rung spends nothing on the segmenter, which
+  is what keeps the cost column comparable between rungs.
+
+- **ADR 0035 — the ablation ladder is cumulative.** Rung 1 is the floor with
+  extraction alone, each rung adds one component, and the top rung is the
+  ordinary graded run. Leave-one-out was rejected for a real reason rather than
+  a stylistic one: the stages are ordered by dependency — the monitor needs
+  compiled predicates, fusion needs calibrated factors, governance needs
+  findings — so removing a middle component prints a difference about the
+  missing dependency rather than about the component. A store per rung, because
+  a rung reading what an earlier rung wrote would grade a pipeline nobody ran.
+  The citation gate is *not* a rung: invariant 6 has no off switch, and ADR 0034
+  already settled that its contribution is counterfactual.
+
+- **ADR predicate parse rate, re-checked after 0033, 0034 and 0035 landed:
+  139 of 140, `0.9929`.** ADR 0001's first assumption asks for `>= 0.9` and it
+  holds. All 140 expiry conditions parse. The single unreadable row is still
+  ADR 0015's `mis_attribution_rate / fabrication_rate outside [0.5, 2.0]`,
+  which is prose in a predicate column rather than a grammar gap.
+
+- **The ladder is built, and writing its tests found two things.** `ablate`
+  runs each rung in a store of its own and reduces the graded result to a row.
+  Two defects the tests caught rather than the table:
+
+  **`EvalResult` had no total call count.** `run.calls` is the extraction run's
+  alone, so the floor rung and the learned segmenter reported the *same* 52
+  calls and ADR 0035 assumption 2 looked false. `evaluate` already summed every
+  stage's calls for its log line and then threw the number away; it is on the
+  result now, and the floor rung really does call fewer times than the rung
+  above it.
+
+  **Abstention precision is 1.0000 on every rung below governance, and that is
+  correct.** The gate is arithmetic (ADR 0032) so it is recomputed on any store,
+  and below the governance rung nothing has argued the findings — every one
+  fails `never_challenged`, so every abstention really does fail a rule. The
+  precision is trivially perfect and says nothing. `emitted` is the column that
+  distinguishes the two, and the row carries it for that reason. The test that
+  first asserted a precision of zero there was asserting the wrong thing.
+
+- **The ladder renders as markdown and as JSON, and `_row` became
+  `table_row`.** Rendering lives apart from arithmetic, the same split
+  `praxis.eval.report` makes, in a module of its own only because that file is
+  already 800 lines. The one thing shared with it is the markdown row helper,
+  made public rather than copied so the two tables cannot drift into different
+  shapes. `deltas` is the reading the ladder exists for: what each rung moved
+  precision and recall by against the rung below it, signed, so a component that
+  made things worse shows as a negative rather than as a small number.
+
+- **`praxis eval --ablate` runs the ladder.** One flag on the command that
+  already existed, rather than a second command: the corpus argument, the
+  ground-truth check, `--json`, `--markdown` and the provenance line are all the
+  same, and only what is run and what is rendered differ. `--keep` is refused
+  beside it with a sentence saying why — seven rungs mean seven stores, so
+  "keep the scratch store" has no answer, and the remedy printed is to run one
+  rung with `--keep` instead. The flag is opt-in because the ladder costs seven
+  runs of the corpus, which offline is time and against a real provider is
+  seven times the money.
+
+- **Two backlog entries, one of which is about the estimate itself.** ADR 0035
+  promised the first: a rung per agent inside the memory pass is refused for the
+  same reason leave-one-out was, and getting it needs a ladder that is not a
+  prefix of the pipeline. The second is that `EST-0011` priced **ten** rungs and
+  seven shipped, because there are seven stage boundaries in `evaluate` and the
+  missing three could only come from splitting the memory pass. Recorded in
+  `BACKLOG.md` rather than rounded away — the estimate is dogfood data, and a
+  subject edited to match its outcome is the one thing that would make the
+  Phase 12 demo worthless.
+
+- **The first real ladder run showed three rungs as identical rows, so two
+  columns were added.** Calibration, fusion and governance write *findings*,
+  not claims, so extraction precision is blind to all three and the table said
+  nothing about them. The JSON had the difference all along — abstentions ran
+  34 → 35 → 56 across those rungs — but the markdown could not show it.
+  `Findings` and `Flips` are columns now. This is the ablation's own failure
+  mode caught by running it: a table whose rows are identical is a statement
+  about the columns, not about the pipeline.
+
+- **ARCHITECTURE.md records the ladder.** Three modules added to the evaluation
+  section and to the tree: `stages`, `ablation`, `ablation_report`. The
+  paragraph says the two things a reader needs that the code does not say — that
+  three rungs write findings rather than claims, which is why a findings column
+  exists, and that the citation gate is not a rung because invariant 6 has no
+  off switch.
+
+- **The ladder's first run breached an assumption from Phase 3, which is the
+  point of having built it.** ADR 0011 assumption 1 says block grouping beats
+  the paragraph floor by `segmenter_f1 - paragraph_floor_f1 >= 0.05`, and its
+  expiry is `when(phases_completed >= 10)` — this phase. The floor and the
+  learned segmenter produce **byte-identical** counts: 38 true positives, 408
+  false positives, 124 false negatives, F1 **0.1250** both. The difference is
+  **0.0000**, and `praxis.predicates` evaluates the predicate to `Truth.FALSE`
+  — checked through the shipped evaluator rather than by eye. The segmenter's
+  only measured effect is **82 extra model calls**.
+
+  **It is not being recorded as false about the world.** Offline the segmenter's
+  grouping is synthesised by the mock rather than reasoned, so this is evidence
+  about `praxis.llm.synthesis`. What it does close is the excuse: the number was
+  unmeasurable before this phase and is measurable now, and it is not in the
+  assumption's favour. In `BACKLOG.md` for re-measurement on the first live run.
+
+- **`docs/reports/phase-10.md` is written, and it leads with the breach rather
+  than the table.** The ablation is the deliverable; the assumption it broke is
+  the result. The report also states the three deviations plainly — seven rungs
+  against the ten `EST-0011` priced, a flag rather than a subcommand, and the
+  citation gate not being a rung — and records that Half B is an F1 *regression*
+  (0.1250 → 0.1118) rather than describing the recall rise alone.
+
+- **Full suite green and the three new modules at 100%.** 3120 tests, coverage
+  **99.07%** against the 85% gate. The last three uncovered lines were
+  `in_memory_store`'s failure path — the branch that closes the connection when
+  `migrate` throws — and they are covered now. A leaked connection holds a lock
+  nothing releases, so it is exactly the kind of branch this project does not
+  leave to inspection.

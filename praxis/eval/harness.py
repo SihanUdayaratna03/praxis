@@ -24,7 +24,7 @@ this module performs.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -77,7 +77,9 @@ from praxis.eval.metrics import (
     fusion_recall,
     score,
 )
+from praxis.eval.stages import Stages
 from praxis.ingest.pipeline import IngestionPipeline
+from praxis.ingest.segmenter import SegmenterAgent
 from praxis.llm.provider import LLMProvider
 from praxis.monitor.facts import FactsFile
 from praxis.monitor.run import monitor_store
@@ -129,7 +131,14 @@ class EvalResult:
         run: What the extraction produced, refusals included.
         kinds: One result per graded kind, in `GRADED_KINDS` order.
         citations: How honest the citations were, and how they failed.
-        fusion_found: `estimated_as` edges written.
+        fusion_found: `estimated_as` edges written that land on a pair the
+            corpus labels. Joined through the assumption and estimate pairings,
+            because the store's ids and the key's ids are allocated
+            independently and nothing relates them but the passage both cite.
+        fusion_written: Every `estimated_as` edge in the store, labelled or
+            not. Reported beside the recall rather than as its numerator: an
+            edge the key does not label is not thereby wrong, so counting all
+            of them would give a ratio that can exceed 1 and is not a recall.
         fusion_expected: `estimated_as` edges the corpus labels.
         documents: How many documents were graded.
         memory: What the formalization, monitoring and detection passes
@@ -152,6 +161,9 @@ class EvalResult:
             are usually zeros, and they are correct zeros: no group in a corpus
             this size reaches the threshold.
         cost: What each agent spent per document, from the trace table.
+        calls: Model calls every stage made between them. `run.calls` counts
+            extraction alone, so an ablation rung comparing the floor with the
+            learned segmenter needs this one.
     """
 
     run: ExtractionRun
@@ -160,12 +172,16 @@ class EvalResult:
     fusion_found: int
     fusion_expected: int
     documents: int
+    fusion_written: int = 0
+    """Defaulted, unlike its neighbours, so a caller building a result by hand
+    to test the rendering does not have to supply a number it is not testing."""
     memory: MemoryResult = field(default_factory=MemoryResult)
     estimation: EstimationResult = field(default_factory=EstimationResult)
     calibration: CalibrationScore = field(default_factory=CalibrationScore)
     fusion: FusionScore = field(default_factory=FusionScore)
     governance: GovernanceScore = field(default_factory=GovernanceScore)
     cost: Mapping[str, Decimal] = field(default_factory=dict)
+    calls: int = 0
 
     @property
     def fusion_recall(self) -> Decimal:
@@ -219,7 +235,8 @@ def grade(  # noqa: PLR0913 -- one argument per source the table reads from
         run=run,
         kinds=kinds,
         citations=citation_integrity(run.refused, offered=len(claims)),
-        fusion_found=sum(
+        fusion_found=len(_fusion_found(repository, kinds, truth)),
+        fusion_written=sum(
             1 for link in repository.list_all(Link) if link.link_type is LinkType.ESTIMATED_AS
         ),
         fusion_expected=len(fusion_pairs(truth)),
@@ -257,13 +274,14 @@ def grade(  # noqa: PLR0913 -- one argument per source the table reads from
     )
 
 
-def evaluate(
+def evaluate(  # noqa: PLR0913 -- a store, a seam, a corpus, and three knobs
     repository: Repository,
     provider: LLMProvider,
     corpus: Path,
     *,
     at: datetime | None = None,
     run_id: str | None = None,
+    stages: Stages | None = None,
 ) -> EvalResult:
     """Ingest a corpus, extract from it, and grade the result.
 
@@ -278,31 +296,49 @@ def evaluate(
             answer key beside it.
         at: When this ran. Defaults to now, in UTC, per stage.
         run_id: Recorded on every audit row this writes.
+        stages: Which stages to run. Defaults to all of them; an ablation rung
+            turns them off from the top down.
 
     Returns:
         The graded result.
     """
+    stages = stages if stages is not None else Stages()
     truth = load_ground_truth(corpus)
-    ingestion = IngestionPipeline(repository, provider).ingest_directory(
-        corpus / DOCUMENTS_DIRNAME, at=at
-    )
+    ingestion = IngestionPipeline(
+        repository,
+        provider,
+        segmenter=SegmenterAgent(provider, floor_only=True) if stages.floor_only else None,
+    ).ingest_directory(corpus / DOCUMENTS_DIRNAME, at=at)
     run = ExtractionPipeline(repository, provider).extract_store(at=at, run_id=run_id)
-    estimation = estimate_store(repository, provider, at=at, run_id=run_id)
-    memory = _remember(repository, provider, truth, at=at, run_id=run_id)
+    estimation = (
+        estimate_store(repository, provider, at=at, run_id=run_id) if stages.estimation else None
+    )
+    memory = _remember(repository, provider, truth, at=at, run_id=run_id) if stages.memory else None
     # Last, and it could run anywhere after `estimate_store`: calibration reads
     # accumulated `Outcome` rows and feeds nothing downstream, which is exactly
     # what makes it a store pass rather than a stage. It costs no model call, so
     # its position cannot move the cost column either.
-    calibrate_store(repository, at=at, run_id=run_id)
+    if stages.calibration:
+        calibrate_store(repository, at=at, run_id=run_id)
     # After calibration, and this one genuinely cannot move: the fusion pass
     # asks `BiasDetective` for a factor per group, so it has to run once the
     # outcomes calibration reads are in place. It costs no model call either.
-    fuse_store(repository, at=at, run_id=run_id)
+    if stages.fusion:
+        fuse_store(repository, at=at, run_id=run_id)
     # Last, and this one genuinely cannot move either: governance argues against
     # the findings every stage above it filed, so it has to run once they exist.
     # It is also the only stage after ingestion whose cost is a `reason`-tier
     # call per batch of findings rather than per document.
-    governance = govern_store(repository, provider, at=at, run_id=run_id)
+    governance = (
+        govern_store(repository, provider, at=at, run_id=run_id) if stages.governance else None
+    )
+    calls = (
+        ingestion.calls
+        + run.calls
+        + (estimation.calls if estimation is not None else 0)
+        + (memory.calls if memory is not None else 0)
+        + (governance.calls if governance is not None else 0)
+    )
     _log.info(
         "eval_run",
         documents=len(ingestion.ingested),
@@ -310,18 +346,19 @@ def evaluate(
         decisions=run.decisions,
         assumptions=run.assumptions,
         estimates=run.estimates,
-        outcomes=estimation.outcomes,
-        calls=(ingestion.calls + run.calls + estimation.calls + memory.calls + governance.calls),
+        outcomes=estimation.outcomes if estimation is not None else 0,
+        calls=calls,
     )
-    return grade(
+    graded = grade(
         repository,
         truth,
         run,
-        detection=memory.detection,
+        detection=memory.detection if memory is not None else None,
         estimation=estimation,
         run_id=run_id,
         mock_provider=provider.name is ProviderName.MOCK,
     )
+    return replace(graded, calls=calls)
 
 
 @dataclass(frozen=True, slots=True)
@@ -503,6 +540,35 @@ def _graded(claims: tuple[Claim, ...], truth: CorpusGroundTruth, kind: ItemKind)
     return KindResult(
         pairing=pairing, score=score(pairing, kind), exact=exact_matches(pairing.matched)
     )
+
+
+def _fusion_found(
+    repository: Repository, kinds: tuple[KindResult, ...], truth: CorpusGroundTruth
+) -> set[tuple[str, str]]:
+    """The labelled `estimated_as` pairs an edge in the store really reaches.
+
+    An edge names two record ids; the key names two item ids. The two pairings
+    are the only thing that relates them, so an edge whose either end was never
+    paired cannot be judged and is not counted here -- it is counted in
+    `fusion_written` instead.
+    """
+    items = _item_ids(kinds, ItemKind.ASSUMPTION) | _item_ids(kinds, ItemKind.ESTIMATE)
+    expected = set(fusion_pairs(truth))
+    found = {
+        (items[link.source_id], items[link.target_id])
+        for link in repository.list_all(Link)
+        if link.link_type is LinkType.ESTIMATED_AS
+        and link.source_id in items
+        and link.target_id in items
+    }
+    return found & expected
+
+
+def _item_ids(kinds: tuple[KindResult, ...], kind: ItemKind) -> dict[str, str]:
+    """Record id to answer-key item id, for one kind's matched pairs."""
+    return {
+        match.claim.record_id: match.item.item_id for match in _pairing_for(kinds, kind).matched
+    }
 
 
 def _pairing_for(kinds: tuple[KindResult, ...], kind: ItemKind) -> Pairing:

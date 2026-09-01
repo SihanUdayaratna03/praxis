@@ -32,6 +32,7 @@ from typing import Final
 
 from praxis.agents.errors import Refusal
 from praxis.agents.results import Refused, Stage
+from praxis.agents.scoring import Backtest
 from praxis.corpus.groundtruth import ItemKind
 from praxis.domain.enums import AssumptionStatus
 from praxis.eval.matching import Match, Pairing
@@ -280,6 +281,22 @@ class PairScore:
         if total == 0:
             return _quantized(EMPTY)
         return _quantized(2 * self.precision * self.recall / total)
+
+
+def overall(scores: Iterable[Score], label: str = "overall") -> PairScore:
+    """Micro-average the per-kind scores into one precision and one recall.
+
+    Micro rather than macro: an ablation rung is read as one number and a macro
+    average would let the rarest kind swing it. Counts are already comparable
+    because every kind is paired the same way.
+    """
+    counted = tuple(scores)
+    return PairScore(
+        label=label,
+        true_positives=sum(score.true_positives for score in counted),
+        false_positives=sum(score.false_positives for score in counted),
+        false_negatives=sum(score.false_negatives for score in counted),
+    )
 
 
 def pair_score[T](label: str, found: Iterable[T], expected: Iterable[T]) -> PairScore:
@@ -561,3 +578,47 @@ def cost_per_document(spent: Mapping[str, Decimal], documents: int) -> dict[str,
     return {
         agent: (total / Decimal(documents)).quantize(COST_PLACES) for agent, total in spent.items()
     }
+
+
+@dataclass(frozen=True, slots=True)
+class MaeImprovement:
+    """The brief's calibration MAE improvement: error before and after.
+
+    Errors are mean absolute *log* ratios, the scale `ScoringAgent` works in.
+
+    Attributes:
+        scored: Rows a correction existed for. Zero means not measured.
+        before: Mean absolute log error of the raw estimates.
+        after: The same after the fitted factor was applied.
+    """
+
+    scored: int = 0
+    before: Decimal = EMPTY
+    after: Decimal = EMPTY
+
+    @property
+    def measured(self) -> bool:
+        """Whether anything was scored. Keeps "not measured" apart from "no change"."""
+        return self.scored > 0
+
+    @property
+    def absolute(self) -> Decimal:
+        """How much the error fell. Negative means the correction hurt."""
+        return (self.before - self.after).quantize(RATE_PLACES)
+
+    @property
+    def relative(self) -> Decimal:
+        """The same as a share of the error there was to remove.
+
+        Zero when there was none -- an improvement on no error is undefined.
+        """
+        if self.before == 0:
+            return _quantized(EMPTY)
+        return _quantized((self.before - self.after) / self.before)
+
+
+def mae_improvement(backtest: Backtest) -> MaeImprovement:
+    """Read a prequential walk's two errors as the brief's metric."""
+    return MaeImprovement(
+        scored=backtest.scored, before=backtest.raw_error, after=backtest.corrected_error
+    )

@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 
 import pytest
 from praxis.config.settings import Settings
-from praxis.corpus.generator import generate_corpus
+from praxis.corpus.generator import Controls, generate_corpus
 from praxis.domain.enums import RecordKind
 from praxis.domain.records import Document, Span
 from praxis.domain.spans import SpanDefect, verify_span
@@ -53,7 +53,15 @@ def corpus(tmp_path):
     # revisions=0 so the fixture means what it says. Revision notes are a
     # second pass in the generator and this file is about ingestion, not
     # about what the corpus contains.
-    generate_corpus(root, documents=6, revisions=0, seed=20260809, generated_at=AT)
+    # Phase 10's control passes are switched off for the same reason.
+    generate_corpus(
+        root,
+        documents=6,
+        revisions=0,
+        controls=Controls(clean=0, adversarial=0, orphans=0),
+        seed=20260809,
+        generated_at=AT,
+    )
     return root / "documents"
 
 

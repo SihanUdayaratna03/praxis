@@ -229,12 +229,16 @@ def test_init_warns_before_it_writes_to_a_synced_path(
 
 # --- Phase 3: ingestion and the corpus ------------------------------------
 
+NO_CONTROLS = ("--controls", "0", "--adversarial", "0", "--orphans", "0")
+"""Phase 10's control passes off, so a count in this file stays a count of the
+documents the test asked for."""
+
 
 def test_corpus_generate_writes_a_corpus_that_verifies(tmp_path: Path) -> None:
     root = tmp_path / "corpus"
 
     result = runner.invoke(
-        app, ["corpus", "generate", str(root), "--documents", "4", "--revisions", "0"]
+        app, ["corpus", "generate", str(root), "--documents", "4", "--revisions", "0", *NO_CONTROLS]
     )
 
     assert result.exit_code == 0, result.output
@@ -243,11 +247,42 @@ def test_corpus_generate_writes_a_corpus_that_verifies(tmp_path: Path) -> None:
     assert "4 distractors" in result.output
 
 
+def test_corpus_generate_writes_the_control_passes_and_says_so(tmp_path: Path) -> None:
+    """The counts a person needs to trust a precision figure.
+
+    A document with no answers in it is the only place a hallucination is
+    visible, so the command reports how many it wrote.
+    """
+    root = tmp_path / "corpus"
+
+    result = runner.invoke(
+        app,
+        [
+            *["corpus", "generate", str(root), "--documents", "4", "--revisions", "0"],
+            *["--controls", "2", "--adversarial", "1", "--orphans", "1"],
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert verify_corpus(root) == ()
+    assert "2 documents with no answers" in result.output
+
+
 def test_corpus_generate_takes_its_seed_from_the_configuration(tmp_path: Path) -> None:
     """So that a corpus regenerated on another machine is the same corpus,
     without anyone having to remember a number."""
     result = runner.invoke(
-        app, ["corpus", "generate", str(tmp_path / "c"), "--documents", "2", "--revisions", "0"]
+        app,
+        [
+            "corpus",
+            "generate",
+            str(tmp_path / "c"),
+            "--documents",
+            "2",
+            "--revisions",
+            "0",
+            *NO_CONTROLS,
+        ],
     )
 
     assert f"seed {get_settings().seed}" in result.output
@@ -255,7 +290,17 @@ def test_corpus_generate_takes_its_seed_from_the_configuration(tmp_path: Path) -
 
 def test_corpus_generate_reports_a_bad_request_as_a_sentence(tmp_path: Path) -> None:
     result = runner.invoke(
-        app, ["corpus", "generate", str(tmp_path / "c"), "--documents", "0", "--revisions", "0"]
+        app,
+        [
+            "corpus",
+            "generate",
+            str(tmp_path / "c"),
+            "--documents",
+            "0",
+            "--revisions",
+            "0",
+            *NO_CONTROLS,
+        ],
     )
 
     assert result.exit_code == 1
@@ -264,7 +309,10 @@ def test_corpus_generate_reports_a_bad_request_as_a_sentence(tmp_path: Path) -> 
 
 def test_ingest_reads_a_corpus_into_the_store(tmp_path: Path) -> None:
     corpus = tmp_path / "corpus"
-    runner.invoke(app, ["corpus", "generate", str(corpus), "--documents", "3", "--revisions", "0"])
+    runner.invoke(
+        app,
+        ["corpus", "generate", str(corpus), "--documents", "3", "--revisions", "0", *NO_CONTROLS],
+    )
     runner.invoke(app, ["init"])
 
     result = runner.invoke(app, ["ingest", str(corpus / "documents")])
@@ -277,7 +325,10 @@ def test_ingest_reads_a_corpus_into_the_store(tmp_path: Path) -> None:
 
 def test_ingest_recognises_a_corpus_it_has_already_read(tmp_path: Path) -> None:
     corpus = tmp_path / "corpus"
-    runner.invoke(app, ["corpus", "generate", str(corpus), "--documents", "2", "--revisions", "0"])
+    runner.invoke(
+        app,
+        ["corpus", "generate", str(corpus), "--documents", "2", "--revisions", "0", *NO_CONTROLS],
+    )
     runner.invoke(app, ["init"])
     runner.invoke(app, ["ingest", str(corpus / "documents")])
 
@@ -321,7 +372,17 @@ def a_corpus(tmp_path: Path, documents: int = 3) -> Path:
     """A generated corpus, through the command a user would type."""
     root = tmp_path / "corpus"
     runner.invoke(
-        app, ["corpus", "generate", str(root), "--documents", str(documents), "--revisions", "0"]
+        app,
+        [
+            "corpus",
+            "generate",
+            str(root),
+            "--documents",
+            str(documents),
+            "--revisions",
+            "0",
+            *NO_CONTROLS,
+        ],
     )
     return root
 
@@ -468,6 +529,48 @@ def test_eval_says_so_when_a_directory_holds_no_answer_key(tmp_path: Path) -> No
 
     assert result.exit_code == 1
     assert "praxis corpus generate" in result.output
+
+
+def test_eval_ablate_prints_a_row_for_every_rung(tmp_path: Path) -> None:
+    corpus = a_corpus(tmp_path)
+
+    result = runner.invoke(app, ["eval", str(corpus), "--ablate"])
+
+    assert result.exit_code == 0, result.output
+    assert "## Ablation" in result.output
+    for rung in ("| floor |", "| segmenter |", "| + governance |"):
+        assert rung in result.output
+
+
+def test_eval_ablate_writes_the_ladder_as_data_when_asked(tmp_path: Path) -> None:
+    corpus = a_corpus(tmp_path)
+    written = tmp_path / "out" / "ablation.json"
+
+    result = runner.invoke(app, ["eval", str(corpus), "--ablate", "--json", str(written)])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(written.read_text(encoding="utf-8"))
+    assert payload["rungs"][0]["rung"] == "floor"
+    assert payload["provenance"]["provider"] == "mock"
+
+
+def test_eval_ablate_refuses_to_keep_one_of_seven_stores(tmp_path: Path) -> None:
+    """Each rung gets a store of its own, so "the" scratch store has no answer."""
+    corpus = a_corpus(tmp_path)
+
+    result = runner.invoke(
+        app, ["eval", str(corpus), "--ablate", "--keep", str(tmp_path / "scratch.db")]
+    )
+
+    assert result.exit_code == 1
+    assert "cannot be combined" in result.output
+
+
+def test_eval_without_ablate_prints_no_ladder(tmp_path: Path) -> None:
+    """The flag is opt-in: the ladder costs seven runs (ADR 0035)."""
+    result = runner.invoke(app, ["eval", str(a_corpus(tmp_path))])
+
+    assert "## Ablation" not in result.output
 
 
 def test_two_evals_of_one_corpus_report_the_same_numbers(tmp_path: Path) -> None:
