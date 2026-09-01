@@ -923,3 +923,50 @@ ten-rung ladder `EST-0011` priced.
 **The one thing worth carrying forward is the breach.** ADR 0011 assumption 1
 is measurably false on the only evidence that exists, and the evidence is the
 mock's. Whatever Phase 11 does, that number becomes real on the first live run.
+
+## Phase 11 progress log
+
+Branch `feat/phase-11-dashboard`, cut from `main` at `8be20f3`. One line per
+component, appended as it was committed and pushed.
+
+**`.codex/` and `AGENTS.md` were checked again before the branch was cut and
+left alone.** Both are untracked and neither is gitignored — `git check-ignore`
+exits 1 on both. Neither can reach CI: `actions/checkout@v7.0.1` materialises
+committed files only. This is the fourth phase running that they have been
+confirmed and passed over, and the answer has not changed. `docs/assets/` and
+`docs/design/` were on that list for three phases and have left it — the
+product owner put them in scope for this phase, so they are committed.
+
+- **The design assets are committed, re-encoded to WebP.** Three 16:9 renders
+  at 1672x941 and the prompt that produced one of them. The PNGs were ~1.5 MB
+  each and `check-added-large-files` caps a blob at 512 KB; WebP at q92 lands
+  them at 147–195 KB with the UI text still legible, so the images changed
+  rather than the gate. Widening that limit for three reference images would
+  weaken it for every commit afterwards.
+
+- **`EST-0012` logged before any Phase 11 file was written.** 8.5h active,
+  **uncorrected**, and 4.2h blocked. Two things were decided rather than
+  inherited.
+
+  **The unit is render targets and store reads, and it is new.** `EST-0011`
+  priced by refusal vocabulary and integration points and `OUT-0011` vindicated
+  it at 1.1613x — but a refusal path is a place code must decline to answer,
+  which is a property of agent work. This phase has no refusal vocabulary; a
+  panel that renders wrongly is a mismatch against a picture, not a refusal.
+  Eighteen render targets at ~15 min, nine new `reports.py` reads at ~12 min,
+  eight plumbing points at ~8 min, and a **design-fidelity loop** priced at
+  1.1h. That fourth term is why the unit is new rather than a reskin: every
+  prior phase had binary correctness — the predicate parses or it does not —
+  and here the acceptance test is whether the page looks like the picture,
+  which is a loop with no green tick ending it. Lines were excluded outright.
+
+  **The work class is `frontend` and n is zero, not small.** The dogfood corpus
+  holds four classes — `scaffolding` (1), `data-modelling` (1),
+  `llm-integration` (1), `agent-implementation` (8) — and `frontend` is in none
+  of them. The only `frontend` rows in the repository are in the synthetic
+  corpus under `.praxis-tmp/`, which is untracked generator output about
+  fictional estimators. **So there is no factor, no band and no correction**;
+  `BiasDetective` refuses below `MINIMUM_SAMPLE = 5` and would refuse this at
+  0. `agent-implementation`'s fitted 0.6534 was deliberately not borrowed, on
+  `EST-0002`'s stated grounds. Confidence 0.35, below `EST-0011`'s 0.42,
+  because there is no prior in the class at all.
