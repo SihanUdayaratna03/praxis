@@ -307,3 +307,175 @@ a.row:hover {
   font-size: 13.5px;
   text-align: center;
 }
+
+/* --- the provenance strip ------------------------------------------------ */
+
+/* The payoff moment, laid out as docs/design/ lays it out: four linked cards
+ * reading left to right, then the callout under them. Not a table row. */
+
+.prov {
+  padding: var(--s5);
+}
+
+.prov-lead {
+  margin-bottom: var(--s5);
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+
+.prov-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s3);
+  align-items: stretch;
+}
+
+.prov-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4) var(--s4) var(--s5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+  /* The blue-glass depth the reference shows: an inner top highlight over a
+   * dropped shadow, rather than a flat fill. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 10px 24px -18px rgba(0, 0, 0, 0.9);
+}
+
+.prov-node::after {
+  content: "→";
+  position: absolute;
+  top: 50%;
+  right: -13px;
+  z-index: 2;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.prov-node:last-child::after {
+  content: none;
+}
+
+.prov-glyph {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+}
+
+.prov-id {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.prov-value {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.prov-kind {
+  margin-top: auto;
+  padding-top: var(--s2);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.prov-node.tone-blue {
+  border-color: rgba(43, 127, 255, 0.4);
+  color: var(--blue);
+}
+
+.prov-node.tone-teal {
+  border-color: rgba(45, 212, 191, 0.4);
+  color: var(--teal);
+}
+
+.prov-node.tone-violet {
+  border-color: rgba(167, 139, 250, 0.4);
+  color: var(--violet);
+}
+
+.prov-node.tone-amber {
+  border-color: rgba(245, 165, 36, 0.5);
+  background: linear-gradient(180deg, rgba(245, 165, 36, 0.12), var(--bg-inset));
+  color: var(--amber);
+}
+
+.prov-node .prov-value,
+.prov-node .prov-id {
+  color: var(--text);
+}
+
+.prov-node .prov-id {
+  color: var(--text-faint);
+}
+
+/* --- the callout --------------------------------------------------------- */
+
+.callout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s4);
+  margin-top: var(--s5);
+  padding: var(--s5);
+  border: 1px solid rgba(245, 165, 36, 0.4);
+  border-radius: var(--radius);
+  background: rgba(245, 165, 36, 0.07);
+}
+
+.callout .mark {
+  flex: none;
+  color: var(--amber);
+}
+
+.callout h4 {
+  color: var(--amber);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.callout p {
+  margin-top: 5px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.callout .btn {
+  margin-left: auto;
+  flex: none;
+  padding: 9px 15px;
+  font-size: 13px;
+  border-color: rgba(245, 165, 36, 0.5);
+  color: var(--amber);
+}
+
+.callout .btn:hover {
+  background: rgba(245, 165, 36, 0.12);
+}
+
+.sentence {
+  margin-top: var(--s5);
+  padding: var(--s4) var(--s5);
+  border-left: 2px solid var(--line-strong);
+  background: var(--bg-inset);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
