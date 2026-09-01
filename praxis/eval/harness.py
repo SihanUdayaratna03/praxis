@@ -24,7 +24,7 @@ this module performs.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -161,6 +161,9 @@ class EvalResult:
             are usually zeros, and they are correct zeros: no group in a corpus
             this size reaches the threshold.
         cost: What each agent spent per document, from the trace table.
+        calls: Model calls every stage made between them. `run.calls` counts
+            extraction alone, so an ablation rung comparing the floor with the
+            learned segmenter needs this one.
     """
 
     run: ExtractionRun
@@ -178,6 +181,7 @@ class EvalResult:
     fusion: FusionScore = field(default_factory=FusionScore)
     governance: GovernanceScore = field(default_factory=GovernanceScore)
     cost: Mapping[str, Decimal] = field(default_factory=dict)
+    calls: int = 0
 
     @property
     def fusion_recall(self) -> Decimal:
@@ -328,6 +332,13 @@ def evaluate(  # noqa: PLR0913 -- a store, a seam, a corpus, and three knobs
     governance = (
         govern_store(repository, provider, at=at, run_id=run_id) if stages.governance else None
     )
+    calls = (
+        ingestion.calls
+        + run.calls
+        + (estimation.calls if estimation is not None else 0)
+        + (memory.calls if memory is not None else 0)
+        + (governance.calls if governance is not None else 0)
+    )
     _log.info(
         "eval_run",
         documents=len(ingestion.ingested),
@@ -336,15 +347,9 @@ def evaluate(  # noqa: PLR0913 -- a store, a seam, a corpus, and three knobs
         assumptions=run.assumptions,
         estimates=run.estimates,
         outcomes=estimation.outcomes if estimation is not None else 0,
-        calls=(
-            ingestion.calls
-            + run.calls
-            + (estimation.calls if estimation is not None else 0)
-            + (memory.calls if memory is not None else 0)
-            + (governance.calls if governance is not None else 0)
-        ),
+        calls=calls,
     )
-    return grade(
+    graded = grade(
         repository,
         truth,
         run,
@@ -353,6 +358,7 @@ def evaluate(  # noqa: PLR0913 -- a store, a seam, a corpus, and three knobs
         run_id=run_id,
         mock_provider=provider.name is ProviderName.MOCK,
     )
+    return replace(graded, calls=calls)
 
 
 @dataclass(frozen=True, slots=True)

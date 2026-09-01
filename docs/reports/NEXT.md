@@ -783,3 +783,22 @@ been confirmed and passed over, and the answer has not changed.
   holds. All 140 expiry conditions parse. The single unreadable row is still
   ADR 0015's `mis_attribution_rate / fabrication_rate outside [0.5, 2.0]`,
   which is prose in a predicate column rather than a grammar gap.
+
+- **The ladder is built, and writing its tests found two things.** `ablate`
+  runs each rung in a store of its own and reduces the graded result to a row.
+  Two defects the tests caught rather than the table:
+
+  **`EvalResult` had no total call count.** `run.calls` is the extraction run's
+  alone, so the floor rung and the learned segmenter reported the *same* 52
+  calls and ADR 0035 assumption 2 looked false. `evaluate` already summed every
+  stage's calls for its log line and then threw the number away; it is on the
+  result now, and the floor rung really does call fewer times than the rung
+  above it.
+
+  **Abstention precision is 1.0000 on every rung below governance, and that is
+  correct.** The gate is arithmetic (ADR 0032) so it is recomputed on any store,
+  and below the governance rung nothing has argued the findings — every one
+  fails `never_challenged`, so every abstention really does fail a rule. The
+  precision is trivially perfect and says nothing. `emitted` is the column that
+  distinguishes the two, and the row carries it for that reason. The test that
+  first asserted a precision of zero there was asserting the wrong thing.

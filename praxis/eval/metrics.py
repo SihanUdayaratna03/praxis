@@ -283,6 +283,22 @@ class PairScore:
         return _quantized(2 * self.precision * self.recall / total)
 
 
+def overall(scores: Iterable[Score], label: str = "overall") -> PairScore:
+    """Micro-average the per-kind scores into one precision and one recall.
+
+    Micro rather than macro: an ablation rung is read as one number and a macro
+    average would let the rarest kind swing it. Counts are already comparable
+    because every kind is paired the same way.
+    """
+    counted = tuple(scores)
+    return PairScore(
+        label=label,
+        true_positives=sum(score.true_positives for score in counted),
+        false_positives=sum(score.false_positives for score in counted),
+        false_negatives=sum(score.false_negatives for score in counted),
+    )
+
+
 def pair_score[T](label: str, found: Iterable[T], expected: Iterable[T]) -> PairScore:
     """Count two sets of identified things into a score.
 
