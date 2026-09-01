@@ -383,12 +383,16 @@ class TestThisProjectsOwnHistory:
             )
         return rows
 
-    def test_the_log_holds_eleven_outcomes_across_four_classes(self) -> None:
-        """The premise, checked rather than recalled, so the conclusion is real."""
+    def test_the_log_holds_twelve_outcomes_across_five_classes(self) -> None:
+        """The premise, checked rather than recalled, so the conclusion is real.
+
+        Repinned at the close of Phase 11: `OUT-0012` is the twelfth, and it
+        opened a fifth class, `frontend`.
+        """
         rows = self.dogfood_rows()
 
-        assert len(rows) == 11
-        assert len({row.work_class for row in rows}) == 4
+        assert len(rows) == 12
+        assert len({row.work_class for row in rows}) == 5
 
     def test_the_largest_class_is_three_past_the_threshold(self) -> None:
         """`OUT-0009` took it to six, `OUT-0010` to seven and `OUT-0011` to eight.
@@ -413,7 +417,9 @@ class TestThisProjectsOwnHistory:
         scored rows are three data points that could have gone either way and did
         not; they are not a demonstration that the correction is the right size.
         The class that used to assert "scores exactly nothing" is this one,
-        repinned three times.
+        repinned four times. `OUT-0012` moved `considered` and not `scored`:
+        it opened a fifth class at n=1, and a class with one row has nothing
+        before it to correct from.
         """
         rows = sorted(self.dogfood_rows(), key=lambda row: row.estimate_id)
         results = [
@@ -426,7 +432,7 @@ class TestThisProjectsOwnHistory:
 
         summed = total(results)
 
-        assert summed.considered == 11
+        assert summed.considered == 12
         assert summed.scored == 3
         assert summed.graded
 

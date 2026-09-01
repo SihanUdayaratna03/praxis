@@ -1131,81 +1131,16 @@ product owner put them in scope for this phase, so they are committed.
   `https://`, `http://`, a protocol-relative `//cdn`, and a CSS `url()` — for
   the same reason the boundary test watches its own.
 
-## Phase 11 paused here
+## Phase 11 paused, and then finished
 
-Stopped at the product owner's request, mid-way through the demo dataset
-strand. Nothing is uncommitted and nothing is half-written on disk.
+The pause is left in the log rather than edited out; the state table it
+carried is superseded by the close below. The entries that follow were
+written after work resumed.
 
-### State
-
-| | |
-| --- | --- |
-| Phase branch | `feat/phase-11-dashboard`, pushed, clean |
-| Merged strands | ADRs, store reads, web shell, landing page — all `--no-ff` |
-| Open strand | `feat/phase-11-demo`, pushed, clean, **partial** |
-| Suite | green at the last full run; ruff, `ruff format --check` and `mypy --strict` clean at the stop |
-| Untracked | `.codex/`, `AGENTS.md` — untouched, as in Phases 8–10 |
-| PR | not opened yet |
-| Tag | `v0.11-phase-11` not created yet |
-| `OUT-0012` | not closed |
-
-### What is built
-
-- `EST-0012` logged before any code: 8.5h active **uncorrected**, 4.2h blocked,
-  work class `frontend` at **n=0**.
-- ADR 0036 (web layer, no build step) and ADR 0037 (second network seam,
-  revised during implementation). ADR index rebuilt.
-- Six new store reads across `praxis/store/dashboard.py`,
-  `praxis/store/drilldown.py` and `praxis/store/traces.py`.
-- `praxis/web/` — 11 read-only GET routes, `create_app`, and `praxis serve`.
-- The landing page, built to `docs/assets/praxis-landing-page.webp` and checked
-  in a browser.
-- `tests/web/test_static.py`, the frontend's gate.
-
-### Where the demo strand stopped
-
-`praxis/demo/sources.py` is the **reader** and it works: 36 ADRs → titles,
-chosen paragraphs, rejected options and 149 assumption rows; both dogfood files
-→ 12 estimates and 11 outcomes. Everything comes back with real byte offsets so
-a seeded record can cite a span that genuinely contains it (invariant 6).
-
-**The writer does not exist yet.** Next is `praxis/demo/seed.py`: turn those
-into `Document`, `Span`, `Decision`, `Assumption`, `Estimate`, `Outcome` and
-`assumes` / `estimated_as` records through `Repository`, then `praxis demo
-seed` to run it, then tests.
-
-**One finding worth carrying, decided before the pause.** On this corpus the
-fusion layer will *not* produce a `FLIPPED` verdict, and that is the data
-telling the truth rather than a bug. `agent-implementation` is **1.53× over**
-at n=8, so calibration makes every estimate *smaller* — which can only relieve
-a `<=` predicate, never violate one. The demo should render whatever verdict
-occurs, including `RELIEVED` and `NO_FACTOR`, and the phase report should say
-this plainly. **Do not rig the seed to manufacture a flip.**
-
-The genuine payoff on real data is the other one: ADR 0011 assumption 1
-(`segmenter_f1 - paragraph_floor_f1 >= 0.05`) is **measurably false** — Phase 10
-measured the difference at `0.0000` — so the demo has a real decision
-invalidated by real evidence. Surface that as the headline finding.
-
-### Next, in order
-
-1. `praxis/demo/seed.py` + `praxis demo seed` + tests; merge the strand.
-2. The dashboard views: shell and rail, KPI cards, timeline, decision
-   drill-down, the fusion provenance strip, calibration charts, review queue,
-   and the reasoning panel over `trace_index`.
-3. `ARCHITECTURE.md` for the web layer.
-4. Full suite, PR with `--body-file`, CI green, merge commit, delete branch,
-   tag `v0.11-phase-11`, push tags, **verify against the remote**.
-5. `docs/reports/phase-11.md` — and it must record: the landing page as a scope
-   addition beyond the original dashboard-plus-demo brief; the `docs/assets/`
-   versus `docs/design/` reconciliation and what was chosen where; the reads
-   landing outside `reports.py` because of the 400-line rule; ADR 0037's
-   revision; and that no fusion flip occurs on this corpus, with the reason.
-6. Close `OUT-0012`.
 
 - **The demo dataset is Praxis's own history, and it seeds 603 records.** 36
   ADRs become decisions carrying their 149 assumption rows; `docs/dogfood/`
-  becomes 12 estimates and 11 outcomes; 149 `assumes` edges join them. No
+  becomes 12 estimates and 12 outcomes; 149 `assumes` edges join them. No
   second hand-crafted dataset, and Phase 10's corpus was not used — it grades
   extraction and populates almost nothing offline.
 
@@ -1290,3 +1225,84 @@ invalidated by real evidence. Surface that as the headline finding.
   command that fills it. Three traces were written into a scratch store to
   confirm the populated state renders: each row expands to the exact request
   and the raw answer. Two API tests now cover it.
+
+## Where Phase 12 starts
+
+Phase 11 is merged, tagged and verified on the remote. Nothing is in flight.
+
+| | |
+| --- | --- |
+| `main` | `47dc95f`, local and remote identical |
+| Tag | `v0.11-phase-11` → `47dc95f`, dereferenced through `git ls-remote` rather than assumed |
+| CI | 5/5 green on [#23](https://github.com/SihanUdayaratna03/praxis/pull/23) |
+| Open PRs | none |
+| Working tree | clean |
+| Suite | coverage **98.53%** against the 85% gate; every new module at 100% |
+| Schema | version 4 — no migration, for the sixth phase running |
+| ADR predicates | 148 of 149, **0.9933** |
+
+```bash
+cd "C:\Users\sihan\OneDrive\Desktop\Praxis Agents"
+git checkout main && git pull
+uv sync --all-groups
+
+# the whole demo, offline, no credentials
+uv run praxis init
+uv run praxis demo seed        # 603 records out of docs/adr and docs/dogfood
+uv run praxis serve            # http://127.0.0.1:8000
+```
+
+`praxis demo seed` refuses a store that already holds decisions — the store is
+append-only, so seeding twice would double every one of them. Point
+`PRAXIS_DATA_DIR` at an empty directory.
+
+**The four untracked paths are now two.** `.codex/` and `AGENTS.md` are still
+untracked, still not gitignored, and still cannot reach CI —
+`actions/checkout@v7.0.1` materialises committed files only, and `ruff check .`
+from a shell finds 14 findings in `.codex/` that the project gate never sees
+because pre-commit and CI read `praxis` and `tests`. Confirmed and passed over
+for the fifth phase running, and deliberately not renamed, moved or deleted:
+the product owner has a question about what `.codex/` signals in a public repo
+and wants to look at its contents first. That is a decision for outside a
+phase. `docs/assets/` and `docs/design/` left this list in Phase 11 and are
+committed.
+
+### The three things worth carrying into Phase 12
+
+**1. The demo is ready and it is honest, but it has one hole.** There are zero
+`estimated_as` edges in the seeded store, so the fusion layer prices nothing
+and the dashboard renders the measured breach instead of a flip. Both reasons
+are structural and both are written up in `docs/reports/phase-11.md`: no real
+ADR assumption *is* one of the dogfood estimates, and the only calibration
+group with enough history over-estimates, so a correction can only ever relieve
+a `<=` predicate. **Do not close that hole by seeding edges.** If Phase 12
+wants a live flip, the honest routes are a `>=` predicate whose subject a
+dogfood estimate really binds, or a real `praxis extract` run against a
+provider whose citations survive the gate.
+
+**2. `OUT-0012` says the refusal to correct cost accuracy.** `EST-0012`
+declined to borrow `agent-implementation`'s 0.6534 factor at n=0 and came in
+1.8889× over; the borrowed factor would have graded `close` rather than
+`partial`. That is the sharpest question in the corpus now: **is this
+estimator's over-estimation a property of the estimator or of the work class?**
+Five classes, eleven resolved outcomes, and every single one over. Phase 12's
+self-analysis should test that across classes rather than assume the per-class
+split is the right axis — and if it is not, ADR 0024's grouping key is the
+thing that moves.
+
+**3. `docs/dogfood/facts.json` is now a load-bearing file.** Eighteen
+measurements this project has published, and the monitor's verdicts come out of
+it. When Phase 12 measures something new, it goes there, and the assumption it
+answers stops being one of the 116 unverified.
+
+### What Phase 11 did not build
+
+- No fusion flip on this corpus, for the reasons above.
+- No write endpoints. ADR 0003 assumption 3 was checked and left standing, and
+  a test asserts the OpenAPI schema declares no method but GET.
+- No decision-dependency *graph* canvas. `docs/assets/` shows one; the
+  provenance strip from `docs/design/` was built instead, because it is the
+  shape the payoff actually has. A graph view over 36 decisions and 149
+  assumptions is in scope for a later phase, not this one.
+- No light theme. The assets establish one look and a second one nobody
+  designed would be a guess.

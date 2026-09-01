@@ -12,6 +12,7 @@ refused by name, and exactly one predicate is measurably false.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from decimal import Decimal
 from pathlib import Path
@@ -155,17 +156,17 @@ class TestTheDemoIsWorthShowing:
             assert factor.factor is None
             assert factor.reason
 
-    def test_the_class_with_nothing_resolved_refuses_differently(self, seeded: Repository):
-        """`frontend` is EST-0012, this phase, and nothing has answered it yet.
+    def test_the_newest_class_refuses_at_one_sample(self, seeded: Repository):
+        """`frontend` is EST-0012, closed by OUT-0012 at the end of Phase 11.
 
-        Its refusal reads differently from "four short of five", and that
-        difference is the thing worth showing: one group has too little
-        history, the other has none at all.
+        Repinned when that outcome landed: the group moved from "not one
+        resolved outcome" to "four short of five", which is the corpus growing
+        rather than the test breaking.
         """
         by_class = {f.group.work_class: f for f in BiasDetective(seeded).all_factors()}
-        assert by_class["frontend"].n == 0
-        assert "not one resolved outcome" in by_class["frontend"].reason
-        assert str(MINIMUM_SAMPLE) in by_class["scaffolding"].reason
+        assert by_class["frontend"].n == 1
+        assert by_class["frontend"].speaks is False
+        assert str(MINIMUM_SAMPLE) in by_class["frontend"].reason
 
     def test_the_monitor_finds_the_segmenter_breach_and_only_that(self, seeded: Repository):
         """The real payoff: a real decision invalidated by a real measurement."""
@@ -186,15 +187,47 @@ class TestTheDemoIsWorthShowing:
         assert AssumptionStatus.EXPIRED in statuses
         assert AssumptionStatus.BREACHED in statuses
 
-    def test_the_open_estimate_is_a_row_rather_than_a_silence(self, store: Repository):
-        """ADR 0022. A phase in flight stays in the calibration history."""
+    def test_every_estimate_carries_an_outcome(self, store: Repository):
+        """ADR 0022, over the real corpus. No estimate is left as a silence."""
         report = seed(store, adr_dir=ADRS, dogfood_dir=DOGFOOD)
-        assert report.unresolved == 1
         assert report.outcomes == report.estimates
-        unresolved = [
-            o for o in store.list_all(Outcome) if o.match_quality is MatchQuality.UNRESOLVED
-        ]
-        assert len(unresolved) == 1
+
+    def test_an_unanswered_estimate_becomes_an_unresolved_row(
+        self, store: Repository, tmp_path: Path
+    ):
+        """ADR 0022, over a corpus written for it.
+
+        Against a synthetic pair rather than `docs/dogfood/`, because the real
+        corpus is fully resolved whenever a phase has just closed and would
+        stop exercising this path.
+        """
+        dogfood = tmp_path / "dogfood"
+        dogfood.mkdir()
+        (dogfood / "estimates.jsonl").write_text(
+            json.dumps(
+                {
+                    "id": "EST-9001",
+                    "logged_at": "2026-09-02T00:00:00Z",
+                    "owner": "somebody",
+                    "subject": "a phase still in flight",
+                    "work_class": "frontend",
+                    "active_quantity": 3.0,
+                    "blocked_quantity": 0.5,
+                    "unit": "hours",
+                    "confidence": 0.5,
+                    "conditions": [],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (dogfood / "outcomes.jsonl").write_text("", encoding="utf-8")
+
+        report = seed(store, adr_dir=tmp_path, dogfood_dir=dogfood)
+        assert report.unresolved == 1
+        assert report.outcomes == 1
+        unresolved = store.list_all(Outcome)
+        assert unresolved[0].match_quality is MatchQuality.UNRESOLVED
         # The schema refuses an unresolved row that also carries numbers.
         assert unresolved[0].active_quantity is None
         assert unresolved[0].resolved_at is None
