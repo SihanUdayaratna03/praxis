@@ -8,9 +8,39 @@ must not arrive at the browser as a factor.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from decimal import Decimal
+
+from praxis.config.models import MOCK_MODEL_ID, ModelRole
+from praxis.llm.trace import LLMTrace
+from praxis.llm.types import CallOutcome, StopReason, TokenUsage
+from praxis.store.connection import transaction
 from praxis.store.reports import stats
+from praxis.store.traces import write_trace
 
 from tests.store.conftest import World
+
+
+def a_trace(**overrides) -> LLMTrace:
+    """One recorded model call, in the shape the panel reads."""
+    fields = {
+        "run_id": "RUN-000000000001",
+        "agent": "DecisionScout",
+        "task": "scan_for_decisions",
+        "role": ModelRole.SCAN,
+        "provider": "mock",
+        "model_id": MOCK_MODEL_ID,
+        "prompt_hash": "a" * 32,
+        "outcome": CallOutcome.OK,
+        "usage": TokenUsage(input_tokens=120, output_tokens=40),
+        "cost_usd": Decimal("0"),
+        "latency_ms": 12,
+        "request_json": '{"system":"You extract decisions.","user":"ADR 0011."}',
+        "stop_reason": StopReason.END_TURN,
+        "response_text": '{"claims":[{"statement":"block grouping beats the floor"}]}',
+        "occurred_at": datetime(2026, 9, 1, 9, 0, tzinfo=UTC),
+    }
+    return LLMTrace(**(fields | overrides))
 
 
 class TestOverview:
@@ -139,6 +169,29 @@ class TestTraces:
         assert body["traces"] == []
         assert body["runs"] == []
         assert body["total"] == 0
+
+    def test_a_recorded_call_arrives_with_its_request_and_its_answer(self, repository, populated):
+        """The reasoning panel needs both sides, not a summary of them."""
+        with transaction(repository.connection):
+            write_trace(repository.connection, a_trace())
+        body = populated.get("/api/traces").json()
+        assert body["total"] == 1
+        assert body["runs"] == ["RUN-000000000001"]
+        row = body["traces"][0]
+        assert row["agent"] == "DecisionScout"
+        assert "You extract decisions" in row["request_json"]
+        assert "block grouping" in row["response_text"]
+        assert row["seq"] == 1
+        assert row["cost_usd"] == "0"
+
+    def test_the_panel_narrows_to_one_agent(self, repository, populated):
+        with transaction(repository.connection):
+            write_trace(repository.connection, a_trace())
+            write_trace(
+                repository.connection, a_trace(agent="ChallengerAgent", prompt_hash="b" * 32)
+            )
+        narrowed = populated.get("/api/traces?agent=ChallengerAgent").json()
+        assert [t["agent"] for t in narrowed["traces"]] == ["ChallengerAgent"]
 
 
 class TestTheApiNeverWrites:

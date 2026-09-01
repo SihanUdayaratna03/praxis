@@ -101,11 +101,6 @@ async function overview() {
     api("/api/decisions"),
     api("/api/estimates"),
   ]);
-  document.getElementById("provider").textContent = `${data.provider} · offline`;
-  document.getElementById("schema").textContent = data.schema_version;
-  document.getElementById("counts").textContent =
-    `${data.decisions} decisions · ${data.assumptions} assumptions`;
-
   const events = timeline.events;
   const valid = data.assumptions ? `${Math.round(data.assumptions_valid * 100)}%` : "—";
   const bias = data.calibration_bias ? `${Number(data.calibration_bias).toFixed(2)}×` : "n/a";
@@ -183,16 +178,20 @@ async function overview() {
 
 const ROUTES = { overview };
 
+// A list view and its detail share a rail entry: #decisions and #decisions/D-1.
+const DETAIL = { decisions: "decision", estimates: "estimate" };
+
 async function route() {
-  const id = (location.hash.replace("#", "") || "overview").split("/")[0];
+  const [id, arg] = (location.hash.replace("#", "") || "overview").split("/");
   const known = VIEWS.find((v) => v.id === id) ? id : "overview";
   drawNav(known);
   title.textContent = VIEWS.find((v) => v.id === known).label;
   view.innerHTML = '<p class="loading">Reading the store…</p>';
-  const render = ROUTES[known] || window.views?.[known];
+  const name = arg && DETAIL[known] ? DETAIL[known] : known;
+  const render = ROUTES[name] || window.views?.[name];
   try {
     if (render) {
-      await render();
+      await render(arg);
     } else {
       view.innerHTML = empty("This view is not built yet.");
     }
@@ -205,7 +204,24 @@ window.addEventListener("hashchange", route);
 window.praxisApi = api;
 window.praxisUi = { panel, empty, api, icon, GLYPH };
 
+// The header and the rail's footer are the same on every view, so they are
+// filled once at boot rather than by whichever view happens to run first.
+async function chrome() {
+  try {
+    const data = await api("/api/overview");
+    document.getElementById("provider").textContent = `${data.provider} · offline`;
+    document.getElementById("schema").textContent = data.schema_version;
+    document.getElementById("counts").textContent =
+      `${data.decisions} decisions · ${data.assumptions} assumptions`;
+  } catch {
+    document.getElementById("provider").textContent = "no answer";
+  }
+}
+
 // On DOMContentLoaded rather than immediately: the view modules load after this
 // file and register themselves on window.views, and a first render that raced
 // them would silently show "not built yet".
-document.addEventListener("DOMContentLoaded", route);
+document.addEventListener("DOMContentLoaded", () => {
+  chrome();
+  route();
+});
