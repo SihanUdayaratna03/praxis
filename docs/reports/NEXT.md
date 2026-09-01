@@ -840,3 +840,10 @@ been confirmed and passed over, and the answer has not changed.
   `Findings` and `Flips` are columns now. This is the ablation's own failure
   mode caught by running it: a table whose rows are identical is a statement
   about the columns, not about the pipeline.
+
+- **ARCHITECTURE.md records the ladder.** Three modules added to the evaluation
+  section and to the tree: `stages`, `ablation`, `ablation_report`. The
+  paragraph says the two things a reader needs that the code does not say — that
+  three rungs write findings rather than claims, which is why a findings column
+  exists, and that the citation gate is not a rung because invariant 6 has no
+  off switch.

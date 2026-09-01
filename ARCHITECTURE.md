@@ -627,8 +627,21 @@ run: it recomputes ADR 0001's own first assumption from the files in
 `docs/adr/` each time, so widening the grammar to make it hold would be visible
 as a grammar change rather than invisible as a passing test.
 
+Phase 10 added the **ablation ladder**. `stages` is the six booleans a graded
+run is configured by, `ablation` runs one rung per component — the paragraph
+floor with extraction alone, then each stage above it, up to the ordinary run —
+and `ablation_report` renders the table. Every rung runs the same corpus in a
+store of its own, so a difference between two adjacent rows is that component
+and nothing else. See
+[ADR 0035](docs/adr/0035-the-ablation-ladder-is-cumulative.md).
+
+Three of the rungs write findings rather than claims, so extraction precision is
+blind to them and the table carries a findings column for that reason. The
+citation gate is **not** a rung: invariant 6 has no off switch, so its
+contribution is counterfactual, from the refusal record (ADR 0034).
+
 `praxis eval <corpus>` is the whole of it in one command, into a scratch store
-rather than the configured one.
+rather than the configured one. `--ablate` runs the ladder instead.
 
 ## Orchestration *(Phase 5+)*
 
@@ -812,6 +825,10 @@ praxis/
   eval/fusion.py       grading the fusion layer, mostly its refusals
   eval/adrs.py         the one metric that grades the project, not a run
   eval/report.py       the table and the JSON. No arithmetic
+  eval/stages.py       which stages a graded run turns on
+  eval/ablation.py     one graded run per rung, each adding one component
+  eval/ablation_report.py
+                       the ladder's table and JSON. No arithmetic
   obs/logging.py       structured JSON logging
 tests/                 pytest + hypothesis
 docs/adr/              decisions, in Praxis's own schema
