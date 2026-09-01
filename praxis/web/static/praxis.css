@@ -1,0 +1,278 @@
+/* Design tokens and the base layer, read off docs/assets/. ADR 0036.
+ *
+ * One dark theme, deliberately. The assets establish a single look and a
+ * light mode nobody designed would be a guess.
+ */
+
+:root {
+  /* Ground. Near-black navy, not grey -- the assets sit blue-cold. */
+  --bg: #04070d;
+  --bg-raised: #080d16;
+  --bg-panel: #0b1119;
+  --bg-inset: #070c14;
+  --bg-hover: #101826;
+
+  /* Lines. Barely visible on purpose; the panels are defined by value, not
+   * by outline. */
+  --line: #17202f;
+  --line-strong: #222e42;
+
+  /* Text. */
+  --text: #e8edf5;
+  --text-dim: #9aa6b8;
+  --text-faint: #667283;
+
+  /* The four accents the assets use, and nothing else.
+   * teal   -- healthy, valid, the brand
+   * blue   -- the primary action and the decision node
+   * violet -- calibration and estimates
+   * amber  -- expiring, and the fusion warning
+   * red    -- breached */
+  --teal: #2dd4bf;
+  --teal-dim: #1c8a7d;
+  --blue: #2b7fff;
+  --blue-deep: #1a5fd0;
+  --violet: #a78bfa;
+  --amber: #f5a524;
+  --red: #f2555a;
+
+  --teal-wash: rgba(45, 212, 191, 0.12);
+  --blue-wash: rgba(43, 127, 255, 0.14);
+  --violet-wash: rgba(167, 139, 250, 0.13);
+  --amber-wash: rgba(245, 165, 36, 0.13);
+  --red-wash: rgba(242, 85, 90, 0.12);
+
+  --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  /* An 8px scale. Every gap in the assets lands on it. */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+  --s9: 96px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+code,
+.mono {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+/* --- the wordmark -------------------------------------------------------- */
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: 0.16em;
+}
+
+.wordmark svg {
+  display: block;
+}
+
+/* --- eyebrow and kicker -------------------------------------------------- */
+
+.eyebrow {
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* --- buttons ------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 13px 22px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 550;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--blue-deep);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-faint);
+}
+
+/* --- status chips -------------------------------------------------------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.chip .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.chip-teal {
+  color: var(--teal);
+  border-color: rgba(45, 212, 191, 0.35);
+}
+
+.chip-blue {
+  color: var(--blue);
+  border-color: rgba(43, 127, 255, 0.35);
+}
+
+/* --- panels -------------------------------------------------------------- */
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-head h3 {
+  font-size: 15px;
+}
+
+/* --- status colour by name, shared by both pages ------------------------- */
+
+.is-valid,
+.is-holding {
+  color: var(--teal);
+}
+
+.is-expiring,
+.is-unverified {
+  color: var(--amber);
+}
+
+.is-breached {
+  color: var(--red);
+}
+
+.is-expired,
+.is-unknown {
+  color: var(--text-faint);
+}
+
+/* --- utility ------------------------------------------------------------- */
+
+.dim {
+  color: var(--text-dim);
+}
+
+.faint {
+  color: var(--text-faint);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

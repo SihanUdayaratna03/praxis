@@ -16,6 +16,10 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
+  # The dashboard's API and the server that binds its socket. ADR 0036. Four
+  # packages reach the lock between them -- fastapi, starlette, uvicorn and
+  # click -- and the response models are the pydantic already declared below.
+  "fastapi>=0.141.1",
   # Resolves the platform data directory the store lives in. Promoted from a
   # transitive dev dependency to a declared runtime one by ADR 0010.
   "platformdirs>=4.2",
@@ -23,6 +27,7 @@ dependencies = [
   "pydantic-settings>=2.5",
   "structlog>=24.4",
   "typer>=0.12",
+  "uvicorn>=0.52.4",
 ]
 
 [project.urls]
@@ -39,6 +44,10 @@ live = [
 [dependency-groups]
 dev = [
   "anthropic>=0.116",
+  # Starlette 1.6 deprecates httpx for its TestClient and names this as
+  # the replacement. filterwarnings = ["error"] turns that notice into a
+  # failing suite, so the fix is the library rather than an ignore.
+  "httpx2>=2.12",
   "hypothesis>=6.112",
   "mypy>=1.11",
   "pre-commit>=3.8",

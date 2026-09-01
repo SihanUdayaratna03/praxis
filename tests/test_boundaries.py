@@ -40,6 +40,11 @@ NETWORK_MODULES = frozenset(
         "socket",
         "ssl",
         "websockets",
+        # The ASGI server. It is what actually binds the socket, and it was
+        # not in this set because no web framework existed when the set was
+        # written -- so a dashboard would have imported cleanly and left the
+        # seam decorative. ADR 0037.
+        "uvicorn",
     }
 )
 """Anything whose presence means a module can reach the network.
@@ -51,8 +56,31 @@ HTTP client".
 """
 
 LLM_SEAM = "praxis/llm/anthropic.py"
-"""The single module allowed through. Named as a path rather than inferred, so
-that adding a second one is a visible edit to this test."""
+"""The vendor SDK's side of the network."""
+
+WEB_SEAM = "praxis/web/server.py"
+"""The dashboard's side of it. ADR 0037.
+
+`praxis serve` has to open a listening socket somewhere, and this is where.
+Named as a path rather than inferred from a directory, so that adding a third
+seam is a visible edit to this test rather than a file dropped in a folder.
+"""
+
+SEAMS = frozenset({LLM_SEAM, WEB_SEAM})
+"""Every module allowed through. Two, and they are both named."""
+
+WEB_FRAMEWORK_MODULES = frozenset({"fastapi", "starlette"})
+"""The request framework, which is a different question from the network.
+
+FastAPI and Starlette parse requests; they open nothing. So they are not in
+`NETWORK_MODULES` -- a rule that put them there would force every route into
+the one seam file. They are confined to `praxis/web/` instead, which is the
+claim actually worth holding: the framework must not leak into an agent, the
+store or the eval harness.
+"""
+
+WEB_PACKAGE = "praxis/web/"
+"""The only package that may know what a request is."""
 
 
 def source_files() -> list[Path]:
@@ -84,25 +112,48 @@ def relative(path: Path) -> str:
 
 
 @pytest.mark.parametrize("path", source_files(), ids=relative)
-def test_only_one_module_can_reach_the_network(path: Path):
-    """No module but the vendor seam may import an HTTP client or an SDK."""
+def test_only_the_named_seams_can_reach_the_network(path: Path):
+    """No module but the two named seams may import an SDK, a client or a server."""
     crossings = imports_of(path) & NETWORK_MODULES
-    if relative(path) == LLM_SEAM:
+    if relative(path) in SEAMS:
         return
     assert not crossings, (
-        f"{relative(path)} imports {sorted(crossings)}. Only {LLM_SEAM} may reach the network; "
-        f"everything else speaks LLMRequest and LLMResponse."
+        f"{relative(path)} imports {sorted(crossings)}. Only {sorted(SEAMS)} may reach the "
+        f"network; everything else speaks LLMRequest, LLMResponse, or a store read."
     )
 
 
-def test_the_seam_actually_exists():
+@pytest.mark.parametrize("seam", sorted(SEAMS))
+def test_the_seam_actually_exists(seam: str):
     """A test that passes because the file it guards was deleted is not a test."""
-    assert (PACKAGE_ROOT.parent / LLM_SEAM).is_file()
+    assert (PACKAGE_ROOT.parent / seam).is_file()
 
 
-def test_the_seam_does_import_the_sdk():
+def test_the_llm_seam_does_import_the_sdk():
     """And the whole check is vacuous if nothing was ever on the other side."""
     assert "anthropic" in imports_of(PACKAGE_ROOT.parent / LLM_SEAM)
+
+
+def test_the_web_seam_does_import_the_server():
+    """The same argument for the second seam."""
+    assert "uvicorn" in imports_of(PACKAGE_ROOT.parent / WEB_SEAM)
+
+
+@pytest.mark.parametrize("path", source_files(), ids=relative)
+def test_the_web_framework_stops_at_the_web_package(path: Path):
+    """An agent, the store and the eval harness must not know what a request is.
+
+    Separate from the network rule because it is a separate claim. Importing
+    FastAPI opens nothing; it just means a module has started answering HTTP,
+    and the place that is allowed to do that is `praxis/web/`.
+    """
+    crossings = imports_of(path) & WEB_FRAMEWORK_MODULES
+    if relative(path).startswith(WEB_PACKAGE):
+        return
+    assert not crossings, (
+        f"{relative(path)} imports {sorted(crossings)}. The web framework stops at "
+        f"{WEB_PACKAGE}; everything below it is called, not routed to."
+    )
 
 
 @pytest.mark.parametrize(
@@ -112,6 +163,7 @@ def test_the_seam_does_import_the_sdk():
         "import http.client",
         "from urllib.request import urlopen",
         "import anthropic",
+        "import uvicorn",
     ],
 )
 def test_the_detector_catches_a_crossing_it_has_never_seen(tmp_path, line):
@@ -124,6 +176,23 @@ def test_the_detector_catches_a_crossing_it_has_never_seen(tmp_path, line):
     offender = tmp_path / "convenient.py"
     offender.write_text(f"{line}\n", encoding="utf-8")
     assert imports_of(offender) & NETWORK_MODULES
+
+
+@pytest.mark.parametrize("line", ["import fastapi", "from starlette.requests import Request"])
+def test_the_framework_detector_catches_a_crossing_too(tmp_path, line):
+    """The second rule, watched failing as well. Same argument as above."""
+    offender = tmp_path / "routed.py"
+    offender.write_text(f"{line}\n", encoding="utf-8")
+    assert imports_of(offender) & WEB_FRAMEWORK_MODULES
+
+
+def test_the_web_seam_is_inside_the_web_package():
+    """The two rules overlap on one file, and that is deliberate rather than luck.
+
+    If the seam ever moved outside `praxis/web/` the framework rule would start
+    failing on it, which is a confusing way to learn that the layout changed.
+    """
+    assert WEB_SEAM.startswith(WEB_PACKAGE)
 
 
 def test_a_praxis_module_named_after_the_sdk_is_not_the_sdk(tmp_path):

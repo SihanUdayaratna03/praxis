@@ -71,6 +71,23 @@ Expiry conditions say when to re-check, not when the decision dies:
 | [0018](0018-blocking-then-arithmetic-then-a-model.md) | Find contradictions by blocking, then arithmetic, then a model | accepted |
 | [0019](0019-only-arithmetic-can-breach-and-writes-happen-on-change.md) | Only arithmetic can breach, and a pass writes only on a change | accepted |
 | [0020](0020-the-archaeologist-retrieves-and-never-generates.md) | `ArchaeologistAgent` retrieves and grounds, and never generates | accepted |
+| [0021](0021-match-quality-is-arithmetic-not-a-judgement.md) | `match_quality` is arithmetic, and the module holding it cannot reach a model | accepted |
+| [0022](0022-an-unmatched-estimate-is-an-unresolved-outcome.md) | An unmatched estimate is an `unresolved` outcome, never a silence | accepted |
+| [0023](0023-work-class-is-assigned-by-revision.md) | Work class is assigned by revising a record, against the vocabulary the store already holds | accepted |
+| [0024](0024-dispersion-widens-the-band-and-only-n-refuses.md) | dispersion widens the band; only `n` refuses | accepted |
+| [0025](0025-the-calibrator-explains-rather-than-generates.md) | the calibrator explains rather than generates | accepted |
+| [0026](0026-the-bridge-prices-a-judgement-phase-4-already-made.md) | the bridge prices a judgement Phase 4 already made | accepted |
+| [0027](0027-collateral-damage-is-a-walk-phase-1-already-wrote.md) | collateral damage is a walk Phase 1 already wrote | accepted |
+| [0028](0028-a-projection-is-not-a-breach.md) | a projection is not a breach | accepted |
+| [0029](0029-short-commit-messages-from-phase-9.md) | Write short, plain commit messages from Phase 9 onward | accepted |
+| [0030](0030-the-challenger-keeps-its-model-route.md) | Keep `ChallengerAgent` on the `reason` tier, breaking a six-component run | accepted |
+| [0031](0031-curation-is-supersedes-and-retraction.md) | Curate with `supersedes` and retraction, and compute it without a model | accepted |
+| [0032](0032-abstention-is-arithmetic-and-is-never-stored.md) | Decide abstention by arithmetic, and never store the result | accepted |
+| [0033](0033-short-comments-and-docstrings-from-phase-10.md) | Write short, plain comments and docstrings from Phase 10 onward | accepted |
+| [0034](0034-the-eval-harness-runs-a-coherently-citing-mock.md) | The eval harness runs a coherently-citing mock | accepted |
+| [0035](0035-the-ablation-ladder-is-cumulative.md) | The ablation ladder is cumulative, and every rung runs the whole corpus | accepted |
+| [0036](0036-the-dashboard-is-fastapi-over-a-frontend-with-no-build-step.md) | The dashboard is FastAPI over a frontend with no build step | accepted |
+| [0037](0037-the-dashboard-is-the-second-network-seam.md) | The dashboard is the second network seam, and it is named | accepted |
 
 0010 was decided during Phase 0 because Phase 1 needed a settled answer before
 it wrote its first database. Numbers are never reused or renumbered, so 0008

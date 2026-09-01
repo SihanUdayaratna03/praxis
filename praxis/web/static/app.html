@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Praxis Control Room</title>
+    <link rel="stylesheet" href="/static/praxis.css" />
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="rail">
+        <div class="rail-head">
+          <a class="wordmark" href="/">
+            <svg width="24" height="24" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+              <circle cx="7" cy="7" r="3.4" stroke="var(--teal)" stroke-width="1.5" />
+              <circle cx="19" cy="12" r="3.4" stroke="var(--blue)" stroke-width="1.5" />
+              <circle cx="8" cy="19.5" r="3.4" stroke="var(--violet)" stroke-width="1.5" />
+              <path
+                d="M10 8.6 15.8 11M9.4 10.2 8.2 16.2M11 18.4 16.4 14.2"
+                stroke="var(--line-strong)"
+                stroke-width="1.4"
+              />
+            </svg>
+            PRAXIS
+          </a>
+        </div>
+        <nav id="nav"></nav>
+        <div class="rail-foot">
+          <div>Schema v<span id="schema">—</span></div>
+          <div id="counts">—</div>
+        </div>
+      </aside>
+
+      <div class="main">
+        <header class="top">
+          <div>
+            <h1 id="view-title">Overview</h1>
+            <p class="sub">Assumptions expire. Decisions remember.</p>
+          </div>
+          <div class="chips">
+            <span class="chip"><span class="dot"></span><span id="provider">offline</span></span>
+            <span class="chip chip-teal"><span class="dot"></span>Deterministic</span>
+            <span class="chip chip-blue">Audit ready</span>
+          </div>
+          <div class="avatar" title="Seeded by praxis demo seed">PX</div>
+        </header>
+        <main class="view" id="view">
+          <p class="loading">Reading the store…</p>
+        </main>
+      </div>
+    </div>
+
+    <script src="/static/charts.js"></script>
+    <script src="/static/app.js"></script>
+    <script src="/static/provenance.js"></script>
+    <script src="/static/views.js"></script>
+  </body>
+</html>

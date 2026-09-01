@@ -923,3 +923,370 @@ ten-rung ladder `EST-0011` priced.
 **The one thing worth carrying forward is the breach.** ADR 0011 assumption 1
 is measurably false on the only evidence that exists, and the evidence is the
 mock's. Whatever Phase 11 does, that number becomes real on the first live run.
+
+## Phase 11 progress log
+
+Branch `feat/phase-11-dashboard`, cut from `main` at `8be20f3`. One line per
+component, appended as it was committed and pushed.
+
+**`.codex/` and `AGENTS.md` were checked again before the branch was cut and
+left alone.** Both are untracked and neither is gitignored — `git check-ignore`
+exits 1 on both. Neither can reach CI: `actions/checkout@v7.0.1` materialises
+committed files only. This is the fourth phase running that they have been
+confirmed and passed over, and the answer has not changed. `docs/assets/` and
+`docs/design/` were on that list for three phases and have left it — the
+product owner put them in scope for this phase, so they are committed.
+
+- **The design assets are committed, re-encoded to WebP.** Three 16:9 renders
+  at 1672x941 and the prompt that produced one of them. The PNGs were ~1.5 MB
+  each and `check-added-large-files` caps a blob at 512 KB; WebP at q92 lands
+  them at 147–195 KB with the UI text still legible, so the images changed
+  rather than the gate. Widening that limit for three reference images would
+  weaken it for every commit afterwards.
+
+- **`EST-0012` logged before any Phase 11 file was written.** 8.5h active,
+  **uncorrected**, and 4.2h blocked. Two things were decided rather than
+  inherited.
+
+  **The unit is render targets and store reads, and it is new.** `EST-0011`
+  priced by refusal vocabulary and integration points and `OUT-0011` vindicated
+  it at 1.1613x — but a refusal path is a place code must decline to answer,
+  which is a property of agent work. This phase has no refusal vocabulary; a
+  panel that renders wrongly is a mismatch against a picture, not a refusal.
+  Eighteen render targets at ~15 min, nine new `reports.py` reads at ~12 min,
+  eight plumbing points at ~8 min, and a **design-fidelity loop** priced at
+  1.1h. That fourth term is why the unit is new rather than a reskin: every
+  prior phase had binary correctness — the predicate parses or it does not —
+  and here the acceptance test is whether the page looks like the picture,
+  which is a loop with no green tick ending it. Lines were excluded outright.
+
+  **The work class is `frontend` and n is zero, not small.** The dogfood corpus
+  holds four classes — `scaffolding` (1), `data-modelling` (1),
+  `llm-integration` (1), `agent-implementation` (8) — and `frontend` is in none
+  of them. The only `frontend` rows in the repository are in the synthetic
+  corpus under `.praxis-tmp/`, which is untracked generator output about
+  fictional estimators. **So there is no factor, no band and no correction**;
+  `BiasDetective` refuses below `MINIMUM_SAMPLE = 5` and would refuse this at
+  0. `agent-implementation`'s fitted 0.6534 was deliberately not borrowed, on
+  `EST-0002`'s stated grounds. Confidence 0.35, below `EST-0011`'s 0.42,
+  because there is no prior in the class at all.
+
+- **ADR 0036 and ADR 0037 record the two decisions this phase had to make
+  before it could write a line of frontend.** Both were found by checking
+  rather than assumed.
+
+  **No web framework had ever been chosen.** `fastapi`, `uvicorn` and
+  `starlette` appear zero times in the repository's history. Phase 0 recorded
+  facts *about* a future dashboard — ADR 0003 calls it read-mostly, ADR 0008
+  names "a Phase 11 dashboard query" as a reason to put append-only in a
+  trigger — but named no framework. **0036** chooses FastAPI, for typed
+  responses over the Pydantic already declared, and a frontend with **no build
+  step, no framework and no CDN**: a `<script src="https://…">` would make a
+  product whose first trust badge says *offline-first* render blank without a
+  network. Four packages new to the lock — `fastapi`, `starlette`, `uvicorn`,
+  `click` — read off the resolver rather than recalled. Typer 0.27.1 dropped
+  its `click` dependency, which is why that one is new.
+
+  **The boundary test would have passed, and that was the problem.** ADR 0037.
+  `tests/test_boundaries.py` lets only `praxis/llm/anthropic.py` import a
+  network module, but `NETWORK_MODULES` lists SDKs, HTTP clients and the stdlib
+  socket layer — no web framework, because none existed when it was written. A
+  dashboard would have imported FastAPI cleanly and left the seam decorative,
+  which is word for word the failure its own docstring predicts. So the three
+  framework names go **into** the set and `praxis/web/server.py` is named
+  beside the LLM seam. A directory-shaped exemption was rejected: naming one
+  file means a second costs a visible edit to a test.
+
+- **All nine new predicates parse, and the ADR rate went up.** 149 rows, 148
+  parsed, **0.9933** against 0.9929 at the close of Phase 10. Checked through
+  `read_adr_predicates` rather than by eye. The one unreadable row is still ADR
+  0015's, unchanged. Every expiry condition parses.
+
+- **The ADR index was stale since 0020 and is rebuilt from the files.**
+  Fifteen ADRs were missing from it. Regenerating was mechanical and the
+  alternative was adding two rows to a table that was already wrong.
+
+- **The store reads the dashboard needs are written, and there are fewer than
+  `EST-0012` priced.** Nine were estimated; **six** were built, because two of
+  the nine already existed and one was a duplicate of a third.
+
+  `calibration_groups` was never written. `BiasDetective.all_factors()` has
+  returned exactly what the calibration charts need since Phase 7, and
+  `reports.calibration_history()` returns the scatter behind the curves. Adding
+  a store read that recomputed either would have been the "parallel query path
+  around the repository layer" the brief warns about, so the dashboard calls
+  the agent. `findings_for` collapsed into the review queue's own read.
+
+  What is new: `audit_timeline`, `decision_index`, `assumption_health`,
+  `finding_queue` and `findings_for` in `praxis/store/dashboard.py`;
+  `decision_detail` and `estimate_detail` in `praxis/store/drilldown.py`;
+  `trace_index`, `runs` and `sequence_of` in `praxis/store/traces.py`.
+
+  **Not in `reports.py`, which the brief asked for.** That file was already at
+  364 lines against a ~400 rule and these would have taken it past 900. Same
+  package, same invariant — no SQL leaves `praxis.store` — and
+  `test_only_the_store_knows_the_database_driver` still enforces it. The split
+  happened a second time mid-strand when `dashboard.py` itself hit 420 lines,
+  which is where `drilldown.py` came from.
+
+  **Both paged reads page by an allocation counter, not by OFFSET.** `ordinal`
+  for audit events and `seq` for traces. `occurred_at` is not unique — writes
+  in one run share a timestamp — so an OFFSET page can repeat or skip a row,
+  and a test walks each cursor to the end and asserts it saw every row exactly
+  once.
+
+  **Every count narrows to the current unretracted version**, which on an
+  append-only schema is the easy thing to get wrong rather than the unlikely
+  one. One test revises an assumption three times and asserts the breach count
+  stays 1; another retracts a decision and asserts it leaves the index.
+
+- **`trace_index` is the read that makes Phase 2 visible.** Every model call
+  has been recorded since the first agent ran nine phases ago and nothing has
+  ever displayed one. The reasoning panel is the first thing to read that
+  table, which is why the read is new when the data is not.
+
+- **The web shell is up: four packages, eleven GET routes, one command.**
+  `fastapi`, `starlette`, `uvicorn` and `click` reach the lock and nothing
+  else does — the resolver's answer, not a recollection. `praxis serve` opens
+  the store read-only, binds `127.0.0.1`, and warns out loud when told to bind
+  anything else.
+
+  **The API's read-only claim is checked as a property, not promised.** One
+  test reads the app's own OpenAPI schema and asserts the set of methods across
+  every path is exactly `{"get"}`; another walks nine routes and asserts
+  `StoreStats` is identical before and after. So ADR 0003 assumption 3 —
+  expiring `on_event("Phase 11 dashboard gains write endpoints")` — is checked
+  rather than left standing on good intentions. It does not expire this phase.
+
+  **A refusal survives the HTTP boundary as a refusal.** `FactorOut` carries
+  `speaks`, and a group below `MINIMUM_SAMPLE` serialises with `factor: null`
+  and its reason rather than as a zero. A test asserts that, because "1.0x, no
+  bias" and "two outcomes short of being able to say" are the two readings this
+  whole product exists to keep apart.
+
+  **Decimals cross as strings.** Invariant 4 does not stop at HTTP, and a test
+  asserts `active_quantity` arrives as `"6.5"` rather than as a float.
+
+- **Two things the plan did not see, both found by running the code.**
+
+  **The store's handle is bound to one thread on purpose, and Starlette hands
+  every request to a threadpool.** The first API test failed with SQLite's own
+  cross-thread error. `connection.py`'s comment had anticipated exactly this
+  and refused it — *"a handle that quietly works from two threads is a race"* —
+  so the fix is an explicit `cross_thread` flag, documented, threaded through
+  `connect_from_settings` and `open_repository`, set by one caller, with the
+  web layer holding a `threading.Lock` for the length of each request. Reads
+  only, so a lock is enough and a connection pool would be a write path nobody
+  asked for.
+
+  **ADR 0037's first draft did not survive implementation, and is revised
+  rather than quietly fixed.** It put `fastapi`, `starlette` and `uvicorn` all
+  in `NETWORK_MODULES` and allowed them only in `server.py`. But `APIRouter` is
+  a FastAPI import, so that rule makes a routes module impossible and forces
+  every handler into the file that binds the socket — a rule enforcing a file
+  layout rather than a boundary. The shipped version is two rules: `uvicorn`
+  joins `NETWORK_MODULES` and is seam-only, while `fastapi` and `starlette` are
+  confined to `praxis/web/`. Both are watched failing on a synthetic offender,
+  the way the original detector already was. An ADR corpus that only records
+  the decisions that survived contact is a worse corpus than one that says
+  which did not.
+
+- **`httpx2` joins the dev group rather than an ignore being added.** Starlette
+  1.6 deprecates `httpx` for its `TestClient` and names the replacement, and
+  `filterwarnings = ["error"]` turns that notice into a red suite. The library
+  was the fix; silencing it would have been the other kind.
+
+- **`.codex/` still carries 14 ruff findings and still cannot reach CI.**
+  Noticed because `ruff check .` from a shell walks it. Untracked, not
+  gitignored, never staged, and `actions/checkout` materialises committed files
+  only — so the project gate reads `praxis` and `tests`, as pre-commit already
+  does. Left alone for the fourth phase running.
+
+- **The landing page is built to `docs/assets/praxis-landing-page.webp`.**
+  Tokens first — colours, type and an 8px scale read off the asset rather than
+  invented — then the page: eyebrow, the two-line headline with its teal stop,
+  the blue primary CTA beside a ghost button, the offline-first / append-only /
+  deterministic trust row, and the three feature cards under their letter-spaced
+  kicker. Checked against the asset in a browser and corrected twice: the hero
+  column was too narrow and the headline wrapped to three lines where the asset
+  wraps to two.
+
+  **The one deliberate departure: the hero's product shot is live, not a
+  screenshot.** The asset puts a picture of the dashboard there, and every
+  number in that picture is invented. It reads `/api/overview` and `/api/fusion`
+  instead, so the landing page cannot claim something the store does not hold —
+  and on an empty store it says so and names the command that fills it. A
+  screenshot would have been faster and would have been the one piece of
+  fabricated data on a page about not fabricating data.
+
+  Also added beyond the asset: a **thesis strip** — the six-step pipeline from
+  capture to argue — because the brief asks the page to introduce the thesis and
+  the asset's fold has no room for it.
+
+- **`tests/web/test_static.py` is the frontend's toolchain.** No npm entered the
+  repository, so the gate is a pytest module: no asset may reference a remote
+  origin, every referenced asset must exist, every page must parse and declare
+  a title and a language, and every id a script writes to must exist on a page.
+  The remote detector is watched failing on four pastes it has never seen —
+  `https://`, `http://`, a protocol-relative `//cdn`, and a CSS `url()` — for
+  the same reason the boundary test watches its own.
+
+## Phase 11 paused here
+
+Stopped at the product owner's request, mid-way through the demo dataset
+strand. Nothing is uncommitted and nothing is half-written on disk.
+
+### State
+
+| | |
+| --- | --- |
+| Phase branch | `feat/phase-11-dashboard`, pushed, clean |
+| Merged strands | ADRs, store reads, web shell, landing page — all `--no-ff` |
+| Open strand | `feat/phase-11-demo`, pushed, clean, **partial** |
+| Suite | green at the last full run; ruff, `ruff format --check` and `mypy --strict` clean at the stop |
+| Untracked | `.codex/`, `AGENTS.md` — untouched, as in Phases 8–10 |
+| PR | not opened yet |
+| Tag | `v0.11-phase-11` not created yet |
+| `OUT-0012` | not closed |
+
+### What is built
+
+- `EST-0012` logged before any code: 8.5h active **uncorrected**, 4.2h blocked,
+  work class `frontend` at **n=0**.
+- ADR 0036 (web layer, no build step) and ADR 0037 (second network seam,
+  revised during implementation). ADR index rebuilt.
+- Six new store reads across `praxis/store/dashboard.py`,
+  `praxis/store/drilldown.py` and `praxis/store/traces.py`.
+- `praxis/web/` — 11 read-only GET routes, `create_app`, and `praxis serve`.
+- The landing page, built to `docs/assets/praxis-landing-page.webp` and checked
+  in a browser.
+- `tests/web/test_static.py`, the frontend's gate.
+
+### Where the demo strand stopped
+
+`praxis/demo/sources.py` is the **reader** and it works: 36 ADRs → titles,
+chosen paragraphs, rejected options and 149 assumption rows; both dogfood files
+→ 12 estimates and 11 outcomes. Everything comes back with real byte offsets so
+a seeded record can cite a span that genuinely contains it (invariant 6).
+
+**The writer does not exist yet.** Next is `praxis/demo/seed.py`: turn those
+into `Document`, `Span`, `Decision`, `Assumption`, `Estimate`, `Outcome` and
+`assumes` / `estimated_as` records through `Repository`, then `praxis demo
+seed` to run it, then tests.
+
+**One finding worth carrying, decided before the pause.** On this corpus the
+fusion layer will *not* produce a `FLIPPED` verdict, and that is the data
+telling the truth rather than a bug. `agent-implementation` is **1.53× over**
+at n=8, so calibration makes every estimate *smaller* — which can only relieve
+a `<=` predicate, never violate one. The demo should render whatever verdict
+occurs, including `RELIEVED` and `NO_FACTOR`, and the phase report should say
+this plainly. **Do not rig the seed to manufacture a flip.**
+
+The genuine payoff on real data is the other one: ADR 0011 assumption 1
+(`segmenter_f1 - paragraph_floor_f1 >= 0.05`) is **measurably false** — Phase 10
+measured the difference at `0.0000` — so the demo has a real decision
+invalidated by real evidence. Surface that as the headline finding.
+
+### Next, in order
+
+1. `praxis/demo/seed.py` + `praxis demo seed` + tests; merge the strand.
+2. The dashboard views: shell and rail, KPI cards, timeline, decision
+   drill-down, the fusion provenance strip, calibration charts, review queue,
+   and the reasoning panel over `trace_index`.
+3. `ARCHITECTURE.md` for the web layer.
+4. Full suite, PR with `--body-file`, CI green, merge commit, delete branch,
+   tag `v0.11-phase-11`, push tags, **verify against the remote**.
+5. `docs/reports/phase-11.md` — and it must record: the landing page as a scope
+   addition beyond the original dashboard-plus-demo brief; the `docs/assets/`
+   versus `docs/design/` reconciliation and what was chosen where; the reads
+   landing outside `reports.py` because of the 400-line rule; ADR 0037's
+   revision; and that no fusion flip occurs on this corpus, with the reason.
+6. Close `OUT-0012`.
+
+- **The demo dataset is Praxis's own history, and it seeds 603 records.** 36
+  ADRs become decisions carrying their 149 assumption rows; `docs/dogfood/`
+  becomes 12 estimates and 11 outcomes; 149 `assumes` edges join them. No
+  second hand-crafted dataset, and Phase 10's corpus was not used — it grades
+  extraction and populates almost nothing offline.
+
+  **Nothing is invented, and a test proves it rather than claiming it.** Every
+  span is replayed against its document's bytes and asserted equal (invariant
+  6), every decision's `chosen` is asserted to be the span text, every
+  predicate is asserted to appear in the table row it cites, and `3.1` is
+  asserted to still be `3.1` (invariant 4). The one field with no source is
+  `confidence`, which `Decision` and `Assumption` require and an ADR does not
+  carry — it is a single named constant with the reason written down, rather
+  than a different invented number per record.
+
+- **`docs/dogfood/facts.json` gives the monitor something real to evaluate.**
+  Eighteen measurements this project has actually published — Phase 10's
+  `segmenter_f1` and `paragraph_floor_f1` at `0.1250` each, the ADR predicate
+  counts, and the web-layer facts this phase's own tests assert — plus two
+  events that really happened.
+
+  **It produces exactly one breach, and it is the right one.** ADR 0011
+  assumption 1, `segmenter_f1 - paragraph_floor_f1 >= 0.05`, evaluates false
+  and the finding names `D-0011` as resting on it. 15 assumptions hold, 17 have
+  expired, 116 are unverified because nothing measured them. That last number
+  is the honest majority and the dashboard must show it as such.
+
+- **Calibration speaks on this store.** `agent-implementation` is **1.5305×
+  over at n=8, confidence 0.4476**; `data-modelling`, `llm-integration` and
+  `scaffolding` are each refused at n=1 with the sentence saying how far short
+  they are. One speaking group beside three refusals is a better demo of the
+  discipline than four factors would have been.
+
+- **No fusion flip, as predicted before the pause.** There are 0 `estimated_as`
+  edges, because no real ADR assumption is one of the dogfood estimates —
+  those edges are written by `praxis extract` (ADR 0016), not by a seeder, and
+  inventing them is exactly the rigging that was ruled out. `/api/fusion`
+  returns the honest refusal and the dashboard will render it with its reason.
+
+- **The dashboard shell is built to `docs/assets/phase-11-praxis-dashboard.webp`.**
+  A 232px left rail with eight views, the header with its three status chips,
+  four KPI cards over a three-column grid. `charts.js` had to be wrapped in an
+  IIFE — classic scripts share one global scope and it was redeclaring `esc`,
+  which blanked the page — and the boot moved to `DOMContentLoaded`, because
+  the view modules register themselves after `app.js` and a first render that
+  raced them silently showed "not built yet".
+
+  **The sparklines were rewritten once for honesty.** The first version drew
+  cumulative writes over the audit trail; a seeded store writes everything in
+  one instant, so that was a straight line dressed as data. They now come from
+  `decided_at` and `estimated_at`, which are real and span 2026-08-09 to
+  2026-09-01, and the two cards with no time series draw no line at all.
+
+- **The payoff renders, and it is the breach rather than a flip.** Four linked
+  cards — `D-0011` · `segmenter_f1 - paragraph_floor_f1 >= 0.05` · the evidence
+  · **breached** — then the amber *Re-examine this decision* callout, then the
+  finding's own prosecution verbatim. `provenance.js` renders a fusion flip the
+  same way when one exists, and says why it cannot when neither does. Checked
+  in a browser against `docs/design/`.
+
+- **Every view is built and was checked in a browser, not just in tests.**
+  Decisions index and drill-down (the chosen paragraph, the chain as
+  assumption → predicate → status → estimate → actual, the rejected options,
+  the audit trail); assumptions; estimates and their drill-down; calibration;
+  the review queue; the reasoning panel; the audit trail. Two defects the
+  browser caught that no test would have: the drill-down's Findings panel said
+  "nothing alleged" while the chain beside it showed a breach, and the header
+  and rail footer stayed blank on any deep link because only the Overview
+  filled them.
+
+- **The Calibration Lens shows quantities, not multipliers.** Raw **5.3h**,
+  corrected **3.4h**, band **2.4–5.0**, n **8**, confidence **0.45**, with the
+  two overlaid curves the asset draws. The factor is applied to the median
+  estimate of its own group, so both numbers are hours. A refused group draws
+  **no bar at all** — a zero-length one would read as "no bias" rather than
+  "not enough evidence".
+
+- **`tests/web/test_static.py` caught a real gap and was widened for it.**
+  `app.js` writes to `#provenance-slot`, which no page declares because the
+  view creates it. The check now collects ids from script templates too, and
+  the new detector is watched failing like the others.
+
+- **The reasoning panel was verified with real traces.** The demo store has
+  none — `praxis demo seed` calls no model, and the panel says so and names the
+  command that fills it. Three traces were written into a scratch store to
+  confirm the populated state renders: each row expands to the exact request
+  and the raw answer. Two API tests now cover it.

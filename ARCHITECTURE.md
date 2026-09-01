@@ -693,6 +693,46 @@ key are different claims.
 vendor SDK or an HTTP client, and `tests/test_boundaries.py` parses every
 module to keep it that way.
 
+## The dashboard *(Phase 11, built)*
+
+`praxis serve` opens the store read-only and serves two pages: a landing page
+and the control room. Eleven GET routes and nothing else — a test reads the
+app's own OpenAPI schema and asserts the set of methods across every path is
+exactly `{"get"}`, which is how ADR 0003's single-writer assumption is checked
+rather than promised.
+
+**No SQL reaches a route.** Every handler is a store read plus a conversion,
+and `test_only_the_store_knows_the_database_driver` already made that
+mechanical: `sqlite3` cannot be imported under `praxis/web/`. The reads the
+dashboard needed and the store did not have went into `store/dashboard.py` and
+`store/drilldown.py` — beside `reports.py` rather than in it, only because that
+file was already at the size the style guide calls a file.
+
+**Two things the browser is not allowed to do.** It cannot reach the network:
+no CDN, no build step, no framework, no npm (ADR 0036), because a `<script
+src="https://…">` would make a product whose first trust badge reads
+*offline-first* render blank on a machine with no network.
+`tests/web/test_static.py` is the gate — there is no npm here, so the linter is
+a pytest module. And it cannot write: nothing in `praxis/web` calls `add`,
+`revise` or `retract`.
+
+**The seam moved for the first time since Phase 2.** `praxis/web/server.py` is
+the second and only other module allowed to reach the network, named beside
+`praxis/llm/anthropic.py` in `tests/test_boundaries.py`. `uvicorn` joined
+`NETWORK_MODULES` — it was absent only because no web framework existed when
+that set was written, so a dashboard would have imported cleanly and left the
+seam decorative. FastAPI and Starlette are held to a separate rule instead:
+they open nothing, so what is worth enforcing is that the framework stops at
+`praxis/web/` and never reaches an agent, the store or the eval harness. ADR
+0037.
+
+**The demo dataset is this repository.** `praxis demo seed` reads `docs/adr/`
+and `docs/dogfood/` and writes 603 records: 36 decisions carrying their 149
+assumption rows, 12 estimates, 12 outcomes. Every span cites bytes that really
+exist in the file it came from, and a test replays all 208 of them against
+their documents. Phase 10's corpus was not reused — it grades extraction and
+offline populates almost nothing.
+
 ## What is deterministic, and why it matters
 
 These never call a model:
@@ -728,6 +768,8 @@ praxis/
   cli_calibrate.py     praxis calibrate: the store, or one new estimate
   cli_fuse.py          praxis fuse: where the two halves argue
   cli_govern.py        praxis govern: what the system refused to conclude
+  cli_serve.py         praxis serve: the dashboard, read-only
+  cli_demo.py          praxis demo seed: this repository, loaded into itself
   cli_tables.py        what the CLI's output looks like
   config/settings.py   pydantic-settings; PRAXIS_* environment
   config/models.py     model ids, prices, roles, routing  ← the only place
@@ -744,6 +786,8 @@ praxis/
   store/audit.py       audit writes, always inside the caller's transaction
   store/graph.py       edge reads and the two recursive walks
   store/reports.py     search, counting, and the calibration history
+  store/dashboard.py   the timeline, the indexes and the review queue
+  store/drilldown.py   one decision or estimate with everything under it
   store/errors.py      the store's exception vocabulary; where sqlite3 stops
   store/traces.py      the llm_trace table; append-only, exact decimal cost
   llm/types.py         request, response, usage, stop and outcome vocabulary
@@ -829,6 +873,13 @@ praxis/
   eval/ablation.py     one graded run per rung, each adding one component
   eval/ablation_report.py
                        the ladder's table and JSON. No arithmetic
+  demo/sources.py      the ADRs and the dogfood corpus, with byte offsets
+  demo/seed.py         those files, written into a store as records
+  web/payloads.py      what the API returns, as pydantic models
+  web/views.py         the composite shapes: an index row, a drill-down
+  web/routes.py        eleven read-only GET routes. No SQL, no writes
+  web/server.py        the app, the static mount, and the socket ← the boundary
+  web/static/          the pages: no build step, no framework, no CDN
   obs/logging.py       structured JSON logging
 tests/                 pytest + hypothesis
 docs/adr/              decisions, in Praxis's own schema
