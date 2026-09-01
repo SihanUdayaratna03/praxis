@@ -249,4 +249,29 @@ points, and a **design-fidelity loop** priced at 1.1h — the term that exists
 because every prior phase had binary correctness and this one's acceptance test
 is "does it look like the picture".
 
-`OUT-0012` closes this in the follow-up, with the actual against it.
+**`OUT-0012`: 4.5h active against 8.5h predicted — a 1.8889× over-estimate,
+graded `partial` by `quality_for` rather than labelled by hand.** Blocked came
+in at 2.7h against 4.2h, and this time the blocked figure was a product-owner
+pause rather than a session limit.
+
+**The refusal to correct was right on the evidence and still cost accuracy,
+which is the finding worth carrying.** `EST-0012` declined to borrow
+`agent-implementation`'s 0.6534 factor because `frontend` was at n=0. Applying
+it would have given **5.55h** against an actual of 4.5h — ratio 1.2342, which
+`quality_for` grades **`close`**, where the uncorrected figure grades
+`partial`. Both things are true: at n=0 there was no principled basis to
+correct, and correcting would have been better. What it suggests is that this
+estimator's over-estimation may be a property of the *estimator* rather than of
+the work class — a hypothesis n=1 cannot confirm, and one the Phase 12 analysis
+should test across all five classes rather than assume.
+
+**The unit held up better than the total.** Eighteen render targets were priced
+and eighteen were built. Nine store reads were priced and six were written —
+the other three were unnecessary because Phase 7 already answered them, which
+is a research failure at estimate time rather than a pricing error. The
+design-fidelity loop, priced at 1.1h, was the term that most nearly held: four
+defects were caught by browser comparison that no test would have found. **The
+over-estimate is concentrated in the per-target rate, not in the counts** — the
+next frontend estimate should keep this unit and lower the minutes.
+
+`frontend` moves from n=0 to n=1 and still refuses.
