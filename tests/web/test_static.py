@@ -28,6 +28,13 @@ REMOTE = re.compile(r"""(?:src|href|url)\s*[=(]\s*["']?(https?:)?//""", re.IGNOR
 WRITES_TO = re.compile(r"""getElementById\(\s*["']([^"']+)["']\s*\)""")
 """Every id the scripts look up."""
 
+DECLARES_ID = re.compile(r"""(?<![-\w])id=["']([A-Za-z][-\w]*)["']""")
+"""Every id declared in markup, including the markup a script builds.
+
+A view that renders its own container declares the id in a template string
+rather than in a page, and that is still a declaration.
+"""
+
 
 class Ids(HTMLParser):
     """Collect every id and every local reference a page declares."""
@@ -89,14 +96,17 @@ def test_every_page_declares_a_title_and_a_language(page: Path):
     assert 'lang="en"' in text
 
 
-def test_every_id_the_scripts_write_to_exists_on_a_page():
+def test_every_id_the_scripts_write_to_is_declared_somewhere():
     """The failure mode a renamed element causes, which is a silent blank field."""
-    declared = set()
+    declared: set[str] = set()
     for page in PAGES:
         declared |= parsed(page).ids
-    for script in STATIC_ROOT.glob("*.js"):
+    scripts = sorted(STATIC_ROOT.glob("*.js"))
+    for script in scripts:
+        declared |= set(DECLARES_ID.findall(script.read_text(encoding="utf-8")))
+    for script in scripts:
         for target in WRITES_TO.findall(script.read_text(encoding="utf-8")):
-            assert target in declared, f"{script.name} writes to #{target}, which no page declares"
+            assert target in declared, f"{script.name} writes to #{target}, which nothing declares"
 
 
 @pytest.mark.parametrize(
@@ -113,6 +123,12 @@ def test_the_remote_detector_catches_a_paste_it_has_never_seen(line: str):
     reference exists -- not that one would be noticed. This runs the same
     reader over text that does reach out."""
     assert REMOTE.search(line)
+
+
+def test_the_id_detector_catches_a_lookup_nothing_declares(tmp_path):
+    """Watched failing, like the others. A typo is the case this exists for."""
+    assert not DECLARES_ID.findall('const el = document.getElementById("typo");')
+    assert DECLARES_ID.findall('<div id="real"></div>')
 
 
 def test_the_detector_does_not_flag_a_local_reference():
