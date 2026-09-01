@@ -821,3 +821,13 @@ been confirmed and passed over, and the answer has not changed.
   rung with `--keep` instead. The flag is opt-in because the ladder costs seven
   runs of the corpus, which offline is time and against a real provider is
   seven times the money.
+
+- **Two backlog entries, one of which is about the estimate itself.** ADR 0035
+  promised the first: a rung per agent inside the memory pass is refused for the
+  same reason leave-one-out was, and getting it needs a ladder that is not a
+  prefix of the pipeline. The second is that `EST-0011` priced **ten** rungs and
+  seven shipped, because there are seven stage boundaries in `evaluate` and the
+  missing three could only come from splitting the memory pass. Recorded in
+  `BACKLOG.md` rather than rounded away — the estimate is dogfood data, and a
+  subject edited to match its outcome is the one thing that would make the
+  Phase 12 demo worthless.
