@@ -132,13 +132,16 @@ def connect(
     return connection
 
 
-def connect_from_settings(settings: Settings, *, create: bool = True) -> sqlite3.Connection:
+def connect_from_settings(
+    settings: Settings, *, create: bool = True, cross_thread: bool = False
+) -> sqlite3.Connection:
     """Open the store this process is configured to use."""
     return connect(
         settings.db_path,
         journal_mode=settings.journal_mode,
         busy_timeout_ms=settings.busy_timeout_ms,
         create=create,
+        cross_thread=cross_thread,
     )
 
 
