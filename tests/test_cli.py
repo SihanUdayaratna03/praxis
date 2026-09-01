@@ -531,6 +531,48 @@ def test_eval_says_so_when_a_directory_holds_no_answer_key(tmp_path: Path) -> No
     assert "praxis corpus generate" in result.output
 
 
+def test_eval_ablate_prints_a_row_for_every_rung(tmp_path: Path) -> None:
+    corpus = a_corpus(tmp_path)
+
+    result = runner.invoke(app, ["eval", str(corpus), "--ablate"])
+
+    assert result.exit_code == 0, result.output
+    assert "## Ablation" in result.output
+    for rung in ("| floor |", "| segmenter |", "| + governance |"):
+        assert rung in result.output
+
+
+def test_eval_ablate_writes_the_ladder_as_data_when_asked(tmp_path: Path) -> None:
+    corpus = a_corpus(tmp_path)
+    written = tmp_path / "out" / "ablation.json"
+
+    result = runner.invoke(app, ["eval", str(corpus), "--ablate", "--json", str(written)])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(written.read_text(encoding="utf-8"))
+    assert payload["rungs"][0]["rung"] == "floor"
+    assert payload["provenance"]["provider"] == "mock"
+
+
+def test_eval_ablate_refuses_to_keep_one_of_seven_stores(tmp_path: Path) -> None:
+    """Each rung gets a store of its own, so "the" scratch store has no answer."""
+    corpus = a_corpus(tmp_path)
+
+    result = runner.invoke(
+        app, ["eval", str(corpus), "--ablate", "--keep", str(tmp_path / "scratch.db")]
+    )
+
+    assert result.exit_code == 1
+    assert "cannot be combined" in result.output
+
+
+def test_eval_without_ablate_prints_no_ladder(tmp_path: Path) -> None:
+    """The flag is opt-in: the ladder costs seven runs (ADR 0035)."""
+    result = runner.invoke(app, ["eval", str(a_corpus(tmp_path))])
+
+    assert "## Ablation" not in result.output
+
+
 def test_two_evals_of_one_corpus_report_the_same_numbers(tmp_path: Path) -> None:
     """The property the Phase 10 ablation table rests on, through the CLI."""
     corpus = a_corpus(tmp_path)

@@ -811,3 +811,13 @@ been confirmed and passed over, and the answer has not changed.
   shapes. `deltas` is the reading the ladder exists for: what each rung moved
   precision and recall by against the rung below it, signed, so a component that
   made things worse shows as a negative rather than as a small number.
+
+- **`praxis eval --ablate` runs the ladder.** One flag on the command that
+  already existed, rather than a second command: the corpus argument, the
+  ground-truth check, `--json`, `--markdown` and the provenance line are all the
+  same, and only what is run and what is rendered differ. `--keep` is refused
+  beside it with a sentence saying why — seven rungs mean seven stores, so
+  "keep the scratch store" has no answer, and the remedy printed is to run one
+  rung with `--keep` instead. The flag is opt-in because the ladder costs seven
+  runs of the corpus, which offline is time and against a real provider is
+  seven times the money.

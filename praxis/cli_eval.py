@@ -44,10 +44,14 @@ from praxis.agents.extraction import ExtractionPipeline
 from praxis.agents.results import ExtractionRun
 from praxis.config.settings import Settings, get_settings
 from praxis.corpus.groundtruth import GROUND_TRUTH_FILENAME, load_ground_truth
+from praxis.eval.ablation import ablate
+from praxis.eval.ablation_report import as_json as ablation_json
+from praxis.eval.ablation_report import as_markdown as ablation_markdown
 from praxis.eval.harness import evaluate
 from praxis.eval.report import as_json, as_markdown
 from praxis.llm.errors import ProviderError
 from praxis.llm.factory import provider_for
+from praxis.llm.provider import LLMProvider
 from praxis.llm.trace import new_run_id
 from praxis.obs.logging import configure_logging
 from praxis.prompts.library import every_prompt
@@ -149,6 +153,10 @@ def eval_corpus(
         Path | None,
         typer.Option(help="Keep the scratch store at this path so a number can be dug into."),
     ] = None,
+    ablate_ladder: Annotated[
+        bool,
+        typer.Option("--ablate", help="Run the ablation ladder instead: one rung per component."),
+    ] = False,
 ) -> None:
     """Ingest a corpus, extract from it, and grade the result against its key.
 
@@ -159,6 +167,9 @@ def eval_corpus(
 
     Nothing is written to the configured store. The corpus is synthetic and its
     decisions were never made by anyone.
+
+    `--ablate` runs the ladder instead: one rung per component, each in a store
+    of its own. See ADR 0035.
     """
     settings = get_settings()
     configure_logging(settings)
@@ -171,6 +182,10 @@ def eval_corpus(
         console.print(f"[bold red]praxis eval: no {GROUND_TRUTH_FILENAME} in {corpus}[/bold red]")
         console.print("Generate one with 'praxis corpus generate'.")
         raise typer.Exit(code=1)
+
+    if ablate_ladder:
+        _ablate(corpus, settings, json_path=json_path, markdown_path=markdown_path, keep=keep)
+        return
 
     run_id = new_run_id()
 
@@ -198,6 +213,42 @@ def eval_corpus(
     _write_if_asked(markdown_path, table)
     if keep is not None:
         status.print(f"scratch store kept at {keep}")
+
+
+def _ablate(
+    corpus: Path,
+    settings: Settings,
+    *,
+    json_path: Path | None,
+    markdown_path: Path | None,
+    keep: Path | None,
+) -> None:
+    """Run the ladder and print its table. See ADR 0035 for what the rungs mean."""
+    if keep is not None:
+        # Seven rungs, seven stores. Keeping "the" scratch store has no answer.
+        console.print("[bold red]praxis eval: --keep and --ablate cannot be combined[/bold red]")
+        console.print("Run one rung at a time with --keep to dig into a number.")
+        raise typer.Exit(code=1)
+
+    def make_provider(repository: Repository, run_id: str) -> LLMProvider:
+        return provider_for(
+            settings,
+            sink=SqliteTraceSink(repository.connection),
+            run_id=run_id,
+            cite_coherently=True,
+        )
+
+    try:
+        table = ablate(corpus, make_provider, at=datetime.now(UTC))
+    except (ProviderError, StoreError, OSError, ValueError) as exc:
+        console.print(f"[bold red]praxis eval: {exc}[/bold red]")
+        raise typer.Exit(code=1) from exc
+
+    provenance = provenance_of(settings, corpus)
+    rendered = ablation_markdown(table, provenance=provenance)
+    console.print(rendered, soft_wrap=True, markup=False, highlight=False)
+    _write_if_asked(json_path, ablation_json(table, provenance=provenance))
+    _write_if_asked(markdown_path, rendered)
 
 
 def provenance_of(settings: Settings, corpus: Path) -> dict[str, str]:
