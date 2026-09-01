@@ -28,6 +28,7 @@ from rich.console import Console
 
 from praxis import __version__
 from praxis.cli_calibrate import calibrate
+from praxis.cli_demo import demo_seed
 from praxis.cli_estimate import estimates
 from praxis.cli_eval import eval_corpus, extract
 from praxis.cli_fuse import fuse
@@ -87,6 +88,13 @@ corpus_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(corpus_app, name="corpus")
+
+demo_app = typer.Typer(
+    help="Seed a store from Praxis's own history.",
+    no_args_is_help=True,
+)
+app.add_typer(demo_app, name="demo")
+demo_app.command(name="seed")(demo_seed)
 
 console = Console()
 

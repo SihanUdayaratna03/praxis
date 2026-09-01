@@ -1,0 +1,26 @@
+{
+  "facts": {
+    "segmenter_f1": "0.1250",
+    "paragraph_floor_f1": "0.1250",
+    "adr_predicates_total": 149,
+    "adr_predicates_parsed": 148,
+    "adr_predicates_parsed_rate": "0.9933",
+    "adr_count": 36,
+    "phases_completed": 10,
+    "db_corruption_events": 0,
+    "concurrent_writers": 1,
+    "edge_count": 149,
+    "dashboard_write_endpoints": 0,
+    "frontend_build_steps": 0,
+    "frontend_external_origins": 0,
+    "inline_sql_in_web_layer": 0,
+    "network_seam_modules": 2,
+    "modules_importing_uvicorn": 1,
+    "web_framework_imports_outside_praxis_web": 0,
+    "default_bind_is_loopback": 1
+  },
+  "events": [
+    "CollateralAgent is implemented",
+    "Phase 5 predicate DSL is implemented"
+  ]
+}
