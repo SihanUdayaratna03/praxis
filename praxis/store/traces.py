@@ -277,3 +277,72 @@ def trace_count(connection: sqlite3.Connection) -> int:
     with translating_sqlite_errors():
         row = connection.execute("SELECT count(*) FROM llm_trace").fetchone()
     return int(row[0])
+
+
+_TRACE_INDEX_SQL: Final = """
+    SELECT * FROM llm_trace
+    WHERE (:before IS NULL OR seq < :before)
+      AND (:agent IS NULL OR agent = :agent)
+      AND (:run_id IS NULL OR run_id = :run_id)
+    ORDER BY seq DESC
+    LIMIT :limit
+"""
+"""Newest calls first, paged by `seq`.
+
+`seq` is the table's only total order -- two calls in one run can share a
+millisecond -- so a cursor on it cannot skip or repeat a row.
+"""
+
+
+def trace_index(
+    connection: sqlite3.Connection,
+    *,
+    limit: int = 50,
+    before: int | None = None,
+    agent: str | None = None,
+    run_id: str | None = None,
+) -> tuple[LLMTrace, ...]:
+    """The most recent model calls, newest first.
+
+    What the dashboard's reasoning panel pages through. Phase 2 has recorded
+    every one of these since the first agent ran; nothing has shown them yet.
+
+    Args:
+        connection: An open store.
+        limit: How many rows to return.
+        before: Return calls allocated before this `seq`. `None` starts newest.
+        agent: Restrict to one agent's calls.
+        run_id: Restrict to one run.
+    """
+    with translating_sqlite_errors():
+        rows = connection.execute(
+            _TRACE_INDEX_SQL,
+            {"before": before, "limit": limit, "agent": agent, "run_id": run_id},
+        ).fetchall()
+    return tuple(from_row(row) for row in rows)
+
+
+def sequence_of(connection: sqlite3.Connection, trace: LLMTrace) -> int | None:
+    """The `seq` a stored trace was written under, for paging.
+
+    `LLMTrace` does not carry it: the column is the store's, not the model
+    layer's, and `praxis.llm` never imports the store.
+    """
+    with translating_sqlite_errors():
+        row = connection.execute(
+            "SELECT seq FROM llm_trace WHERE run_id = ? AND prompt_hash = ? AND attempt = ? "
+            "ORDER BY seq DESC LIMIT 1",
+            (trace.run_id, trace.prompt_hash, trace.attempt),
+        ).fetchone()
+    return None if row is None else int(row["seq"])
+
+
+def runs(connection: sqlite3.Connection, *, limit: int = 50) -> tuple[str, ...]:
+    """Run ids, most recent first, so the panel can offer a filter."""
+    with translating_sqlite_errors():
+        rows = connection.execute(
+            "SELECT run_id, MAX(seq) AS last FROM llm_trace "
+            "GROUP BY run_id ORDER BY last DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return tuple(str(row["run_id"]) for row in rows)

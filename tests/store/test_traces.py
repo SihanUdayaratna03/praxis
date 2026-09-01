@@ -31,8 +31,11 @@ from praxis.store.traces import (
     from_row,
     prompt_versions_in_run,
     run_cost_usd,
+    runs,
+    sequence_of,
     to_row,
     trace_count,
+    trace_index,
     traces_for_prompt,
     traces_in_run,
     write_trace,
@@ -354,3 +357,48 @@ class TestPromptProvenance:
         write_trace(store, trace(prompt_id="group_blocks@v1"))
         write_trace(store, trace(run_id="RUN-000000000002", prompt_id="other@v3"))
         assert prompt_versions_in_run(store, RUN) == ("group_blocks@v1",)
+
+
+class TestTraceIndex:
+    """Phase 2's trace store, read the way Phase 11's reasoning panel reads it."""
+
+    def test_the_index_returns_the_newest_call_first(self, store):
+        for i in range(3):
+            write_trace(store, trace(prompt_hash=f"{i:032d}"))
+        listed = trace_index(store)
+        assert [t.prompt_hash for t in listed] == [f"{i:032d}" for i in (2, 1, 0)]
+
+    def test_the_index_pages_by_seq_without_repeating_a_row(self, store):
+        for i in range(5):
+            write_trace(store, trace(prompt_hash=f"{i:032d}"))
+        seen: list[str] = []
+        cursor = None
+        while True:
+            page = trace_index(store, limit=2, before=cursor)
+            if not page:
+                break
+            seen.extend(t.prompt_hash for t in page)
+            cursor = sequence_of(store, page[-1])
+        assert len(seen) == len(set(seen)) == 5
+
+    def test_the_index_narrows_to_one_agent(self, store):
+        write_trace(store, trace(agent="DecisionScout"))
+        write_trace(store, trace(agent="ChallengerAgent", prompt_hash="b" * 32))
+        assert [t.agent for t in trace_index(store, agent="ChallengerAgent")] == ["ChallengerAgent"]
+
+    def test_the_index_narrows_to_one_run(self, store):
+        write_trace(store, trace())
+        write_trace(store, trace(run_id="RUN-000000000002", prompt_hash="b" * 32))
+        assert [t.run_id for t in trace_index(store, run_id=RUN)] == [RUN]
+
+    def test_runs_are_listed_most_recent_first(self, store):
+        write_trace(store, trace())
+        write_trace(store, trace(run_id="RUN-000000000002", prompt_hash="b" * 32))
+        assert runs(store) == ("RUN-000000000002", RUN)
+
+    def test_the_index_is_empty_rather_than_broken_on_a_fresh_store(self, store):
+        assert trace_index(store) == ()
+        assert runs(store) == ()
+
+    def test_a_sequence_is_none_for_a_trace_that_was_never_written(self, store):
+        assert sequence_of(store, trace()) is None
