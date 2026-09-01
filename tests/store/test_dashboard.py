@@ -14,7 +14,7 @@ import pytest
 from praxis.domain.enums import AssumptionStatus, RecordKind, Severity, Verdict
 from praxis.domain.ids import NodeId
 from praxis.domain.records import Assumption, Decision
-from praxis.store import dashboard
+from praxis.store import dashboard, drilldown
 from praxis.store.repository import Repository
 
 from tests.store.conftest import ACTOR, WRITTEN_AT, World, build_world
@@ -166,7 +166,7 @@ def test_the_drill_down_walks_decision_to_assumption_to_estimate_to_outcome(
     store: Repository, world: World
 ):
     """The argument chain the dashboard renders as one strip."""
-    detail = dashboard.decision_detail(store, world.decision.id)
+    detail = drilldown.decision_detail(store, world.decision.id)
     assert detail is not None
     assert detail.decision.id == world.decision.id
     assert len(detail.lines) == 1
@@ -180,23 +180,23 @@ def test_the_drill_down_walks_decision_to_assumption_to_estimate_to_outcome(
 
 
 def test_the_drill_down_carries_the_audit_trail_for_the_decision(store: Repository, world: World):
-    detail = dashboard.decision_detail(store, world.decision.id)
+    detail = drilldown.decision_detail(store, world.decision.id)
     assert detail is not None
     assert [event.entity_id for event in detail.audit] == [world.decision.id]
 
 
 def test_a_decision_with_no_assumes_edge_has_no_lines(store: Repository, world: World):
-    detail = dashboard.decision_detail(store, world.other_decision.id)
+    detail = drilldown.decision_detail(store, world.other_decision.id)
     assert detail is not None
     assert detail.lines == ()
 
 
 def test_the_drill_down_is_none_for_an_id_the_store_does_not_hold(store: Repository, world: World):
-    assert dashboard.decision_detail(store, NodeId("D-9999")) is None
+    assert drilldown.decision_detail(store, NodeId("D-9999")) is None
 
 
 def test_the_drill_down_names_which_lines_are_breached(store: Repository, world: World):
-    first = dashboard.decision_detail(store, world.decision.id)
+    first = drilldown.decision_detail(store, world.decision.id)
     assert first is not None
     assert first.breached == ()
     store.revise(
@@ -207,7 +207,7 @@ def test_the_drill_down_names_which_lines_are_breached(store: Repository, world:
         reason="the monitor found the predicate false",
         at=WRITTEN_AT,
     )
-    detail = dashboard.decision_detail(store, world.decision.id)
+    detail = drilldown.decision_detail(store, world.decision.id)
     assert detail is not None
     assert [line.assumption.id for line in detail.breached] == [world.assumption.id]
 
@@ -260,3 +260,23 @@ def test_the_queue_can_keep_only_what_the_challenger_has_not_ruled_on(
 def test_findings_for_selects_only_the_named_subject(store: Repository, world: World):
     assert [f.id for f in dashboard.findings_for(store, world.assumption.id)] == [world.finding.id]
     assert dashboard.findings_for(store, world.decision.id) == ()
+
+
+def test_the_estimate_drill_down_carries_its_outcome_and_what_leaned_on_it(
+    store: Repository, world: World
+):
+    detail = drilldown.estimate_detail(store, world.estimate.id)
+    assert detail is not None
+    assert detail.estimate.id == world.estimate.id
+    assert detail.outcome is not None
+    assert detail.outcome.id == world.outcome.id
+    assert [a.id for a in detail.assumptions] == [world.assumption.id]
+    # Both decisions reach the estimate: one through the assumption, one direct.
+    reached = {node.id: node.depth for node in detail.impacted}
+    assert reached[world.assumption.id] == 1
+    assert reached[world.decision.id] == 2
+    assert reached[world.other_decision.id] == 1
+
+
+def test_the_estimate_drill_down_is_none_for_an_unknown_id(store: Repository, world: World):
+    assert drilldown.estimate_detail(store, NodeId("EST-9999")) is None

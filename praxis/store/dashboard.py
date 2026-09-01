@@ -13,14 +13,10 @@ from typing import Final
 
 from praxis.domain.enums import AssumptionStatus, Severity, Verdict
 from praxis.domain.ids import NodeId
-from praxis.domain.links import LinkType
 from praxis.domain.records import (
-    Assumption,
     AuditEvent,
     Decision,
-    Estimate,
     Finding,
-    Outcome,
 )
 from praxis.store.errors import translating_sqlite_errors
 from praxis.store.mapping import from_row
@@ -288,89 +284,3 @@ def findings_for(repository: Repository, node_id: NodeId) -> tuple[Finding, ...]
     return tuple(
         sorted(found, key=lambda f: (_SEVERITY_RANK[f.severity], -f.detected_at.timestamp()))
     )
-
-
-# --- the decision drill-down -----------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class AssumptionLine:
-    """One assumption a decision rests on, with whatever priced it.
-
-    Attributes:
-        assumption: The assumption.
-        estimate: What it turned out to be, if an `estimated_as` edge exists.
-        outcome: What happened to that estimate, resolved or not.
-        findings: Findings about this assumption.
-    """
-
-    assumption: Assumption
-    estimate: Estimate | None
-    outcome: Outcome | None
-    findings: tuple[Finding, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class DecisionDetail:
-    """A decision and the whole chain of argument under it.
-
-    Attributes:
-        decision: The decision.
-        lines: One per assumption, in the order the edges were written.
-        findings: Findings about the decision itself.
-        audit: Every write to the decision, oldest first.
-    """
-
-    decision: Decision
-    lines: tuple[AssumptionLine, ...]
-    findings: tuple[Finding, ...]
-    audit: tuple[AuditEvent, ...]
-
-    @property
-    def breached(self) -> tuple[AssumptionLine, ...]:
-        """The lines whose assumption has already failed."""
-        return tuple(
-            line for line in self.lines if line.assumption.status is AssumptionStatus.BREACHED
-        )
-
-
-def decision_detail(repository: Repository, decision_id: NodeId) -> DecisionDetail | None:
-    """One decision with its assumptions, their estimates and their outcomes.
-
-    Returns `None` when no current decision has that id, so a route can answer
-    404 without a second lookup.
-    """
-    decision = repository.get(Decision, decision_id)
-    if decision is None:
-        return None
-    outcomes = {o.estimate_id: o for o in repository.list_all(Outcome)}
-    findings = repository.list_all(Finding)
-    lines = []
-    for edge in repository.links_from(decision_id, [LinkType.ASSUMES]):
-        assumption = repository.get(Assumption, edge.target_id)
-        if assumption is None:
-            continue
-        estimate = _estimate_behind(repository, assumption.id)
-        lines.append(
-            AssumptionLine(
-                assumption=assumption,
-                estimate=estimate,
-                outcome=outcomes.get(estimate.id) if estimate else None,
-                findings=tuple(f for f in findings if f.subject_id == assumption.id),
-            )
-        )
-    return DecisionDetail(
-        decision=decision,
-        lines=tuple(lines),
-        findings=tuple(f for f in findings if f.subject_id == decision_id),
-        audit=repository.audit_for(decision_id),
-    )
-
-
-def _estimate_behind(repository: Repository, assumption_id: NodeId) -> Estimate | None:
-    """The estimate an assumption turned out to be, if the fusion edge exists."""
-    for edge in repository.links_from(assumption_id, [LinkType.ESTIMATED_AS]):
-        estimate = repository.get(Estimate, edge.target_id)
-        if estimate is not None:
-            return estimate
-    return None
