@@ -863,3 +863,10 @@ been confirmed and passed over, and the answer has not changed.
   about `praxis.llm.synthesis`. What it does close is the excuse: the number was
   unmeasurable before this phase and is measurable now, and it is not in the
   assumption's favour. In `BACKLOG.md` for re-measurement on the first live run.
+
+- **`docs/reports/phase-10.md` is written, and it leads with the breach rather
+  than the table.** The ablation is the deliverable; the assumption it broke is
+  the result. The report also states the three deviations plainly — seven rungs
+  against the ten `EST-0011` priced, a flag rather than a subcommand, and the
+  citation gate not being a rung — and records that Half B is an F1 *regression*
+  (0.1250 → 0.1118) rather than describing the recall rise alone.
