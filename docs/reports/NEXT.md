@@ -1130,3 +1130,75 @@ product owner put them in scope for this phase, so they are committed.
   The remote detector is watched failing on four pastes it has never seen —
   `https://`, `http://`, a protocol-relative `//cdn`, and a CSS `url()` — for
   the same reason the boundary test watches its own.
+
+## Phase 11 paused here
+
+Stopped at the product owner's request, mid-way through the demo dataset
+strand. Nothing is uncommitted and nothing is half-written on disk.
+
+### State
+
+| | |
+| --- | --- |
+| Phase branch | `feat/phase-11-dashboard`, pushed, clean |
+| Merged strands | ADRs, store reads, web shell, landing page — all `--no-ff` |
+| Open strand | `feat/phase-11-demo`, pushed, clean, **partial** |
+| Suite | green at the last full run; ruff, `ruff format --check` and `mypy --strict` clean at the stop |
+| Untracked | `.codex/`, `AGENTS.md` — untouched, as in Phases 8–10 |
+| PR | not opened yet |
+| Tag | `v0.11-phase-11` not created yet |
+| `OUT-0012` | not closed |
+
+### What is built
+
+- `EST-0012` logged before any code: 8.5h active **uncorrected**, 4.2h blocked,
+  work class `frontend` at **n=0**.
+- ADR 0036 (web layer, no build step) and ADR 0037 (second network seam,
+  revised during implementation). ADR index rebuilt.
+- Six new store reads across `praxis/store/dashboard.py`,
+  `praxis/store/drilldown.py` and `praxis/store/traces.py`.
+- `praxis/web/` — 11 read-only GET routes, `create_app`, and `praxis serve`.
+- The landing page, built to `docs/assets/praxis-landing-page.webp` and checked
+  in a browser.
+- `tests/web/test_static.py`, the frontend's gate.
+
+### Where the demo strand stopped
+
+`praxis/demo/sources.py` is the **reader** and it works: 36 ADRs → titles,
+chosen paragraphs, rejected options and 149 assumption rows; both dogfood files
+→ 12 estimates and 11 outcomes. Everything comes back with real byte offsets so
+a seeded record can cite a span that genuinely contains it (invariant 6).
+
+**The writer does not exist yet.** Next is `praxis/demo/seed.py`: turn those
+into `Document`, `Span`, `Decision`, `Assumption`, `Estimate`, `Outcome` and
+`assumes` / `estimated_as` records through `Repository`, then `praxis demo
+seed` to run it, then tests.
+
+**One finding worth carrying, decided before the pause.** On this corpus the
+fusion layer will *not* produce a `FLIPPED` verdict, and that is the data
+telling the truth rather than a bug. `agent-implementation` is **1.53× over**
+at n=8, so calibration makes every estimate *smaller* — which can only relieve
+a `<=` predicate, never violate one. The demo should render whatever verdict
+occurs, including `RELIEVED` and `NO_FACTOR`, and the phase report should say
+this plainly. **Do not rig the seed to manufacture a flip.**
+
+The genuine payoff on real data is the other one: ADR 0011 assumption 1
+(`segmenter_f1 - paragraph_floor_f1 >= 0.05`) is **measurably false** — Phase 10
+measured the difference at `0.0000` — so the demo has a real decision
+invalidated by real evidence. Surface that as the headline finding.
+
+### Next, in order
+
+1. `praxis/demo/seed.py` + `praxis demo seed` + tests; merge the strand.
+2. The dashboard views: shell and rail, KPI cards, timeline, decision
+   drill-down, the fusion provenance strip, calibration charts, review queue,
+   and the reasoning panel over `trace_index`.
+3. `ARCHITECTURE.md` for the web layer.
+4. Full suite, PR with `--body-file`, CI green, merge commit, delete branch,
+   tag `v0.11-phase-11`, push tags, **verify against the remote**.
+5. `docs/reports/phase-11.md` — and it must record: the landing page as a scope
+   addition beyond the original dashboard-plus-demo brief; the `docs/assets/`
+   versus `docs/design/` reconciliation and what was chosen where; the reads
+   landing outside `reports.py` because of the 400-line rule; ADR 0037's
+   revision; and that no fusion flip occurs on this corpus, with the reason.
+6. Close `OUT-0012`.
