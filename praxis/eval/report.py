@@ -174,8 +174,8 @@ def as_markdown(
     if provenance:
         lines += [_provenance(provenance), ""]
     lines += [
-        _row(SCORE_HEADINGS),
-        _row(["---"] * len(SCORE_HEADINGS)),
+        table_row(SCORE_HEADINGS),
+        table_row(["---"] * len(SCORE_HEADINGS)),
         *(_score_row(kind) for kind in result.kinds),
         "",
         "## Citation integrity",
@@ -374,10 +374,10 @@ def _insufficiency_lines(counted: Mapping[str, int]) -> list[str]:
     if not counted:
         return []
     return [
-        _row(("withheld because", "findings")),
-        _row(("---", "---")),
+        table_row(("withheld because", "findings")),
+        table_row(("---", "---")),
         *(
-            _row((rule, str(count)))
+            table_row((rule, str(count)))
             for rule, count in sorted(counted.items(), key=lambda pair: (-pair[1], pair[0]))
         ),
         "",
@@ -531,8 +531,8 @@ def _estimation_lines(estimation: EstimationResult) -> list[str]:
         f"(match rate **{matching.match_rate}**), against "
         f"{estimation.expected_resolutions} the corpus resolves.",
         "",
-        _row(PAIR_HEADINGS),
-        _row(["---"] * len(PAIR_HEADINGS)),
+        table_row(PAIR_HEADINGS),
+        table_row(["---"] * len(PAIR_HEADINGS)),
         _pair_row(estimation.resolution),
         "",
         *_unmatched_lines(matching),
@@ -623,8 +623,8 @@ def _memory_lines(memory: MemoryResult) -> list[str]:
         "",
         "## Contradictions",
         "",
-        _row(PAIR_HEADINGS),
-        _row(["---"] * len(PAIR_HEADINGS)),
+        table_row(PAIR_HEADINGS),
+        table_row(["---"] * len(PAIR_HEADINGS)),
         *(
             _pair_row(found)
             for found in (memory.contradictions, memory.by_arithmetic, memory.by_model)
@@ -643,7 +643,7 @@ def _memory_lines(memory: MemoryResult) -> list[str]:
 
 def _pair_row(found: PairScore) -> str:
     """One contradiction stage as a table row."""
-    return _row(
+    return table_row(
         [
             found.label,
             str(found.true_positives),
@@ -663,9 +663,9 @@ def _cost_lines(cost: Mapping[str, Decimal]) -> list[str]:
     return [
         "## Cost per document",
         "",
-        _row(("Agent", "USD per document")),
-        _row(("---", "---")),
-        *(_row((agent, str(spent))) for agent, spent in sorted(cost.items())),
+        table_row(("Agent", "USD per document")),
+        table_row(("---", "---")),
+        *(table_row((agent, str(spent))) for agent, spent in sorted(cost.items())),
         "",
     ]
 
@@ -738,7 +738,7 @@ def _score_data(kind: KindResult) -> dict[str, Any]:
 
 def _score_row(kind: KindResult) -> str:
     """One kind as a table row."""
-    return _row(
+    return table_row(
         [
             kind.kind.value,
             str(kind.score.true_positives),
@@ -782,10 +782,10 @@ def _citation_lines(citations: CitationIntegrity) -> list[str]:
     ]
     if citations.by_refusal:
         lines.append("")
-        lines.append(_row(("Refusal", "Count")))
-        lines.append(_row(("---", "---")))
+        lines.append(table_row(("Refusal", "Count")))
+        lines.append(table_row(("---", "---")))
         lines += [
-            _row((refusal.value, str(count)))
+            table_row((refusal.value, str(count)))
             for refusal, count in sorted(
                 citations.by_refusal.items(), key=lambda entry: (-entry[1], entry[0].value)
             )
@@ -806,6 +806,6 @@ def _provenance(provenance: Mapping[str, str]) -> str:
     )
 
 
-def _row(cells: tuple[str, ...] | list[str]) -> str:
-    """One markdown table row."""
+def table_row(cells: tuple[str, ...] | list[str]) -> str:
+    """One markdown table row. Public so the ablation renders the same shape."""
     return "| " + " | ".join(cells) + " |"

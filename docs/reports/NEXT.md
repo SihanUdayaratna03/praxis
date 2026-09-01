@@ -802,3 +802,12 @@ been confirmed and passed over, and the answer has not changed.
   precision is trivially perfect and says nothing. `emitted` is the column that
   distinguishes the two, and the row carries it for that reason. The test that
   first asserted a precision of zero there was asserting the wrong thing.
+
+- **The ladder renders as markdown and as JSON, and `_row` became
+  `table_row`.** Rendering lives apart from arithmetic, the same split
+  `praxis.eval.report` makes, in a module of its own only because that file is
+  already 800 lines. The one thing shared with it is the markdown row helper,
+  made public rather than copied so the two tables cannot drift into different
+  shapes. `deltas` is the reading the ladder exists for: what each rung moved
+  precision and recall by against the rung below it, signed, so a component that
+  made things worse shows as a negative rather than as a small number.
