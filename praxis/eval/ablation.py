@@ -91,6 +91,11 @@ class AblationRow:
             for want of a challenge -- `emitted` is what separates the two.
         emitted: Findings the gate concluded on.
         abstained: Findings it routed to a person instead.
+        findings: Findings standing in the store. The column the calibration
+            and fusion rungs move -- neither writes a claim, so extraction
+            precision cannot see them at all.
+        flips: Edges where calibration turned a held predicate into a violated
+            one. What the fusion rung exists to produce.
         fusion_recall: Of the labelled `estimated_as` edges, how many were found.
         cost_per_document: Total spent per document, across every agent.
         cost_by_agent: The same, split. Which agents a rung paid for at all is
@@ -107,6 +112,8 @@ class AblationRow:
     abstention_precision: Decimal = EMPTY
     emitted: int = 0
     abstained: int = 0
+    findings: int = 0
+    flips: int = 0
     fusion_recall: Decimal = EMPTY
     cost_per_document: Decimal = EMPTY
     cost_by_agent: Mapping[str, Decimal] = field(default_factory=dict)
@@ -124,6 +131,8 @@ def row_for(rung: Rung, result: EvalResult) -> AblationRow:
         abstention_precision=result.governance.abstention_precision,
         emitted=result.governance.emitted,
         abstained=result.governance.abstained,
+        findings=result.governance.findings,
+        flips=result.fusion.flips,
         fusion_recall=result.fusion_recall,
         cost_per_document=sum(result.cost.values(), EMPTY),
         cost_by_agent=dict(result.cost),

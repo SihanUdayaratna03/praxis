@@ -36,7 +36,7 @@ def a_row(rung: Rung = FLOOR, **fields: object) -> AblationRow:
 
 class TestTheMarkdownTable:
     def test_every_heading_the_brief_named_is_a_column(self) -> None:
-        for heading in ("Precision", "Recall", "Citations", "Cost/doc"):
+        for heading in ("Precision", "Recall", "Citations", "Cost/doc", "Findings"):
             assert heading in HEADINGS
 
     def test_a_row_lands_for_every_rung(self) -> None:

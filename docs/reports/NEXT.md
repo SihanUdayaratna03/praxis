@@ -831,3 +831,12 @@ been confirmed and passed over, and the answer has not changed.
   `BACKLOG.md` rather than rounded away — the estimate is dogfood data, and a
   subject edited to match its outcome is the one thing that would make the
   Phase 12 demo worthless.
+
+- **The first real ladder run showed three rungs as identical rows, so two
+  columns were added.** Calibration, fusion and governance write *findings*,
+  not claims, so extraction precision is blind to all three and the table said
+  nothing about them. The JSON had the difference all along — abstentions ran
+  34 → 35 → 56 across those rungs — but the markdown could not show it.
+  `Findings` and `Flips` are columns now. This is the ablation's own failure
+  mode caught by running it: a table whose rows are identical is a statement
+  about the columns, not about the pipeline.

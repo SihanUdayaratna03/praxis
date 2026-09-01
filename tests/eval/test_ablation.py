@@ -177,6 +177,19 @@ class TestWhatEachRungAdds:
             assert row is not None
             assert row.emitted == 0
 
+    def test_the_rungs_that_write_no_claims_still_move_a_column(self, table: AblationTable) -> None:
+        """Otherwise three rungs are identical rows and the ladder cannot see them.
+
+        Calibration, fusion and governance write findings rather than claims, so
+        extraction precision is blind to all three. `findings` is the column
+        that is not.
+        """
+        memory = table.row("+ memory")
+        fusion = table.row("+ fusion")
+        assert memory is not None
+        assert fusion is not None
+        assert fusion.findings > memory.findings
+
     def test_calibration_reports_no_measurement_on_a_corpus_this_size(
         self, table: AblationTable
     ) -> None:
