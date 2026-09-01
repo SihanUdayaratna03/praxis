@@ -1101,3 +1101,32 @@ product owner put them in scope for this phase, so they are committed.
   gitignored, never staged, and `actions/checkout` materialises committed files
   only — so the project gate reads `praxis` and `tests`, as pre-commit already
   does. Left alone for the fourth phase running.
+
+- **The landing page is built to `docs/assets/praxis-landing-page.webp`.**
+  Tokens first — colours, type and an 8px scale read off the asset rather than
+  invented — then the page: eyebrow, the two-line headline with its teal stop,
+  the blue primary CTA beside a ghost button, the offline-first / append-only /
+  deterministic trust row, and the three feature cards under their letter-spaced
+  kicker. Checked against the asset in a browser and corrected twice: the hero
+  column was too narrow and the headline wrapped to three lines where the asset
+  wraps to two.
+
+  **The one deliberate departure: the hero's product shot is live, not a
+  screenshot.** The asset puts a picture of the dashboard there, and every
+  number in that picture is invented. It reads `/api/overview` and `/api/fusion`
+  instead, so the landing page cannot claim something the store does not hold —
+  and on an empty store it says so and names the command that fills it. A
+  screenshot would have been faster and would have been the one piece of
+  fabricated data on a page about not fabricating data.
+
+  Also added beyond the asset: a **thesis strip** — the six-step pipeline from
+  capture to argue — because the brief asks the page to introduce the thesis and
+  the asset's fold has no room for it.
+
+- **`tests/web/test_static.py` is the frontend's toolchain.** No npm entered the
+  repository, so the gate is a pytest module: no asset may reference a remote
+  origin, every referenced asset must exist, every page must parse and declare
+  a title and a language, and every id a script writes to must exist on a page.
+  The remote detector is watched failing on four pastes it has never seen —
+  `https://`, `http://`, a protocol-relative `//cdn`, and a CSS `url()` — for
+  the same reason the boundary test watches its own.
