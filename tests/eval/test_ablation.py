@@ -22,10 +22,12 @@ from pathlib import Path
 import pytest
 from praxis.config.settings import Settings
 from praxis.corpus.generator import Controls, generate_corpus
+from praxis.eval import ablation as ablation_module
 from praxis.eval.ablation import LADDER, AblationTable, Rung, ablate, in_memory_store, row_for
 from praxis.eval.harness import evaluate
 from praxis.eval.stages import Stages
 from praxis.llm.mock import MockProvider
+from praxis.store.errors import StoreError
 from praxis.store.repository import Repository
 from praxis.store.traces import SqliteTraceSink
 
@@ -231,3 +233,27 @@ class TestEachRungGetsItsOwnStore:
 
         assert len(opened) == 2
         assert opened[0] is not opened[1]
+
+
+class TestAStoreThatCannotBeOpened:
+    def test_a_failed_migration_closes_the_connection_rather_than_leaking_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The refusal path. A leaked connection holds a lock nothing releases."""
+        closed: list[bool] = []
+
+        class _Connection:
+            def close(self) -> None:
+                closed.append(True)
+
+        def failing_migrate(connection: object) -> None:
+            message = "migration refused"
+            raise StoreError(message)
+
+        monkeypatch.setattr(ablation_module, "connect", lambda *a, **k: _Connection())
+        monkeypatch.setattr(ablation_module, "migrate", failing_migrate)
+
+        with pytest.raises(StoreError), in_memory_store():
+            pass  # pragma: no cover -- entering the context manager is what raises
+
+        assert closed == [True]

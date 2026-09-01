@@ -9,8 +9,9 @@
 | | |
 | --- | --- |
 | Branch | `feat/phase-10-eval-harness`, cut from `main` at `b43b21e` |
-| Commits | 19, one logical change each |
-| New modules | `praxis/eval/stages.py`, `ablation.py`, `ablation_report.py` |
+| Commits | 21, one logical change each |
+| Suite | **3120 passed**, coverage **99.07%** (gate 85%) |
+| New modules | `praxis/eval/stages.py`, `ablation.py`, `ablation_report.py` — every one at **100%** |
 | ADRs | 0033, 0034, 0035 |
 | Schema | version 4 — **no migration**, for the fifth phase running |
 | Corpus | 16 topics, 82 documents, 250 items, 88 distractors |

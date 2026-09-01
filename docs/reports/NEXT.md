@@ -870,3 +870,10 @@ been confirmed and passed over, and the answer has not changed.
   against the ten `EST-0011` priced, a flag rather than a subcommand, and the
   citation gate not being a rung — and records that Half B is an F1 *regression*
   (0.1250 → 0.1118) rather than describing the recall rise alone.
+
+- **Full suite green and the three new modules at 100%.** 3120 tests, coverage
+  **99.07%** against the 85% gate. The last three uncovered lines were
+  `in_memory_store`'s failure path — the branch that closes the connection when
+  `migrate` throws — and they are covered now. A leaked connection holds a lock
+  nothing releases, so it is exactly the kind of branch this project does not
+  leave to inspection.
