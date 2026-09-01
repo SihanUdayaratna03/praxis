@@ -970,3 +970,38 @@ product owner put them in scope for this phase, so they are committed.
   0. `agent-implementation`'s fitted 0.6534 was deliberately not borrowed, on
   `EST-0002`'s stated grounds. Confidence 0.35, below `EST-0011`'s 0.42,
   because there is no prior in the class at all.
+
+- **ADR 0036 and ADR 0037 record the two decisions this phase had to make
+  before it could write a line of frontend.** Both were found by checking
+  rather than assumed.
+
+  **No web framework had ever been chosen.** `fastapi`, `uvicorn` and
+  `starlette` appear zero times in the repository's history. Phase 0 recorded
+  facts *about* a future dashboard — ADR 0003 calls it read-mostly, ADR 0008
+  names "a Phase 11 dashboard query" as a reason to put append-only in a
+  trigger — but named no framework. **0036** chooses FastAPI, for typed
+  responses over the Pydantic already declared, and a frontend with **no build
+  step, no framework and no CDN**: a `<script src="https://…">` would make a
+  product whose first trust badge says *offline-first* render blank without a
+  network. Four packages new to the lock — `fastapi`, `starlette`, `uvicorn`,
+  `click` — read off the resolver rather than recalled. Typer 0.27.1 dropped
+  its `click` dependency, which is why that one is new.
+
+  **The boundary test would have passed, and that was the problem.** ADR 0037.
+  `tests/test_boundaries.py` lets only `praxis/llm/anthropic.py` import a
+  network module, but `NETWORK_MODULES` lists SDKs, HTTP clients and the stdlib
+  socket layer — no web framework, because none existed when it was written. A
+  dashboard would have imported FastAPI cleanly and left the seam decorative,
+  which is word for word the failure its own docstring predicts. So the three
+  framework names go **into** the set and `praxis/web/server.py` is named
+  beside the LLM seam. A directory-shaped exemption was rejected: naming one
+  file means a second costs a visible edit to a test.
+
+- **All nine new predicates parse, and the ADR rate went up.** 149 rows, 148
+  parsed, **0.9933** against 0.9929 at the close of Phase 10. Checked through
+  `read_adr_predicates` rather than by eye. The one unreadable row is still ADR
+  0015's, unchanged. Every expiry condition parses.
+
+- **The ADR index was stale since 0020 and is rebuilt from the files.**
+  Fifteen ADRs were missing from it. Regenerating was mechanical and the
+  alternative was adding two rows to a table that was already wrong.
