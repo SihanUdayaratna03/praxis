@@ -128,5 +128,88 @@
       </div>`;
   }
 
-  window.views = { ...(window.views || {}), decisions, decision };
+  // --- calibration ---------------------------------------------------------
+
+  const median = (numbers) => {
+    const sorted = [...numbers].sort((a, b) => a - b);
+    if (!sorted.length) return 0;
+    const middle = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+  };
+
+  // The lens applies the group's factor to a typical estimate from that group,
+  // so raw and corrected are both quantities rather than multipliers.
+  function lens(factor, rows) {
+    const mine = rows.filter(
+      (r) => r.work_class === factor.work_class && r.owner === factor.owner,
+    );
+    const raw = median(mine.map((r) => Number(r.estimated_active)));
+    const corrected = raw * Number(factor.factor);
+    const low = raw * Number(factor.low);
+    const high = raw * Number(factor.high);
+    const unit = mine.length ? mine[0].unit : "";
+    return `<div class="lens">
+        <div><span class="lens-k">Raw</span>
+          <span class="lens-v" style="color:var(--violet)">${raw.toFixed(1)}${esc(unit[0] ?? "")}</span></div>
+        <div><span class="lens-k">Corrected</span>
+          <span class="lens-v" style="color:var(--teal)">${corrected.toFixed(1)}${esc(unit[0] ?? "")}</span></div>
+        <div><span class="lens-k">Band</span>
+          <span class="lens-v" style="font-size:16px">${low.toFixed(1)}–${high.toFixed(1)}</span></div>
+        <div><span class="lens-k">n</span><span class="lens-v">${factor.n}</span></div>
+        <div><span class="lens-k">Confidence</span>
+          <span class="lens-v">${Number(factor.confidence).toFixed(2)}</span></div>
+      </div>
+      <div style="padding:0 var(--s5) var(--s5)">${bellCurves(raw, corrected, low, high)}</div>
+      <p class="panel-note" style="padding-top:0">${esc(factor.describe)}</p>`;
+  }
+
+  function historyTable(rows) {
+    const body = rows
+      .map((r) => {
+        const actual = r.actual_active;
+        const ratio = actual ? Number(actual) / Number(r.estimated_active) : null;
+        const tone = !ratio ? "faint" : ratio > 1 ? "is-breached" : "is-valid";
+        return `<tr>
+          <td><span class="item-id">${esc(r.estimate_id)}</span></td>
+          <td>${esc(r.work_class)}</td>
+          <td class="num">${esc(r.estimated_active)}</td>
+          <td class="num">${actual === null ? "—" : esc(actual)}</td>
+          <td class="num ${tone}">${ratio ? `${ratio.toFixed(2)}×` : "unresolved"}</td>
+          <td>${esc(r.match_quality)}</td>
+        </tr>`;
+      })
+      .join("");
+    return `<div class="scroller"><table class="table">
+        <thead><tr><th>Estimate</th><th>Class</th><th class="num">Predicted</th>
+          <th class="num">Actual</th><th class="num">Ratio</th><th>Quality</th></tr></thead>
+        <tbody>${body}</tbody></table></div>`;
+  }
+
+  async function calibration() {
+    const data = await api("/api/calibration");
+    const speaking = data.factors.filter((f) => f.speaks);
+    const lensPanel = speaking.length
+      ? panel(`Calibration lens · ${speaking[0].work_class}`, lens(speaking[0], data.history))
+      : panel(
+          "Calibration lens",
+          `<p class="panel-note">No group has reached ${data.minimum_sample} resolved
+             estimates, so nothing is corrected. That is the threshold working.</p>`,
+        );
+    view.innerHTML =
+      head(
+        `${data.factors.length} calibration group(s)`,
+        `${speaking.length} with enough history to speak · refuses below n=${data.minimum_sample}`,
+      ) +
+      `<div class="grid">
+        <div class="stack">
+          ${lensPanel}
+          ${panel("Every estimate beside its actual", historyTable(data.history))}
+        </div>
+        <div class="stack span-rest">
+          ${panel("Per person, per class of work", `<div class="bars">${factorBars(data.factors)}</div>`)}
+        </div>
+      </div>`;
+  }
+
+  window.views = { ...(window.views || {}), decisions, decision, calibration };
 })();

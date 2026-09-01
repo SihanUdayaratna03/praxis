@@ -276,10 +276,12 @@ def _seed_dogfood(writer: _Writer, dogfood_dir: Path) -> int:
     # Dogfood ids and store ids are allocated independently, so nothing is
     # matched by name -- an outcome finds its estimate through this map.
     written: dict[str, EstimateId] = {}
+    cited: dict[str, SpanId] = {}
     for row in estimate_rows:
         span = writer.span(estimate_doc, row.quoted, f"{row.id} as it was logged")
         estimate = writer.add(_estimate(writer, row, span.id), "estimates", f"{row.id}")
         written[row.id] = estimate.id
+        cited[row.id] = span.id
 
     answered = set()
     for row in outcome_rows:
@@ -289,7 +291,19 @@ def _seed_dogfood(writer: _Writer, dogfood_dir: Path) -> int:
         span = writer.span(outcome_doc, row.quoted, f"{row.id} as it was recorded")
         writer.add(_outcome(writer, row, target, span.id), "outcomes", f"{row.id}")
         answered.add(target)
-    return len(written) - len(answered)
+
+    # ADR 0022: an unmatched estimate carries an `unresolved` outcome rather
+    # than nothing, so a phase still in flight stays visible in the calibration
+    # history instead of quietly leaving it.
+    open_estimates = [(name, eid) for name, eid in written.items() if eid not in answered]
+    for name, estimate_id in open_estimates:
+        row = next(r for r in estimate_rows if r.id == name)
+        # The estimate's own span, reused: span ids are content-addressed
+        # (ADR 0008), so citing the same line again is the same span.
+        writer.add(
+            _unresolved(writer, estimate_id, row, cited[name]), "outcomes", f"{name} unresolved"
+        )
+    return len(open_estimates)
 
 
 def _estimate(writer: _Writer, row: DogfoodRow, span_id: SpanId) -> Estimate:
@@ -326,6 +340,27 @@ def _outcome(writer: _Writer, row: DogfoodRow, estimate_id: EstimateId, span_id:
         match_quality=MatchQuality(data["match_quality"]),
         resolved_at=_moment(str(data["resolved_at"])),
         notes=str(data.get("notes", "")),
+        span_id=span_id,
+        created_at=writer.at,
+        created_by=ACTOR,
+    )
+
+
+def _unresolved(
+    writer: _Writer, estimate_id: EstimateId, row: DogfoodRow, span_id: SpanId
+) -> Outcome:
+    """The outcome of an estimate nothing has answered yet.
+
+    Carries no quantities and no resolution time -- the schema refuses an
+    `unresolved` row that also holds numbers, which is what keeps the
+    distinction worth having.
+    """
+    return Outcome(
+        id=OutcomeId(writer.repo.next_id(RecordKind.OUTCOME)),
+        estimate_id=estimate_id,
+        unit=Unit(row.data["unit"]),
+        match_quality=MatchQuality.UNRESOLVED,
+        notes="no outcome recorded yet",
         span_id=span_id,
         created_at=writer.at,
         created_by=ACTOR,

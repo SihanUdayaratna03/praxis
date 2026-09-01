@@ -20,7 +20,7 @@ import praxis
 import pytest
 from praxis.agents.bias import MINIMUM_SAMPLE, BiasDetective
 from praxis.demo.seed import ACTOR, seed
-from praxis.domain.enums import AssumptionStatus, RecordKind
+from praxis.domain.enums import AssumptionStatus, MatchQuality, RecordKind
 from praxis.domain.links import LinkType
 from praxis.domain.records import Assumption, Decision, Document, Estimate, Outcome, Span
 from praxis.eval.adrs import read_adr_predicates
@@ -75,7 +75,17 @@ class TestWhatItWrites:
             ]
         )
         assert len(seeded.list_all(Estimate)) == estimates
-        assert len(seeded.list_all(Outcome)) == outcomes
+        # One outcome per recorded result, plus an `unresolved` row for every
+        # estimate nothing has answered. ADR 0022.
+        assert len(seeded.list_all(Outcome)) == estimates
+        assert (
+            sum(
+                1
+                for o in seeded.list_all(Outcome)
+                if o.match_quality is not MatchQuality.UNRESOLVED
+            )
+            == outcomes
+        )
 
     def test_every_decision_rests_on_at_least_one_assumption(self, seeded: Repository):
         for decision in seeded.list_all(Decision):
@@ -138,12 +148,24 @@ class TestTheDemoIsWorthShowing:
         assert speaking[0].direction is not None
 
     def test_the_thin_classes_are_refused_by_name(self, seeded: Repository):
-        """A refusal is the output most of the time, and it says how short it is."""
+        """A refusal is the output most of the time, and it says why."""
         refused = [f for f in BiasDetective(seeded).all_factors() if not f.speaks]
         assert refused
         for factor in refused:
             assert factor.factor is None
-            assert str(MINIMUM_SAMPLE) in factor.reason
+            assert factor.reason
+
+    def test_the_class_with_nothing_resolved_refuses_differently(self, seeded: Repository):
+        """`frontend` is EST-0012, this phase, and nothing has answered it yet.
+
+        Its refusal reads differently from "four short of five", and that
+        difference is the thing worth showing: one group has too little
+        history, the other has none at all.
+        """
+        by_class = {f.group.work_class: f for f in BiasDetective(seeded).all_factors()}
+        assert by_class["frontend"].n == 0
+        assert "not one resolved outcome" in by_class["frontend"].reason
+        assert str(MINIMUM_SAMPLE) in by_class["scaffolding"].reason
 
     def test_the_monitor_finds_the_segmenter_breach_and_only_that(self, seeded: Repository):
         """The real payoff: a real decision invalidated by a real measurement."""
@@ -164,10 +186,18 @@ class TestTheDemoIsWorthShowing:
         assert AssumptionStatus.EXPIRED in statuses
         assert AssumptionStatus.BREACHED in statuses
 
-    def test_the_open_estimate_is_reported_rather_than_dropped(self, store: Repository):
-        """The phase in flight has no outcome, and that is a row not a silence."""
+    def test_the_open_estimate_is_a_row_rather_than_a_silence(self, store: Repository):
+        """ADR 0022. A phase in flight stays in the calibration history."""
         report = seed(store, adr_dir=ADRS, dogfood_dir=DOGFOOD)
-        assert report.unresolved == report.estimates - report.outcomes
+        assert report.unresolved == 1
+        assert report.outcomes == report.estimates
+        unresolved = [
+            o for o in store.list_all(Outcome) if o.match_quality is MatchQuality.UNRESOLVED
+        ]
+        assert len(unresolved) == 1
+        # The schema refuses an unresolved row that also carries numbers.
+        assert unresolved[0].active_quantity is None
+        assert unresolved[0].resolved_at is None
 
     def test_nothing_calls_a_model(self, seeded: Repository):
         """The whole seed is deterministic; a demo that needed a key would be the bug."""
