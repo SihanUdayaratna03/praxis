@@ -1397,3 +1397,10 @@ pushed.
   and the experiment that would decide it, rather than a move made for the
   look of one. The three new predicates put ADR count at 37 and predicates at
   152, and `facts.json` gained the six measurements they check.
+
+- **`docs/PITCH.md` is a routing document, not a new argument.** Everything in
+  it links to a file that already existed; what it adds is an order to read
+  them in and a **What is not true yet** section carrying the zero
+  `estimated_as` edges, the offline caveat, `n = 1` on four of five classes,
+  and 115 of 152 assumptions never checked. Putting the limitations in the
+  pitch is the only version of the pitch this project can make coherently.

@@ -61,6 +61,15 @@ calibration to share one graph.
 
 ---
 
+## Reading this repository
+
+If you have twenty minutes and want to know whether the claim holds,
+[`docs/PITCH.md`](docs/PITCH.md) is the routing document: the ninety-second
+demo, the four things worth looking at, where each claim is checked, and — in
+the same page — what is not true yet.
+
+---
+
 ## Status
 
 Built in numbered phases, each one merged green with a report. See
