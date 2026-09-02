@@ -80,6 +80,7 @@ finding cannot disagree ([ADR 0032](adr/0032-abstention-is-arithmetic-and-is-nev
 | The predictions, made before the work | [`docs/dogfood/estimates.jsonl`](dogfood/estimates.jsonl) |
 | What actually happened to them | [`docs/dogfood/outcomes.jsonl`](dogfood/outcomes.jsonl) |
 | The self-analysis, pinned as tests | [`tests/demo/test_history.py`](../tests/demo/test_history.py) |
+| What it found about its own construction | [`docs/reports/phase-12.md`](reports/phase-12.md) |
 
 ## Four things that make the numbers trustworthy
 

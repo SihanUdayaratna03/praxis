@@ -1404,3 +1404,18 @@ pushed.
   `estimated_as` edges, the offline caveat, `n = 1` on four of five classes,
   and 115 of 152 assumptions never checked. Putting the limitations in the
   pitch is the only version of the pitch this project can make coherently.
+
+- **`docs/reports/phase-12.md` carries the closing demonstration**, run
+  through the shipped commands rather than assembled: the ADR 0011 breach and
+  its chain to `D-0011`; one calibration group speaking beside four refusals;
+  the nine-over/three-under correction to `OUT-0012`; the leave-one-out test of
+  ADR 0024; corrected estimates at 0.8560 against 0.5556 uncorrected; and
+  `praxis fuse` refusing in its own words rather than showing an empty screen.
+
+- **Two findings the run produced that no plan predicted.** `praxis govern`
+  proposes **three merges** — `db_corruption_events == 0`,
+  `flips_per_priced_edge <= 0.2` and `adrs_added_in_phase >= 2` are each
+  asserted in two different ADRs, written months apart by an author who did not
+  remember stating them. And `praxis why` **refuses** a question ADR 0036
+  answers in prose, because no `rejected` row names that option: the
+  archaeologist retrieves and never generates.
