@@ -1368,3 +1368,13 @@ pushed.
   `MappingProxyType` so one shared object cannot be edited by a caller.
   x1000: **1.937s to 0.0001s**. On the 1,483-call ablation ladder that is
   about three seconds.
+
+- **The profile found a third thing and it is NOT fixed, deliberately.**
+  `record_head` is `MAX(version) GROUP BY id` over the whole version table, and
+  a view over an aggregate cannot be flattened, so every `current_*` read
+  re-runs it. Measured on two copies of one 816-version store: `links_from`
+  costs **0.3694 ms** as shipped and **0.0078 ms** through a correlated
+  subquery — **47x**, widening with the store. Fixing it redefines a core view,
+  which is a migration to schema 5 after six phases at 4, so it goes to
+  `BACKLOG.md` with the numbers and wants its own phase and ADR. Raised rather
+  than done quietly, per the phase brief.
