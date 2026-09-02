@@ -28,6 +28,7 @@ from praxis.eval.adrs import read_adr_predicates
 from praxis.monitor.facts import load_facts
 from praxis.monitor.run import monitor_store
 from praxis.store.connection import MEMORY, connect
+from praxis.store.errors import StoreError
 from praxis.store.migrations import migrate
 from praxis.store.repository import Repository
 
@@ -237,3 +238,20 @@ class TestTheDemoIsWorthShowing:
         run = monitor_store(seeded, supplied=load_facts(DOGFOOD / "facts.json"))
         assert run.calls == 0
         assert seeded.stats().records.get(RecordKind.SPAN, 0) > 0
+
+
+class TestItLandsAllAtOnce:
+    """One transaction for the whole seed: 608 commits became one."""
+
+    def test_a_seed_that_fails_part_way_leaves_nothing(self, store: Repository, tmp_path: Path):
+        """A half-seeded append-only store cannot be tidied up afterwards."""
+        dogfood = tmp_path / "dogfood"
+        dogfood.mkdir()
+        (dogfood / "estimates.jsonl").write_text("{ not json\n", encoding="utf-8")
+        (dogfood / "outcomes.jsonl").write_text("", encoding="utf-8")
+
+        with pytest.raises((json.JSONDecodeError, StoreError)):
+            seed(store, adr_dir=ADRS, dogfood_dir=dogfood)
+
+        assert store.list_all(Decision) == ()
+        assert store.list_all(Document) == ()

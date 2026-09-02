@@ -1306,3 +1306,205 @@ answers stops being one of the 116 unverified.
   assumptions is in scope for a later phase, not this one.
 - No light theme. The assets establish one look and a second one nobody
   designed would be a guess.
+
+## Phase 12 progress log
+
+The last phase. One line per component, appended as each is committed and
+pushed.
+
+- **`EST-0013` is logged, and it is the first estimate in this project to apply
+  a correction the product itself would have refused.** `scaffolding` at n=1,
+  so `BiasDetective` declines; the pooled factor 0.7225 over all twelve resolved
+  outcomes is applied anyway and the raw 4.5h is kept in `raw_active_quantity`
+  so `OUT-0013` grades both. Work class is `scaffolding` rather than a sixth
+  class, for the reasons in `work_class_note`.
+
+  **`OUT-0012` was wrong about the corpus.** Nine of twelve outcomes are
+  over-estimates, not twelve: `data-modelling` is 2.1000x under,
+  `llm-integration` 1.2444x under, and `EST-0011` 1.1613x under inside
+  `agent-implementation`. Pulled from a seeded store, not recalled.
+
+  **The grouping key survives the test.** Pooled dispersion 0.5082 against
+  0.3749 within `agent-implementation`, and the pooled band [0.4346, 1.2010]
+  contains 1.0 where the class band [0.4491, 0.9506] excludes it. Leave-one-out
+  mean absolute log error: raw 0.5101, pooled 0.4432, per-class 0.4316. ADR 0024
+  stands, and it is not vindicated either.
+
+- **The analysis is pinned by `tests/demo/test_history.py`, not written into
+  prose.** Eight tests over the seeded store: the nine-over/three-under split,
+  the two bands, the leave-one-out comparison, and that `scaffolding` still
+  refuses at two estimates. Repinned when `OUT-0013` lands.
+
+- **The README is rewritten around the demo path and verified against a fresh
+  clone**, not against this tree. Four commands from clone to the ADR 0011
+  breach, with the real output pasted in; `praxis calibrate` beside it showing
+  one answer and four refusals. Corrected while verifying: every phase after 0
+  was still marked unbuilt, `corpus generate` writes 82 documents and not 12,
+  and the corpus path needs its own `PRAXIS_DATA_DIR` or it reads the demo
+  store too. The layout block now lists the fourteen packages that exist.
+
+- **`tests/test_readme.py` keeps the README honest as the code moves.** Seven
+  checks: every `uv run praxis ...` in the file resolves to a real command,
+  every internal link resolves, the load-bearing claims are still present, and
+  the record count a stranger sees on their first run is asserted against the
+  seeder rather than typed in.
+
+- **The `--help` pass was narrowing rather than filling, as `EST-0013` priced
+  it.** Coverage was already complete, so the work went to the root help — it
+  now names the three commands to start with and `PRAXIS_DATA_DIR` — and to the
+  five entries that said what a command was without saying what comes back.
+  Two tests hold it: no command or option may be silent, and the root help must
+  still say where to start.
+
+- **The profile named two things and both are fixed.** `praxis demo seed` was
+  committing once per record — 642 commits, 0.919s of a 2.8s run — and now runs
+  the whole seed in one transaction that `praxis.store.connection.transaction`
+  joins rather than nests. In-process against a file-backed store over seven
+  runs: **1.331s best / 3.902s median to 0.218s / 0.223s**, and a half-seeded
+  append-only store stops being reachable, which is the better half of it.
+
+  `schema_for` regenerated a Pydantic JSON schema on every structured call, at
+  roughly **2ms each**; it is cached on the model class now and handed out as a
+  `MappingProxyType` so one shared object cannot be edited by a caller.
+  x1000: **1.937s to 0.0001s**. On the 1,483-call ablation ladder that is
+  about three seconds.
+
+- **The profile found a third thing and it is NOT fixed, deliberately.**
+  `record_head` is `MAX(version) GROUP BY id` over the whole version table, and
+  a view over an aggregate cannot be flattened, so every `current_*` read
+  re-runs it. Measured on two copies of one 816-version store: `links_from`
+  costs **0.3694 ms** as shipped and **0.0078 ms** through a correlated
+  subquery — **47x**, widening with the store. Fixing it redefines a core view,
+  which is a migration to schema 5 after six phases at 4, so it goes to
+  `BACKLOG.md` with the numbers and wants its own phase and ADR. Raised rather
+  than done quietly, per the phase brief.
+
+- **The routing review needed evidence that did not exist, so it was built.**
+  `tokens_by_agent` reads what a run really sent and
+  `projected_cost_per_document` prices it through the model ADR 0006 routes
+  that agent to, so `praxis eval` now prints a live-rate column beside the
+  zero one. A deterministic agent is skipped rather than priced at zero —
+  `BiasDetective` in a cost table would be invariant 3 already broken.
+
+- **ADR 0038: no agent changes tier, and the projection is why.** reason
+  **0.038632/doc (49.3%)**, extract **0.029935 (38.2%)**, scan **0.009759
+  (12.5%)**, total **0.078326** — so an 82-document run projects to **$6.42**
+  against a `cost_ceiling_usd` default of **$5.00**, which nobody could have
+  known before the column existed. `AssumptionFormalizer` (25%) and
+  `OutcomeMatcher` (24%) were both argued and both stay: a wrong predicate is
+  silent, and a wrong pairing poisons every later factor. The ablation table
+  cannot settle it — no rung varies a tier — so the review ships a shortlist
+  and the experiment that would decide it, rather than a move made for the
+  look of one. The three new predicates put ADR count at 37 and predicates at
+  152, and `facts.json` gained the six measurements they check.
+
+- **`docs/PITCH.md` is a routing document, not a new argument.** Everything in
+  it links to a file that already existed; what it adds is an order to read
+  them in and a **What is not true yet** section carrying the zero
+  `estimated_as` edges, the offline caveat, `n = 1` on four of five classes,
+  and 115 of 152 assumptions never checked. Putting the limitations in the
+  pitch is the only version of the pitch this project can make coherently.
+
+- **`docs/reports/phase-12.md` carries the closing demonstration**, run
+  through the shipped commands rather than assembled: the ADR 0011 breach and
+  its chain to `D-0011`; one calibration group speaking beside four refusals;
+  the nine-over/three-under correction to `OUT-0012`; the leave-one-out test of
+  ADR 0024; corrected estimates at 0.8560 against 0.5556 uncorrected; and
+  `praxis fuse` refusing in its own words rather than showing an empty screen.
+
+- **Two findings the run produced that no plan predicted.** `praxis govern`
+  proposes **three merges** — `db_corruption_events == 0`,
+  `flips_per_priced_edge <= 0.2` and `adrs_added_in_phase >= 2` are each
+  asserted in two different ADRs, written months apart by an author who did not
+  remember stating them. And `praxis why` **refuses** a question ADR 0036
+  answers in prose, because no `rejected` row names that option: the
+  archaeologist retrieves and never generates.
+
+- **`OUT-0013` is closed, and the pre-registered pair resolved.** Actual active
+  **2.7h**, blocked **1.2h**. The corrected 3.3h grades **`close`** at 1.2222×;
+  the raw 4.5h would have graded **`partial`** at 1.6667×. The correction cut
+  the log error from 0.5108 to 0.2007 — **the mirror of `OUT-0012`**, where
+  declining to correct turned a close into a partial. Still an over-estimate,
+  so the pooled factor was too timid rather than wrong.
+
+  `scaffolding` is now **n=2 and still refused**, exactly as `EST-0013` said it
+  would be. `tests/demo/test_history.py` and the README record count were
+  repinned when the outcome landed — the corpus growing, not the tests
+  breaking.
+
+## Where Phase 12 left the project
+
+Phase 12 is the last phase. There is no Phase 13 planned and nothing is in
+flight.
+
+| | |
+| --- | --- |
+| Branch | `feat/phase-12-polish`, 13 commits, cut from `main` at `3048529` |
+| ADRs | 0038 |
+| Schema | version 4 — no migration, for the **seventh** phase running |
+| Suite | **3431 passed**, coverage **98.57%** (gate 85%) |
+| ADR predicates | 151 of 152 parse, **0.9934** |
+| Demo | **621 records**, 1 breach, 3 proposed merges, 0 fusion edges |
+
+```bash
+cd "C:\Users\sihan\OneDrive\Desktop\Praxis Agents"
+git checkout main && git pull
+uv sync --all-groups
+
+uv run praxis init
+uv run praxis demo seed        # 621 records out of docs/adr and docs/dogfood
+uv run praxis serve            # http://127.0.0.1:8000
+```
+
+### What a next phase would pick up, in the order the evidence ranks them
+
+**1. `record_head` re-groups every version on every read.** Measured, 47× on
+`links_from`, widening with the store, and **not fixed** because it redefines a
+core view and that is a migration to schema 5. It is the largest known
+correctness-preserving win in the repository and it has its numbers already in
+`BACKLOG.md`. It wants its own phase, an ADR and a migration test.
+
+**2. The first live run is set up to be a measurement rather than a surprise.**
+Three things expire on it at once: ADR 0005 assumption 3, ADR 0034 assumption
+3, and ADR 0038's cost assumptions. Note before running it that an 82-document
+eval projects to **$6.42** against a `cost_ceiling_usd` default of **$5.00** —
+raise the ceiling deliberately or the run stops part-way.
+
+**3. The routing shortlist, with its experiment already specified.**
+`AssumptionFormalizer` (25% of the projected bill) and `OutcomeMatcher` (24%)
+are the only two moves worth measuring. ADR 0038 says exactly what to compare.
+
+**4. The fusion hole is still open and still should not be seeded.** Zero
+`estimated_as` edges. The honest routes are a `>=` predicate whose subject a
+dogfood estimate really binds, or a real extraction run whose citations survive
+the gate.
+
+**5. `n` is the binding constraint on everything the calibration half says.**
+Five classes, thirteen outcomes, one group above the threshold. Every
+interesting question about ADR 0024's grouping key — including the one Phase 12
+could only answer as "stands, but is not vindicated" — needs more history and
+nothing else.
+
+### The four untracked paths are still two
+
+`.codex/` and `AGENTS.md` remain untracked, not gitignored, and unable to reach
+CI. Confirmed and passed over for the **sixth** phase running, still
+deliberately not renamed, moved or deleted: the product owner has a question
+about what `.codex/` signals in a public repository and wants to look at its
+contents first. That is a decision for outside a phase.
+
+- **The final clean-clone run found one more README gap, and it was mine.** The
+  Phase 12 rewrite dropped the `.env.example` line, and the default store is
+  **one per user** (`%LOCALAPPDATA%\praxis`), not one per checkout — so a
+  reader with any earlier store hits the append-only refusal instead of a seed.
+  The product behaves correctly and names the fix; the README now says where
+  the store lives and quotes that refusal. Verified end to end in the clone:
+  621 records, then a correct refusal on the second seed.
+
+- **CI caught a repin the local run had not.** `tests/agents/test_scoring.py`
+  pins the dogfood log at twelve outcomes and `OUT-0013` made it thirteen —
+  the same repin Phase 11 did one outcome earlier. It was missed because the
+  full suite was last run *before* the outcome was appended and only targeted
+  tests after. `considered` moves 12 to 13 and `scored` stays at 3:
+  `scaffolding` at n=2 has one row before the second and is four short of
+  correcting from.

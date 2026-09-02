@@ -33,7 +33,8 @@ def serve(
 ) -> None:
     """Serve the dashboard and the landing page from the local store.
 
-    Read-only. No credentials, no network calls, nothing written.
+    Read-only: no credentials, no network calls, nothing written. Seed a store
+    first — `praxis demo seed` — or the views have nothing to draw.
     """
     settings = get_settings()
     configure_logging(settings)

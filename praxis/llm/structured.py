@@ -45,6 +45,8 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import cache
+from types import MappingProxyType
 from typing import Any, Final
 
 from pydantic import BaseModel, ValidationError
@@ -134,8 +136,13 @@ class StructuredResult[T: BaseModel]:
     response: LLMResponse
 
 
+@cache
 def schema_for(answer: type[BaseModel]) -> ResponseSchema:
     """Reduce a Pydantic model to the schema dialect the API accepts.
+
+    Cached on the model class, which is what makes it worth caching: the result
+    is a pure function of the class, and `ask_for` asks for it on every call.
+    Handed out read-only so a shared object cannot be edited by one caller.
 
     Args:
         answer: The response model.
@@ -152,7 +159,7 @@ def schema_for(answer: type[BaseModel]) -> ResponseSchema:
     """
     raw = answer.model_json_schema()
     _reject_recursion(raw, answer.__name__)
-    return ResponseSchema(name=answer.__name__, json_schema=_reduce(raw))
+    return ResponseSchema(name=answer.__name__, json_schema=MappingProxyType(_reduce(raw)))
 
 
 def ask_for[T: BaseModel](

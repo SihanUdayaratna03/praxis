@@ -272,6 +272,31 @@ def calls_by_agent(connection: sqlite3.Connection, run_id: str) -> dict[str, int
     return {str(row["agent"]): int(row["calls"]) for row in rows}
 
 
+def tokens_by_agent(connection: sqlite3.Connection, run_id: str) -> dict[str, tuple[int, int]]:
+    """Input and output tokens each agent used in one run.
+
+    Beside `cost_by_agent` rather than folded into it, because the two answer
+    different questions offline: cost is what the provider that ran actually
+    charged, and tokens are what any provider would have been sent. Pricing the
+    second at ADR 0006's real rates is what makes an offline run say anything
+    about the routing table.
+
+    Args:
+        connection: An open store.
+        run_id: The run to total.
+
+    Returns:
+        Agent name to `(input, output)`, in agent order.
+    """
+    with translating_sqlite_errors():
+        rows = connection.execute(
+            "SELECT agent, sum(input_tokens) AS input, sum(output_tokens) AS output "
+            "FROM llm_trace WHERE run_id = ? GROUP BY agent ORDER BY agent",
+            (run_id,),
+        ).fetchall()
+    return {str(row["agent"]): (int(row["input"]), int(row["output"])) for row in rows}
+
+
 def trace_count(connection: sqlite3.Connection) -> int:
     """How many model calls this store has recorded."""
     with translating_sqlite_errors():

@@ -33,6 +33,12 @@ from typing import Final
 from praxis.agents.errors import Refusal
 from praxis.agents.results import Refused, Stage
 from praxis.agents.scoring import Backtest
+from praxis.config.models import (
+    UnknownAgentError,
+    estimate_cost_usd,
+    resolve,
+    role_for_agent,
+)
 from praxis.corpus.groundtruth import ItemKind
 from praxis.domain.enums import AssumptionStatus
 from praxis.eval.matching import Match, Pairing
@@ -578,6 +584,43 @@ def cost_per_document(spent: Mapping[str, Decimal], documents: int) -> dict[str,
     return {
         agent: (total / Decimal(documents)).quantize(COST_PLACES) for agent, total in spent.items()
     }
+
+
+def projected_cost_per_document(
+    tokens: Mapping[str, tuple[int, int]], documents: int
+) -> dict[str, Decimal]:
+    """What each agent would cost per document at ADR 0006's real rates.
+
+    The offline `cost` column is zero because the mock is free, which says
+    nothing about whether an agent is on the right tier. This prices the tokens
+    an offline run really sent through the routed model's real price, so the
+    routing table can be reviewed without a credential.
+
+    The token counts are the mock's and a live model's would differ; the call
+    volumes and the routes are the pipeline's own. The report says so under the
+    table rather than only here.
+
+    Args:
+        tokens: Agent to `(input, output)`, from `traces.tokens_by_agent`.
+        documents: How many documents the run covered.
+
+    Returns:
+        Agent to projected cost per document. Empty when there were no
+        documents. An agent with no route is skipped rather than priced at
+        zero -- a deterministic agent appearing in a cost table would be the
+        bug `NON_LLM_AGENTS` exists to catch.
+    """
+    if documents < 1:
+        return {}
+    priced = {}
+    for agent, (inputs, outputs) in tokens.items():
+        try:
+            spec = resolve(role_for_agent(agent))
+        except UnknownAgentError:
+            continue
+        total = estimate_cost_usd(spec, inputs, outputs)
+        priced[agent] = (total / Decimal(documents)).quantize(COST_PLACES)
+    return priced
 
 
 @dataclass(frozen=True, slots=True)

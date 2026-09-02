@@ -71,7 +71,9 @@ app = typer.Typer(
     name="praxis",
     help=(
         "Organizational memory and calibration engine. Decisions that "
-        "invalidate themselves; estimates that learn your bias."
+        "invalidate themselves; estimates that learn your bias.\n\n"
+        "Start with: praxis init, then praxis demo seed, then praxis serve. "
+        "Runs offline with no credentials; PRAXIS_DATA_DIR picks the store."
     ),
     no_args_is_help=True,
     add_completion=False,
@@ -101,7 +103,10 @@ console = Console()
 
 @app.command()
 def version() -> None:
-    """Print the Praxis version."""
+    """Print the Praxis version.
+
+    The store carries its own schema version; `praxis store stats` prints that.
+    """
     console.print(__version__)
 
 
@@ -157,7 +162,7 @@ def init() -> None:
     """Create the store, or bring an existing one up to the current schema.
 
     Safe to run repeatedly: migrations are forward-only and skip whatever is
-    already applied.
+    already applied. `PRAXIS_DATA_DIR` picks where it goes.
     """
     settings = get_settings()
     configure_logging(settings)
@@ -175,7 +180,11 @@ def init() -> None:
 
 @store_app.command(name="stats")
 def store_stats() -> None:
-    """Show what the store holds, by record kind and by edge type."""
+    """Show what the store holds, by record kind and by edge type.
+
+    Counts are current versions. The gap between versions and records is the
+    history the append-only store kept.
+    """
     settings = get_settings()
     configure_logging(settings)
     _warn_about_sync(settings)
