@@ -16,7 +16,7 @@
 | New commands | none. No new agents, as `EST-0013` said |
 | ADR predicates | 151 of 152 parse, **0.9934** |
 | Suite | **3431 passed**, coverage **98.57%** (gate 85%) |
-| Demo dataset | **620 records** from 37 ADRs and `docs/dogfood/` |
+| Demo dataset | **621 records** from 37 ADRs and `docs/dogfood/` |
 
 ---
 
@@ -101,6 +101,9 @@ Phase 12 pulled the ratios out of the store rather than trusting it.
 | EST-0010 | agent-implementation | 3.6 | 2.0 | 0.5556 |
 | EST-0011 | agent-implementation | 3.1 | 3.6 | **1.1613 under** |
 | EST-0012 | frontend | 8.5 | 4.5 | 0.5294 |
+
+*(These are the twelve outcomes that existed when the claim was made.
+`OUT-0013` closed afterwards and is section 9.)*
 
 Ratios are `actual_active / estimated_active`, the comparison `BiasDetective`
 makes — active against active, because a phase that ran long waiting on
@@ -250,6 +253,53 @@ because no `rejected` row names that option in the words the question used.
 refusal is the cheap outcome and a confidently wrong quotation is the expensive
 one. A system that answered this from adjacent prose would be the thing this
 one was built not to be.
+
+## 9. Then it scored this phase, against a prediction made in advance
+
+`EST-0013` did something no earlier estimate in this project did: it applied a
+correction **the product itself refuses to make**. Under ADR 0024's key the
+group is `claude-opus-5 / scaffolding` at `n = 1`, and `BiasDetective` declines
+it. The pooled factor **0.7225** over all twelve resolved outcomes was applied
+anyway — and, crucially, **both numbers were written down before any Phase 12
+file was created**, so this could be scored rather than argued.
+
+| | Predicted active | Actual | Magnitude | Grade | \|log error\| |
+| --- | --- | --- | --- | --- | --- |
+| Raw | 4.5h | 2.7h | 1.6667× | `partial` | 0.5108 |
+| **Corrected (0.7225)** | **3.3h** | 2.7h | **1.2222×** | **`close`** | **0.2007** |
+
+**The correction cut the error by more than half, and moved the grade.** That
+is the exact mirror of `OUT-0012`, where declining to borrow a factor at
+`n = 0` turned a close into a partial. Two phases running, the calibration
+half was right about its own author and the author's instinct was not.
+
+**What the correction did not fix is the direction.** Even corrected, 3.3h
+against 2.7h is still an over-estimate — the pooled factor was too timid rather
+than wrong. Ten of thirteen outcomes are now over. The pooled band
+`[0.4346, 1.2010]` contains 1.0 only because three under-estimates in two thin
+classes drag it there, and a factor fitted to this author's
+scaffolding-and-polish work alone would sit nearer 0.5 than 0.72. **At `n = 2`,
+nothing is allowed to say so** — and `praxis calibrate` duly reports
+`scaffolding: n=2, 2 estimates, 2 resolved` and refuses, which is exactly what
+`EST-0013` predicted it would do.
+
+**The work-class choice can now be read, because the test was written first.**
+`EST-0013` chose `scaffolding` over minting a sixth class and recorded the
+falsifier: *if `OUT-0013` lands far from Phase 0's 0.4400, that is evidence the
+two do not belong in one group.* It landed at **0.8182** — nearly twice Phase
+0's ratio, and the same direction. So the caveat was justified (polish of a
+known system really is easier to estimate than greenfield discovery) and the
+class now holds two points that agree on direction and disagree on size. That
+is precisely the state `BiasDetective` exists to refuse to speak about.
+
+**The estimate's risk note named the wrong risk first.** It said the likeliest
+overrun was the README verification finding commands that did not work. They
+all worked; every defect found was editorial. What actually consumed the budget
+was a finding the estimate did not anticipate at all — `record_head`, which had
+to be measured properly, argued against being fixed, and written up with enough
+numbers that the phase taking it need not re-measure. **Declining work
+carefully is not cheaper than doing it**, which was the routing review's second
+risk and the only one of the three that held.
 
 ---
 

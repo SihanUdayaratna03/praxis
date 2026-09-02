@@ -81,10 +81,11 @@ def leave_one_out(rows: Sequence[CalibrationRow], *, by_class: bool) -> Decimal:
 class TestWhichWayTheEstimatorIsWrong:
     """`OUT-0012` said every outcome was an over-estimate. It is not true."""
 
-    def test_nine_outcomes_are_over_and_three_are_under(self, resolved):
+    def test_ten_outcomes_are_over_and_three_are_under(self, resolved):
+        """Repinned when `OUT-0013` closed: 12 resolved became 13, over 9 to 10."""
         ratios = ratios_of(resolved)
-        assert len(ratios) == 12
-        assert sum(1 for r in ratios if r < ONE) == 9
+        assert len(ratios) == 13
+        assert sum(1 for r in ratios if r < ONE) == 10
         assert sum(1 for r in ratios if r > ONE) == 3
 
     def test_the_three_under_estimates_are_named(self, resolved):

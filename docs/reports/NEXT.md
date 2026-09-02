@@ -1419,3 +1419,76 @@ pushed.
   remember stating them. And `praxis why` **refuses** a question ADR 0036
   answers in prose, because no `rejected` row names that option: the
   archaeologist retrieves and never generates.
+
+- **`OUT-0013` is closed, and the pre-registered pair resolved.** Actual active
+  **2.7h**, blocked **1.2h**. The corrected 3.3h grades **`close`** at 1.2222×;
+  the raw 4.5h would have graded **`partial`** at 1.6667×. The correction cut
+  the log error from 0.5108 to 0.2007 — **the mirror of `OUT-0012`**, where
+  declining to correct turned a close into a partial. Still an over-estimate,
+  so the pooled factor was too timid rather than wrong.
+
+  `scaffolding` is now **n=2 and still refused**, exactly as `EST-0013` said it
+  would be. `tests/demo/test_history.py` and the README record count were
+  repinned when the outcome landed — the corpus growing, not the tests
+  breaking.
+
+## Where Phase 12 left the project
+
+Phase 12 is the last phase. There is no Phase 13 planned and nothing is in
+flight.
+
+| | |
+| --- | --- |
+| Branch | `feat/phase-12-polish`, 13 commits, cut from `main` at `3048529` |
+| ADRs | 0038 |
+| Schema | version 4 — no migration, for the **seventh** phase running |
+| Suite | **3431 passed**, coverage **98.57%** (gate 85%) |
+| ADR predicates | 151 of 152 parse, **0.9934** |
+| Demo | **621 records**, 1 breach, 3 proposed merges, 0 fusion edges |
+
+```bash
+cd "C:\Users\sihan\OneDrive\Desktop\Praxis Agents"
+git checkout main && git pull
+uv sync --all-groups
+
+uv run praxis init
+uv run praxis demo seed        # 621 records out of docs/adr and docs/dogfood
+uv run praxis serve            # http://127.0.0.1:8000
+```
+
+### What a next phase would pick up, in the order the evidence ranks them
+
+**1. `record_head` re-groups every version on every read.** Measured, 47× on
+`links_from`, widening with the store, and **not fixed** because it redefines a
+core view and that is a migration to schema 5. It is the largest known
+correctness-preserving win in the repository and it has its numbers already in
+`BACKLOG.md`. It wants its own phase, an ADR and a migration test.
+
+**2. The first live run is set up to be a measurement rather than a surprise.**
+Three things expire on it at once: ADR 0005 assumption 3, ADR 0034 assumption
+3, and ADR 0038's cost assumptions. Note before running it that an 82-document
+eval projects to **$6.42** against a `cost_ceiling_usd` default of **$5.00** —
+raise the ceiling deliberately or the run stops part-way.
+
+**3. The routing shortlist, with its experiment already specified.**
+`AssumptionFormalizer` (25% of the projected bill) and `OutcomeMatcher` (24%)
+are the only two moves worth measuring. ADR 0038 says exactly what to compare.
+
+**4. The fusion hole is still open and still should not be seeded.** Zero
+`estimated_as` edges. The honest routes are a `>=` predicate whose subject a
+dogfood estimate really binds, or a real extraction run whose citations survive
+the gate.
+
+**5. `n` is the binding constraint on everything the calibration half says.**
+Five classes, thirteen outcomes, one group above the threshold. Every
+interesting question about ADR 0024's grouping key — including the one Phase 12
+could only answer as "stands, but is not vindicated" — needs more history and
+nothing else.
+
+### The four untracked paths are still two
+
+`.codex/` and `AGENTS.md` remain untracked, not gitignored, and unable to reach
+CI. Confirmed and passed over for the **sixth** phase running, still
+deliberately not renamed, moved or deleted: the product owner has a question
+about what `.codex/` signals in a public repository and wants to look at its
+contents first. That is a decision for outside a phase.

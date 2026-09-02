@@ -25,7 +25,7 @@ uv run praxis serve            # http://127.0.0.1:8000
 
 No key, no account, no network after the install — invariant 1, and CI has no
 secret. `praxis demo seed` loads **this repository's own history**: 37 ADRs, the
-152 assumptions they rest on, 13 phase estimates and their outcomes, 620 records
+152 assumptions they rest on, 13 phase estimates and their outcomes, 621 records
 in all. Nothing in it is invented, and
 [`tests/demo/test_seed.py`](../tests/demo/test_seed.py) proves that rather than
 asserting it — every span is replayed against its document's bytes.
