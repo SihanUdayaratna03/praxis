@@ -383,3 +383,14 @@ def test_asking_for_one_shape_and_parsing_another_is_refused(settings):
 
     with pytest.raises(ValueError, match="Evidence"):
         ask_for(provider(settings), asked, Answer)
+
+
+def test_the_same_model_is_reduced_once_and_the_result_is_shared():
+    """Reduction is ~2ms and `ask_for` asks for it on every call."""
+    assert schema_for(Answer) is schema_for(Answer)
+
+
+def test_a_shared_schema_cannot_be_edited_by_a_caller():
+    """The price of sharing one object: it has to be read-only."""
+    with pytest.raises(TypeError):
+        schema_for(Answer).json_schema["properties"] = {}  # type: ignore[index]

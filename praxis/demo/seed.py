@@ -56,6 +56,7 @@ from praxis.domain.records import (
     RejectedOption,
     Span,
 )
+from praxis.store.connection import transaction
 from praxis.store.repository import Repository
 
 ACTOR: Final = "praxis demo seed"
@@ -195,9 +196,13 @@ def seed(
         Counts of what was written.
     """
     writer = _Writer(repository, at or datetime.now(UTC))
-    for adr in read_adrs(adr_dir):
-        _seed_adr(writer, adr)
-    unresolved = _seed_dogfood(writer, dogfood_dir)
+    # One transaction for the whole seed. `transaction` joins rather than
+    # nests, so every `add` below lands in this one and commits once instead of
+    # six hundred times. A half-seeded store also stops being reachable.
+    with transaction(repository.connection):
+        for adr in read_adrs(adr_dir):
+            _seed_adr(writer, adr)
+        unresolved = _seed_dogfood(writer, dogfood_dir)
     return SeedReport(unresolved=unresolved, **writer.counts)
 
 

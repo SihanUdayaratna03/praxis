@@ -1355,3 +1355,16 @@ pushed.
   five entries that said what a command was without saying what comes back.
   Two tests hold it: no command or option may be silent, and the root help must
   still say where to start.
+
+- **The profile named two things and both are fixed.** `praxis demo seed` was
+  committing once per record — 642 commits, 0.919s of a 2.8s run — and now runs
+  the whole seed in one transaction that `praxis.store.connection.transaction`
+  joins rather than nests. In-process against a file-backed store over seven
+  runs: **1.331s best / 3.902s median to 0.218s / 0.223s**, and a half-seeded
+  append-only store stops being reachable, which is the better half of it.
+
+  `schema_for` regenerated a Pydantic JSON schema on every structured call, at
+  roughly **2ms each**; it is cached on the model class now and handed out as a
+  `MappingProxyType` so one shared object cannot be edited by a caller.
+  x1000: **1.937s to 0.0001s**. On the 1,483-call ablation ladder that is
+  about three seconds.
