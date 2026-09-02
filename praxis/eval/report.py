@@ -199,7 +199,7 @@ def as_markdown(
         *_calibration_lines(result.calibration),
         *_fusion_lines(result.fusion),
         *_governance_lines(result.governance),
-        *_cost_lines(result.cost),
+        *_cost_lines(result.cost, result.projected),
     ]
     if offline:
         lines += [f"> {OFFLINE_CAVEAT}", ""]
@@ -247,6 +247,9 @@ def as_json(result: EvalResult, *, provenance: Mapping[str, str] | None = None) 
         # Strings for the reason the rates are strings: these are `Decimal` and
         # JSON floats would put back the representation invariant 4 excludes.
         "cost_per_document": {agent: str(spent) for agent, spent in sorted(result.cost.items())},
+        "projected_cost_per_document": {
+            agent: str(spent) for agent, spent in sorted(result.projected.items())
+        },
     }
     if provenance:
         payload["provenance"] = dict(provenance)
@@ -656,16 +659,30 @@ def _pair_row(found: PairScore) -> str:
     )
 
 
-def _cost_lines(cost: Mapping[str, Decimal]) -> list[str]:
-    """What each agent spent per document, or nothing when no run was totalled."""
+def _cost_lines(cost: Mapping[str, Decimal], projected: Mapping[str, Decimal]) -> list[str]:
+    """What each agent spent per document, and what it would cost live.
+
+    Two columns because offline the first is zero for every agent and says
+    nothing. The second prices the tokens this run really sent through the
+    model ADR 0006 routes that agent to, which is the only reading of the
+    routing table an offline run can support.
+    """
     if not cost:
         return []
     return [
         "## Cost per document",
         "",
-        table_row(("Agent", "USD per document")),
-        table_row(("---", "---")),
-        *(table_row((agent, str(spent))) for agent, spent in sorted(cost.items())),
+        table_row(("Agent", "USD per document", "Projected at live rates")),
+        table_row(("---", "---", "---")),
+        *(
+            table_row((agent, str(spent), str(projected.get(agent, Decimal(0)))))
+            for agent, spent in sorted(cost.items())
+        ),
+        "",
+        "> The projection prices this run's own token counts at the rates in "
+        "`praxis/config/models.py`. The routes and the call volumes are the "
+        "pipeline's; the token counts are the offline provider's, and a live "
+        "model's would differ.",
         "",
     ]
 

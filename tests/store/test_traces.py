@@ -34,6 +34,7 @@ from praxis.store.traces import (
     runs,
     sequence_of,
     to_row,
+    tokens_by_agent,
     trace_count,
     trace_index,
     traces_for_prompt,
@@ -224,6 +225,21 @@ class TestQueries:
         write_trace(store, trace(agent="DecisionScout"))
         write_trace(store, trace(agent="DecisionScout", run_id="RUN-other"))
         assert calls_by_agent(store, RUN) == {"DecisionScout": 1}
+
+    def test_tokens_are_summed_per_agent(self, store):
+        # What the cost column cannot say offline: cost is zero because the
+        # mock is free, but the tokens are what any provider would be sent.
+        write_trace(store, trace(usage=TokenUsage(input_tokens=40, output_tokens=9)))
+        write_trace(store, trace(usage=TokenUsage(input_tokens=60, output_tokens=11)))
+        assert tokens_by_agent(store, RUN) == {"DecisionScout": (100, 20)}
+
+    def test_tokens_from_another_run_are_not_summed(self, store):
+        write_trace(store, trace())
+        write_trace(store, trace(run_id="RUN-other"))
+        assert tokens_by_agent(store, RUN) == {"DecisionScout": (40, 9)}
+
+    def test_a_run_that_made_no_calls_has_no_tokens(self, store):
+        assert tokens_by_agent(store, "RUN-nothing") == {}
 
 
 class TestAppendOnly:

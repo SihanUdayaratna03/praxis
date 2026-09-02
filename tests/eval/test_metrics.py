@@ -41,6 +41,7 @@ from praxis.eval.metrics import (
     mae_improvement,
     monitoring_score,
     pair_score,
+    projected_cost_per_document,
     score,
 )
 
@@ -409,3 +410,33 @@ class TestMaeImprovement:
     def test_the_absolute_improvement_is_always_the_gap_between_the_two(self, raw, corrected):
         found = mae_improvement(Backtest(scored=1, raw_error=raw, corrected_error=corrected))
         assert found.absolute == (raw - corrected).quantize(RATE_PLACES)
+
+
+class TestProjectedCostPerDocument:
+    """What the offline `cost` column cannot say: whether a tier is right."""
+
+    def test_tokens_are_priced_through_the_agent_s_own_route(self):
+        # DecisionScout is scan: 1.00 in, 5.00 out per million.
+        found = projected_cost_per_document({"DecisionScout": (1_000_000, 200_000)}, 1)
+        assert found["DecisionScout"] == Decimal("2.000000")
+
+    def test_the_same_tokens_cost_more_on_a_dearer_tier(self):
+        """The whole point of the column: the route is what the price follows."""
+        tokens = {"DecisionScout": (1_000_000, 0), "AssumptionExtractor": (1_000_000, 0)}
+        found = projected_cost_per_document(tokens, 1)
+        assert found["AssumptionExtractor"] > found["DecisionScout"]
+
+    def test_a_deterministic_agent_is_skipped_rather_than_priced_at_zero(self):
+        """`BiasDetective` in a cost table would be invariant 3 already broken."""
+        assert projected_cost_per_document({"BiasDetective": (10, 10)}, 1) == {}
+
+    def test_an_unrouted_agent_is_skipped(self):
+        assert projected_cost_per_document({"NoSuchAgent": (10, 10)}, 1) == {}
+
+    def test_dividing_by_no_documents_reports_nothing(self):
+        assert projected_cost_per_document({"DecisionScout": (10, 10)}, 0) == {}
+
+    def test_a_run_that_sent_no_tokens_projects_zero_rather_than_vanishing(self):
+        assert projected_cost_per_document({"DecisionScout": (0, 0)}, 4) == {
+            "DecisionScout": Decimal("0.000000")
+        }

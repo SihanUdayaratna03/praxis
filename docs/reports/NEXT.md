@@ -1378,3 +1378,10 @@ pushed.
   which is a migration to schema 5 after six phases at 4, so it goes to
   `BACKLOG.md` with the numbers and wants its own phase and ADR. Raised rather
   than done quietly, per the phase brief.
+
+- **The routing review needed evidence that did not exist, so it was built.**
+  `tokens_by_agent` reads what a run really sent and
+  `projected_cost_per_document` prices it through the model ADR 0006 routes
+  that agent to, so `praxis eval` now prints a live-rate column beside the
+  zero one. A deterministic agent is skipped rather than priced at zero —
+  `BiasDetective` in a cost table would be invariant 3 already broken.

@@ -75,6 +75,7 @@ from praxis.eval.metrics import (
     cost_per_document,
     exact_matches,
     fusion_recall,
+    projected_cost_per_document,
     score,
 )
 from praxis.eval.stages import Stages
@@ -85,7 +86,7 @@ from praxis.monitor.facts import FactsFile
 from praxis.monitor.run import monitor_store
 from praxis.obs.logging import get_logger
 from praxis.store.repository import Repository
-from praxis.store.traces import cost_by_agent
+from praxis.store.traces import cost_by_agent, tokens_by_agent
 
 _log = get_logger(__name__)
 
@@ -161,6 +162,8 @@ class EvalResult:
             are usually zeros, and they are correct zeros: no group in a corpus
             this size reaches the threshold.
         cost: What each agent spent per document, from the trace table.
+        projected: What each agent would cost per document at ADR 0006's
+            real rates. The column `cost` cannot fill offline.
         calls: Model calls every stage made between them. `run.calls` counts
             extraction alone, so an ablation rung comparing the floor with the
             learned segmenter needs this one.
@@ -181,6 +184,7 @@ class EvalResult:
     fusion: FusionScore = field(default_factory=FusionScore)
     governance: GovernanceScore = field(default_factory=GovernanceScore)
     cost: Mapping[str, Decimal] = field(default_factory=dict)
+    projected: Mapping[str, Decimal] = field(default_factory=dict)
     calls: int = 0
 
     @property
@@ -271,6 +275,7 @@ def grade(  # noqa: PLR0913 -- one argument per source the table reads from
             mock_provider=mock_provider,
         ),
         cost=_cost(repository, documents, run_id),
+        projected=_projected(repository, documents, run_id),
     )
 
 
@@ -587,3 +592,10 @@ def _cost(repository: Repository, documents: int, run_id: str | None) -> dict[st
     if run_id is None:
         return {}
     return cost_per_document(cost_by_agent(repository.connection, run_id), documents)
+
+
+def _projected(repository: Repository, documents: int, run_id: str | None) -> dict[str, Decimal]:
+    """What the same calls would have cost at the routed models' real prices."""
+    if run_id is None:
+        return {}
+    return projected_cost_per_document(tokens_by_agent(repository.connection, run_id), documents)
