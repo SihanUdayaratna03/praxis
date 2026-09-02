@@ -125,10 +125,10 @@ uv run praxis demo seed       # load Praxis's own history into it
 `praxis demo seed` reads this repository's own `docs/adr/` and
 `docs/dogfood/` — 36 architecture decisions, the 149 assumptions they rest on,
 and 13 phase estimates with their outcomes — then runs the monitor over them.
-It writes 608 records and prints this:
+It writes 620 records and prints this:
 
 ```
-149 predicate(s) evaluated against docs/dogfood/facts.json — 1 breached
+152 predicate(s) evaluated against docs/dogfood/facts.json — 1 breached
   The predicate `segmenter_f1 - paragraph_floor_f1 >= 0.05` evaluated false
   against the facts this run was given, so the assumption "Block grouping
   extracts better than the deterministic paragraph floor" no longer holds.

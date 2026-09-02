@@ -1385,3 +1385,15 @@ pushed.
   that agent to, so `praxis eval` now prints a live-rate column beside the
   zero one. A deterministic agent is skipped rather than priced at zero —
   `BiasDetective` in a cost table would be invariant 3 already broken.
+
+- **ADR 0038: no agent changes tier, and the projection is why.** reason
+  **0.038632/doc (49.3%)**, extract **0.029935 (38.2%)**, scan **0.009759
+  (12.5%)**, total **0.078326** — so an 82-document run projects to **$6.42**
+  against a `cost_ceiling_usd` default of **$5.00**, which nobody could have
+  known before the column existed. `AssumptionFormalizer` (25%) and
+  `OutcomeMatcher` (24%) were both argued and both stay: a wrong predicate is
+  silent, and a wrong pairing poisons every later factor. The ablation table
+  cannot settle it — no rung varies a tier — so the review ships a shortlist
+  and the experiment that would decide it, rather than a move made for the
+  look of one. The three new predicates put ADR count at 37 and predicates at
+  152, and `facts.json` gained the six measurements they check.
