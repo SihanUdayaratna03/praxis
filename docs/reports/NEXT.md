@@ -1329,3 +1329,8 @@ pushed.
   contains 1.0 where the class band [0.4491, 0.9506] excludes it. Leave-one-out
   mean absolute log error: raw 0.5101, pooled 0.4432, per-class 0.4316. ADR 0024
   stands, and it is not vindicated either.
+
+- **The analysis is pinned by `tests/demo/test_history.py`, not written into
+  prose.** Eight tests over the seeded store: the nine-over/three-under split,
+  the two bands, the leave-one-out comparison, and that `scaffolding` still
+  refuses at two estimates. Repinned when `OUT-0013` lands.
