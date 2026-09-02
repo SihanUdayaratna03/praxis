@@ -1342,3 +1342,9 @@ pushed.
   was still marked unbuilt, `corpus generate` writes 82 documents and not 12,
   and the corpus path needs its own `PRAXIS_DATA_DIR` or it reads the demo
   store too. The layout block now lists the fourteen packages that exist.
+
+- **`tests/test_readme.py` keeps the README honest as the code moves.** Seven
+  checks: every `uv run praxis ...` in the file resolves to a real command,
+  every internal link resolves, the load-bearing claims are still present, and
+  the record count a stranger sees on their first run is asserted against the
+  seeder rather than typed in.

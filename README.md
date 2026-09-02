@@ -273,8 +273,8 @@ prediction in [`docs/dogfood/estimates.jsonl`](docs/dogfood/estimates.jsonl),
 and the real duration is fed back as an outcome when the phase closes.
 
 In the final phase Praxis analysed the record of its own construction and
-reported where its author was wrong. The write-up is
-[`docs/reports/phase-12.md`](docs/reports/phase-12.md); the short version is
+reported where its author was wrong. The write-up is the last file in
+[`docs/reports/`](docs/reports/); the short version is
 that one architectural decision is standing on a measurement that contradicts
 it, that this author over-estimates `agent-implementation` work by 1.53× at
 n = 8, and that the correction — once he started applying it — moved him from
