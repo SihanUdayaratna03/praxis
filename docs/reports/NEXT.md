@@ -1492,3 +1492,11 @@ CI. Confirmed and passed over for the **sixth** phase running, still
 deliberately not renamed, moved or deleted: the product owner has a question
 about what `.codex/` signals in a public repository and wants to look at its
 contents first. That is a decision for outside a phase.
+
+- **The final clean-clone run found one more README gap, and it was mine.** The
+  Phase 12 rewrite dropped the `.env.example` line, and the default store is
+  **one per user** (`%LOCALAPPDATA%\praxis`), not one per checkout — so a
+  reader with any earlier store hits the append-only refusal instead of a seed.
+  The product behaves correctly and names the fix; the README now says where
+  the store lives and quotes that refusal. Verified end to end in the clone:
+  621 records, then a correct refusal on the second seed.

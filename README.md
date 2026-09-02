@@ -186,8 +186,27 @@ is no override — see
 [ADR 0024](docs/adr/0024-dispersion-widens-the-band-and-only-n-refuses.md).
 
 Structured logs go to stderr, so `2>/dev/null` gives you the tables alone.
-A store already holding decisions is refused rather than seeded twice: the store
-is append-only, so point `PRAXIS_DATA_DIR` at an empty directory to start over.
+
+**Where the store goes.** By default it is one per user, not one per checkout —
+`%LOCALAPPDATA%\praxis` on Windows, `~/.local/share/praxis` elsewhere — so two
+clones share it ([ADR 0010](docs/adr/0010-store-location-under-a-syncing-filesystem.md)
+explains why it is deliberately not the working directory). `PRAXIS_DATA_DIR`
+overrides it, and `cp .env.example .env` sets it to `.praxis` beside the code if
+you would rather keep one store per checkout:
+
+```bash
+export PRAXIS_DATA_DIR=/some/empty/directory   # or: cp .env.example .env
+```
+
+Seeding a store that already holds decisions is **refused**, not repeated — the
+store is append-only, so a second seed would duplicate every decision rather
+than replace it. The refusal names the fix:
+
+```
+praxis: the store already holds 37 decision(s)
+  the store is append-only, so seeding again would duplicate them
+  point PRAXIS_DATA_DIR at an empty directory and run praxis init
+```
 
 ### The extraction pipeline, on a synthetic corpus
 
