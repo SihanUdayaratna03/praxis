@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+import typer
 from praxis import __version__, cli_eval
 from praxis.agents.extraction import ExtractionPipeline
 from praxis.agents.results import DocumentExtraction, ExtractionRun
@@ -840,3 +841,33 @@ def test_estimates_without_a_store_says_to_run_init(tmp_path: Path) -> None:
 
     assert result.exit_code == 1
     assert "praxis init" in result.output
+
+
+def _leaves(node: object, path: tuple[str, ...] = ()) -> list[tuple[tuple[str, ...], object]]:
+    """Every runnable command in the CLI tree, with the words that reach it."""
+    subcommands = getattr(node, "commands", None)
+    if not subcommands:
+        return [(path, node)]
+    return [leaf for name, sub in subcommands.items() for leaf in _leaves(sub, (*path, name))]
+
+
+def test_every_command_and_option_carries_help_text() -> None:
+    """`--help` is the whole interface for someone who has read nothing."""
+    silent = []
+    for path, command in _leaves(typer.main.get_command(app)):
+        if not (getattr(command, "help", "") or "").strip():
+            silent.append(" ".join(path))
+        silent.extend(
+            f"{' '.join(path)} --{p.name}"
+            for p in command.params
+            if p.name != "help" and not (getattr(p, "help", "") or "").strip()
+        )
+    assert sorted(silent) == []
+
+
+def test_the_root_help_says_where_to_start() -> None:
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "praxis demo seed" in result.output
+    assert "PRAXIS_DATA_DIR" in result.output

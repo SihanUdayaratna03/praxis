@@ -1348,3 +1348,10 @@ pushed.
   every internal link resolves, the load-bearing claims are still present, and
   the record count a stranger sees on their first run is asserted against the
   seeder rather than typed in.
+
+- **The `--help` pass was narrowing rather than filling, as `EST-0013` priced
+  it.** Coverage was already complete, so the work went to the root help — it
+  now names the three commands to start with and `PRAXIS_DATA_DIR` — and to the
+  five entries that said what a command was without saying what comes back.
+  Two tests hold it: no command or option may be silent, and the root help must
+  still say where to start.

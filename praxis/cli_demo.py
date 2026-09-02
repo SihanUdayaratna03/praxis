@@ -44,8 +44,8 @@ def demo_seed(
 ) -> None:
     """Seed the store from this repository's ADRs and dogfood corpus.
 
-    Refuses a store that already holds records. The store is append-only, so
-    seeding twice would double every decision rather than replace it.
+    Run it from a checkout. Refuses a store that already holds records — the
+    store is append-only, so point `PRAXIS_DATA_DIR` somewhere empty to redo it.
     """
     settings = get_settings()
     configure_logging(settings)
