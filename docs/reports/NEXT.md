@@ -1306,3 +1306,26 @@ answers stops being one of the 116 unverified.
   assumptions is in scope for a later phase, not this one.
 - No light theme. The assets establish one look and a second one nobody
   designed would be a guess.
+
+## Phase 12 progress log
+
+The last phase. One line per component, appended as each is committed and
+pushed.
+
+- **`EST-0013` is logged, and it is the first estimate in this project to apply
+  a correction the product itself would have refused.** `scaffolding` at n=1,
+  so `BiasDetective` declines; the pooled factor 0.7225 over all twelve resolved
+  outcomes is applied anyway and the raw 4.5h is kept in `raw_active_quantity`
+  so `OUT-0013` grades both. Work class is `scaffolding` rather than a sixth
+  class, for the reasons in `work_class_note`.
+
+  **`OUT-0012` was wrong about the corpus.** Nine of twelve outcomes are
+  over-estimates, not twelve: `data-modelling` is 2.1000x under,
+  `llm-integration` 1.2444x under, and `EST-0011` 1.1613x under inside
+  `agent-implementation`. Pulled from a seeded store, not recalled.
+
+  **The grouping key survives the test.** Pooled dispersion 0.5082 against
+  0.3749 within `agent-implementation`, and the pooled band [0.4346, 1.2010]
+  contains 1.0 where the class band [0.4491, 0.9506] excludes it. Leave-one-out
+  mean absolute log error: raw 0.5101, pooled 0.4432, per-class 0.4316. ADR 0024
+  stands, and it is not vindicated either.
