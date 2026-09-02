@@ -425,6 +425,12 @@ wrong ratio into the calibration history every later factor is computed from.
 **no calls in a corpus run at all** — it fires once per `praxis why` — so
 re-tiering it saves nothing measurable.
 
+**ADR 0038's own assumptions were checkable the moment they were written**, and
+the monitor evaluates all three as `holding` on the next seed — including
+`projected_usd_per_eval_run > cost_ceiling_usd`, a comparison between two facts
+rather than a fact and a constant. The decision this phase made about cost is
+already under the same discipline as the ones from Phase 3.
+
 **The cost optimisation that mattered already happened, and it was not a
 re-tiering.** Five agents did not move to a cheaper model; they left the routing
 table entirely and became arithmetic — `CalibratorAgent` in Phase 7,
@@ -447,31 +453,41 @@ claim is the only version of this pitch the project can make coherently.
 
 ---
 
-## `EST-0013`, and the correction it applied
+## What `EST-0013` decided before any of this was written
 
-`EST-0013` is the first estimate in this project's history to **apply a
-correction the product itself would have refused**. Under ADR 0024's key the
-group is `claude-opus-5 / scaffolding` at `n = 1`, and `BiasDetective` declines
-it. The pooled factor **0.7225** over all twelve resolved outcomes was applied
-anyway, taking 4.5h raw to **3.3h**, with the raw figure kept in
-`raw_active_quantity` so `OUT-0013` grades both.
+The estimate is the reason section 9 can be *scored* rather than argued, so
+what it committed to in advance is worth stating separately from how it turned
+out.
 
-The reasoning is in the estimate and it is the analysis in section 4 above:
-pooling has twelve points where the key has one, leave-one-out says correcting
-predicts ~13% better than not correcting, and `OUT-0012` had just recorded that
-declining to correct cost accuracy. Confidence stayed at 0.40 rather than
-rising, because the pooled band contains 1.0 and that is a real weakness in the
-number being applied.
+It applied a correction the product itself would have refused — pooled 0.7225
+over twelve outcomes, where ADR 0024's key gives `scaffolding` at `n = 1` and
+`BiasDetective` declines — and it kept the uncorrected 4.5h in
+`raw_active_quantity` so both could be graded. Confidence stayed at 0.40 rather
+than rising, because the pooled band contains 1.0.
 
-**The work class is `scaffolding` rather than a sixth class**, and the
-alternative was argued rather than skipped. ADR 0023 names class invention as
-the failure this project watches for — a run that invents a class per estimate
-fragments a history until no group ever reaches `n = 5`, and six classes over
-twelve phases with four permanently at `n = 1` is that failure spelled
-politely. `frontend` earned its own class in Phase 11 on a claim Phase 12
-cannot make. The honest caveat is recorded too: Phase 0 was greenfield
-discovery and this is polish of a known system, so if `OUT-0013` lands far from
-Phase 0's 0.4400 that is evidence the two do not belong in one group.
+It chose `scaffolding` over minting a sixth class, and argued the alternative
+rather than skipping it: ADR 0023 names class invention as the failure this
+project watches for, since a run that invents a class per estimate fragments a
+history until no group reaches `n = 5`. `frontend` earned its own class in
+Phase 11 on a claim Phase 12 could not make.
+
+And it wrote down its own falsifier — *if `OUT-0013` lands far from Phase 0's
+0.4400, the two do not belong in one group* — which is what made section 9's
+reading of the result something other than hindsight.
+
+## One thing CI caught that the local run did not
+
+`tests/agents/test_scoring.py` pins this project's dogfood log at twelve
+outcomes. `OUT-0013` made it thirteen, and the repin was missed locally because
+**the full suite was last run before the outcome was appended** — only targeted
+tests ran after it. CI failed on all three matrix legs and was right to.
+
+It is recorded here rather than quietly fixed because it is the same class of
+mistake as section 3: a number that was true when it was written, left
+unchecked after the thing it counted changed. The difference is that this one
+had a test watching it. `considered` moves 12 to 13 and `scored` stays at 3 —
+`scaffolding` at n=2 has one row before the second and is four short of the
+threshold to correct from.
 
 ## What Phase 12 did not build
 

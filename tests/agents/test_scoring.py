@@ -383,15 +383,16 @@ class TestThisProjectsOwnHistory:
             )
         return rows
 
-    def test_the_log_holds_twelve_outcomes_across_five_classes(self) -> None:
+    def test_the_log_holds_thirteen_outcomes_across_five_classes(self) -> None:
         """The premise, checked rather than recalled, so the conclusion is real.
 
-        Repinned at the close of Phase 11: `OUT-0012` is the twelfth, and it
-        opened a fifth class, `frontend`.
+        Repinned at the close of Phase 12: `OUT-0013` is the thirteenth and it
+        opened no new class -- `EST-0013` chose `scaffolding` rather than mint a
+        sixth, so the count of classes is unchanged and `scaffolding` is n=2.
         """
         rows = self.dogfood_rows()
 
-        assert len(rows) == 12
+        assert len(rows) == 13
         assert len({row.work_class for row in rows}) == 5
 
     def test_the_largest_class_is_three_past_the_threshold(self) -> None:
@@ -417,9 +418,10 @@ class TestThisProjectsOwnHistory:
         scored rows are three data points that could have gone either way and did
         not; they are not a demonstration that the correction is the right size.
         The class that used to assert "scores exactly nothing" is this one,
-        repinned four times. `OUT-0012` moved `considered` and not `scored`:
-        it opened a fifth class at n=1, and a class with one row has nothing
-        before it to correct from.
+        repinned five times. `OUT-0012` and `OUT-0013` each moved `considered`
+        and not `scored`: the first opened a fifth class at n=1, and the second
+        took `scaffolding` to n=2. A class with two rows has one row before the
+        second, which is four short of the threshold to correct from.
         """
         rows = sorted(self.dogfood_rows(), key=lambda row: row.estimate_id)
         results = [
@@ -432,7 +434,7 @@ class TestThisProjectsOwnHistory:
 
         summed = total(results)
 
-        assert summed.considered == 12
+        assert summed.considered == 13
         assert summed.scored == 3
         assert summed.graded
 

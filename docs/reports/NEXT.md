@@ -1500,3 +1500,11 @@ contents first. That is a decision for outside a phase.
   The product behaves correctly and names the fix; the README now says where
   the store lives and quotes that refusal. Verified end to end in the clone:
   621 records, then a correct refusal on the second seed.
+
+- **CI caught a repin the local run had not.** `tests/agents/test_scoring.py`
+  pins the dogfood log at twelve outcomes and `OUT-0013` made it thirteen —
+  the same repin Phase 11 did one outcome earlier. It was missed because the
+  full suite was last run *before* the outcome was appended and only targeted
+  tests after. `considered` moves 12 to 13 and `scored` stays at 3:
+  `scaffolding` at n=2 has one row before the second and is four short of
+  correcting from.
