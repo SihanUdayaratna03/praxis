@@ -1334,3 +1334,11 @@ pushed.
   prose.** Eight tests over the seeded store: the nine-over/three-under split,
   the two bands, the leave-one-out comparison, and that `scaffolding` still
   refuses at two estimates. Repinned when `OUT-0013` lands.
+
+- **The README is rewritten around the demo path and verified against a fresh
+  clone**, not against this tree. Four commands from clone to the ADR 0011
+  breach, with the real output pasted in; `praxis calibrate` beside it showing
+  one answer and four refusals. Corrected while verifying: every phase after 0
+  was still marked unbuilt, `corpus generate` writes 82 documents and not 12,
+  and the corpus path needs its own `PRAXIS_DATA_DIR` or it reads the demo
+  store too. The layout block now lists the fourteen packages that exist.
