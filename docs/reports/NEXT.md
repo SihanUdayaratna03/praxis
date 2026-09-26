@@ -1549,6 +1549,6 @@ as Phase 12 left them.
 
 **Postscript.** After `v1.0.0` was pushed, a direct web commit to `main`
 deleted the README's `## How this was built` section. It was restored by
-PR #27 at the product owner's direction and `v1.0.0` re-pointed to `cac428e`
-so the release matches the default branch. The thirteen phase tags were
-verified unchanged against the remote. See `public-release.md`.
+PR #27 at the product owner's direction and `v1.0.0` re-pointed onto the tip
+of `main` so the release matches the default branch. The thirteen phase tags
+were verified unchanged against the remote. See `public-release.md`.

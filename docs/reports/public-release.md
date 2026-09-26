@@ -92,10 +92,10 @@ section exists.
 
 It was flagged rather than acted on, and the product owner directed that it be
 restored. PR #27 restores it byte-identical to its state at `1523ca5`, and
-`v1.0.0` was re-pointed from `1523ca5` to `cac428e` so the release and the
-default branch are the same tree. That re-point deleted and re-created `v1.0.0`
-alone; all thirteen `v0.N-phase-N` tag objects were verified against the remote
-afterwards and are unchanged.
+`v1.0.0` was re-pointed off `1523ca5` onto the tip of `main` so the release
+and the default branch are the same tree. That re-point deleted and
+re-created `v1.0.0` alone; all thirteen `v0.N-phase-N` tag objects were
+verified against the remote afterwards and are unchanged.
 
 Two things are worth noting for whoever reads this next.
 
