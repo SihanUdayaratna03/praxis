@@ -50,3 +50,8 @@ desktop.ini
 
 # --- Claude Code local overrides (settings.json IS committed) ---
 .claude/settings.local.json
+
+# --- A local port of the same tooling to a second agent harness: machine-
+# --- absolute paths that cannot run in CI, and a drifted copy of CLAUDE.md.
+.codex/
+AGENTS.md
