@@ -1,128 +1,23 @@
 # Praxis
 
-**Organizational memory that argues with itself.**
+**Decisions and estimates are the same kind of object, so Praxis makes them
+argue with each other.** A decision is captured with the assumptions it rests
+on, each compiled into a predicate that expires; every quantified
+forward-looking claim is logged as a prediction and scored when reality arrives.
+Because most decision assumptions *are* estimates in disguise, calibration data
+can invalidate a decision, and a missed estimate can be traced forward to every
+decision that leaned on it.
 
-Every company already writes decisions down and already tracks estimates. Both
-end up as dead text: a decision doc nobody revisits, a ticket nobody scores.
-Praxis makes them living objects that invalidate each other.
-
----
-
-## The thesis
-
-Praxis has two halves and one idea that only exists because both halves are in
-the same system.
-
-### Half A — Decision provenance
-
-A decision is captured with what was chosen, what was rejected, who decided,
-what was known at the time, and — the part that matters — **what assumptions it
-rests on**. Each assumption is compiled into a machine-checkable predicate with
-an expiry condition:
-
-```
-fuel_price_lkr < 350
-team_size >= 4
-vendor_sla_pct >= 99.5
-migration_weeks <= 6
-```
-
-When a predicate stops holding, every decision resting on it is flagged for
-review. Decision documents do not rot silently; they raise their hand.
-
-### Half B — Estimation calibration
-
-Every quantified forward-looking claim anyone makes is logged as a prediction
-with units, owner and stated confidence. When reality arrives, outcomes are
-matched back. Praxis learns directional bias per person **per class of work** —
-because the same engineer who is accurate on UI work can be 2x optimistic on
-data migrations, and an org-wide average hides exactly that.
-
-### The fusion — why these are one product
-
-Most decision assumptions are estimates in disguise.
-
-> `AssumptionMonitor` → `CalibrationEngine`:
-> *"D-0042 assumed the migration takes 6 weeks. What is this team's calibration
-> factor for `data-migration` work?"*
->
-> `CalibrationEngine` → :
-> *"1.8x under-estimation, n=14, band [1.4, 2.3], confidence 0.59."*
->
-> Praxis emits:
-> *"D-0042 is probably built on a 40% under-estimate. Re-examine it."*
-
-And in reverse: when an estimate misses badly, `CollateralAgent` walks the
-provenance graph to find every decision that was justified by that estimate and
-surfaces them as collateral damage.
-
-No competing product does this, because doing it requires provenance and
-calibration to share one graph.
+Nothing else in the toolchain asks the question this makes possible: *given how
+wrong this person usually is about this kind of work, is this decision still
+standing on solid ground?*
 
 ---
 
-## Reading this repository
+## Quickstart — from a clean clone to a real finding
 
-If you have twenty minutes and want to know whether the claim holds,
-[`docs/PITCH.md`](docs/PITCH.md) is the routing document: the ninety-second
-demo, the four things worth looking at, where each claim is checked, and — in
-the same page — what is not true yet.
-
----
-
-## Status
-
-Built in numbered phases, each one merged green with a report. See
-[`docs/reports/`](docs/reports/) for what each delivered and what the metrics
-said.
-
-| Phase | Scope | State |
-| ----- | ----- | ----- |
-| 0 | Foundation: toolchain, CI, config, logging, hooks, ADR practice | ✅ |
-| 1 | Data model + SQLite graph store | ✅ |
-| 2 | LLM provider abstraction (mock / anthropic / replay) | ✅ |
-| 3 | Ingestion, segmentation, `VerifierAgent`, synthetic corpus | ✅ |
-| 4 | Half A core: scout, structurer, assumption extractor | ✅ |
-| 5 | Predicate DSL + `AssumptionMonitor` | ✅ |
-| 6 | Half B core: estimate extractor, work classifier, outcome matcher | ✅ |
-| 7 | Calibration math: bias, intervals, scoring | ✅ |
-| 8 | **The fusion layer** | ✅ |
-| 9 | Adversarial + governance: challenger, curator, abstention | ✅ |
-| 10 | Eval harness + ablation table | ✅ |
-| 11 | Dashboard + demo | ✅ |
-| 12 | Polish + Praxis analysing its own history | ✅ |
-
----
-
-## Runs with no API key, by design
-
-Praxis reaches models only through an `LLMProvider` interface with three
-implementations:
-
-| Provider | Use |
-| -------- | --- |
-| `mock` *(default)* | Deterministic, offline, zero credentials. Drives the full pipeline, test suite, eval harness, CLI and dashboard. |
-| `anthropic` | Live models. |
-| `replay` | Replays recorded responses from fixture files. |
-
-Switching is one environment variable:
-
-```bash
-PRAXIS_LLM_PROVIDER=mock      # or: anthropic | replay
-```
-
-This is not a workaround for a missing key. Agent systems are only testable if
-the model layer is swappable and reproducible: deterministic replay is what lets
-CI assert on agent behaviour, what makes evaluation results comparable between
-commits, and what makes a bug reproducible instead of anecdotal. The offline
-path is the primary path, and it is the one CI exercises on every push.
-
----
-
-## Quickstart — four commands to a real finding
-
-No API key, no account, no network after the install. Every command below was
-run against a fresh clone of this repository before it was written down.
+No API key, no account, no network after the install. `PRAXIS_LLM_PROVIDER=mock`
+is the default and the primary path, not a fallback — CI runs on it too.
 
 ```bash
 git clone https://github.com/SihanUdayaratna03/praxis.git && cd praxis
@@ -131,10 +26,9 @@ uv run praxis init            # create the store
 uv run praxis demo seed       # load Praxis's own history into it
 ```
 
-`praxis demo seed` reads this repository's own `docs/adr/` and
-`docs/dogfood/` — 36 architecture decisions, the 149 assumptions they rest on,
-and 13 phase estimates with their outcomes — then runs the monitor over them.
-It writes 621 records and prints this:
+`praxis demo seed` reads this repository's own `docs/adr/` and `docs/dogfood/` —
+37 architecture decisions, the 152 assumptions they rest on, and 13 phase
+estimates with their outcomes — writes 621 records, and runs the monitor:
 
 ```
 152 predicate(s) evaluated against docs/dogfood/facts.json — 1 breached
@@ -145,11 +39,11 @@ It writes 621 records and prints this:
 ```
 
 **That is a real finding about this repository, not a fixture.** ADR 0011 chose
-learned segmentation over a paragraph grid in Phase 3 and staked the choice on a
-number nobody could measure yet. Phase 10's eval harness measured it. The two
-approaches scored an identical F1 of 0.1250, the difference is 0.0000 against a
-required 0.05, and the decision that rested on it is now flagged for review by
-the system it is part of. The whole story is in
+learned segmentation over a paragraph grid and staked the choice on a number
+nobody could measure yet. The eval harness later measured it: both approaches
+scored an identical F1 of 0.1250, a difference of 0.0000 against a required
+0.05, and the decision resting on it is now flagged for review by the system it
+is part of. The write-up is in
 [`docs/reports/phase-10.md`](docs/reports/phase-10.md).
 
 Then look at it:
@@ -158,10 +52,9 @@ Then look at it:
 uv run praxis serve           # http://127.0.0.1:8000
 ```
 
-Eight views over the same store: the decisions and what each one assumes, the
-assumption health breakdown, the calibration lens, the review queue and the
-append-only audit trail. Read-only — the API declares no HTTP method but `GET`,
-and a test asserts it.
+Eight read-only views over the same store: the decisions and what each assumes,
+assumption health, the calibration lens, the review queue, the append-only audit
+trail. The API declares no HTTP method but `GET`, and a test asserts it.
 
 ```bash
 uv run praxis calibrate       # what this project's estimates say about its author
@@ -169,84 +62,190 @@ uv run praxis doctor          # verify the install needs no credentials
 uv run praxis config          # resolved settings and the model routing table
 ```
 
-`praxis calibrate` is where the second half speaks. It measures one group and
-refuses four, by name and with a reason:
+`praxis calibrate` is where the second half speaks — and mostly refuses:
 
 ```
-claude-opus-5: agent-implementation work is 1.5305x over, n=8, confidence=0.4476
-claude-opus-5 / data-modelling: n=1, 1 estimates, 1 resolved
-claude-opus-5 / frontend: n=1, 1 estimates, 1 resolved
-claude-opus-5 / llm-integration: n=1, 1 estimates, 1 resolved
-claude-opus-5 / scaffolding: n=1, 2 estimates, 1 resolved
+groups     5 read, 1 with enough history
+  claude-opus-5: agent-implementation work is 1.5305x over, n=8, confidence=0.4476
+  claude-opus-5 / scaffolding: n=2, 2 estimates, 2 resolved
+  claude-opus-5 / data-modelling: n=1, 1 estimates, 1 resolved
+  claude-opus-5 / frontend: n=1, 1 estimates, 1 resolved
+  claude-opus-5 / llm-integration: n=1, 1 estimates, 1 resolved
 ```
 
 **Four refusals beside one answer is the product working, not failing.**
 `BiasDetective` will not state a factor below five resolved outcomes and there
-is no override — see
+is no override —
 [ADR 0024](docs/adr/0024-dispersion-widens-the-band-and-only-n-refuses.md).
 
 Structured logs go to stderr, so `2>/dev/null` gives you the tables alone.
 
-**Where the store goes.** By default it is one per user, not one per checkout —
+**Where the store goes.** One per user by default, not one per checkout —
 `%LOCALAPPDATA%\praxis` on Windows, `~/.local/share/praxis` elsewhere — so two
-clones share it ([ADR 0010](docs/adr/0010-store-location-under-a-syncing-filesystem.md)
-explains why it is deliberately not the working directory). `PRAXIS_DATA_DIR`
-overrides it, and `cp .env.example .env` sets it to `.praxis` beside the code if
-you would rather keep one store per checkout:
+clones share it
+([ADR 0010](docs/adr/0010-store-location-under-a-syncing-filesystem.md) explains
+why it is deliberately not the working directory). Seeding a store that already
+holds decisions is **refused**, not repeated, because the store is append-only.
+Point `PRAXIS_DATA_DIR` at an empty directory, or `cp .env.example .env` to keep
+one store per checkout.
 
-```bash
-export PRAXIS_DATA_DIR=/some/empty/directory   # or: cp .env.example .env
+---
+
+## Architecture
+
+Ingestion verifies, both halves read the store, and the fusion layer is the only
+component that needs both.
+
+```mermaid
+flowchart TB
+    SRC["sources — md, txt, json"] --> ING
+
+    subgraph ING["Ingestion"]
+        direction LR
+        SA["SourceAdapter"] --> SEG["SegmenterAgent"] --> VER["VerifierAgent<br/>every claim cites a real span"]
+    end
+
+    ING --> A
+    ING --> B
+
+    subgraph A["Half A — provenance"]
+        direction TB
+        A1["DecisionScout<br/>DecisionStructurer"]
+        A2["AssumptionExtractor<br/>AssumptionFormalizer"]
+        A3["AssumptionMonitor<br/>ContradictionDetector"]
+        A1 --> A2 --> A3
+    end
+
+    subgraph B["Half B — calibration"]
+        direction TB
+        B1["EstimateExtractor<br/>WorkClassifier"]
+        B2["OutcomeMatcher"]
+        B3["BiasDetective · ScoringAgent<br/>arithmetic, never a model"]
+        B1 --> B2 --> B3
+    end
+
+    A --> F
+    B --> F
+
+    subgraph F["Fusion layer"]
+        direction LR
+        FB["FusionBridge"]
+        CA["CollateralAgent"]
+        RT["ReviewTriageAgent"]
+    end
+
+    F --> G["Governance — ChallengerAgent, CuratorAgent, AbstentionGate"]
+    G --> W["Dashboard · read-only GET"]
+
+    STORE[("Store — SQLite, append-only<br/>every change a new version + AuditEvent")]
+    SEAM["Provider seam<br/>mock · anthropic · replay"]
+
+    ING <--> STORE
+    A <--> STORE
+    B <--> STORE
+    F <--> STORE
+    G <--> STORE
+    W --> STORE
+
+    ING <--> SEAM
+    A <--> SEAM
+    B <--> SEAM
 ```
 
-Seeding a store that already holds decisions is **refused**, not repeated — the
-store is append-only, so a second seed would duplicate every decision rather
-than replace it. The refusal names the fix:
+The store and the provider seam are the spine: nothing enters the store without
+passing `VerifierAgent`, and nothing reaches a model except through
+`LLMProvider`. Full detail in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
+### The fusion mechanism
+
+The judgement is made once, early, and written down as an edge; everything after
+it is arithmetic. A finding is raised **only if the verdict flipped** — the raw
+estimate satisfied the predicate and the calibrated one violates it.
+
+```mermaid
+flowchart LR
+    D["Decision"] -- assumes --> AS["Assumption"]
+    AS -- estimated_as --> E["Estimate"]
+
+    AS -- "compiled by<br/>AssumptionFormalizer" --> P["migration_weeks &lt;= 6"]
+    E -- "(owner, work_class)" --> BD["BiasDetective<br/>one indexed read<br/>+ arithmetic"]
+
+    HIST[("calibration history —<br/>resolved outcomes<br/>in that work class")] --> BD
+    BD -- "factor, n, band, confidence<br/>refuses below n = 5" --> MUL["raw × factor"]
+
+    P --> EV{"evaluate twice:<br/>raw, then calibrated"}
+    MUL --> EV
+    EV -- "verdict FLIPPED" --> SD["StaleDecision<br/>a projection, never a breach"]
+    EV -- "merely corrected" --> NOP["nothing filed"]
+
+    OUT["Outcome misses"] --> CA["CollateralAgent<br/>walks the impact DAG back"] --> D
 ```
-praxis: the store already holds 37 decision(s)
-  the store is append-only, so seeding again would duplicate them
-  point PRAXIS_DATA_DIR at an empty directory and run praxis init
-```
 
-### The extraction pipeline, on a synthetic corpus
+Two properties keep it honest: only `praxis.predicates` — a total three-valued
+evaluator — can reach a violation, so no model can declare a breach
+([ADR 0019](docs/adr/0019-only-arithmetic-can-breach-and-writes-happen-on-change.md));
+and a calibrated flip is filed as a `StaleDecision`, never an
+`AssumptionBreach`, because nothing has been measured yet
+([ADR 0028](docs/adr/0028-a-projection-is-not-a-breach.md)). The mechanism, the
+refusals and what is *not* built are set out in
+[`docs/FUSION.md`](docs/FUSION.md).
 
-The demo above seeds from committed history. To watch the agents actually read
-documents, generate the graded corpus instead:
+---
 
-```bash
-export PRAXIS_DATA_DIR=.praxis-corpus                # a second store, not the demo's
-uv run praxis init                                   # create it
-uv run praxis corpus generate .praxis-tmp/corpus     # 82 documents + answer key
-uv run praxis ingest .praxis-tmp/corpus/documents    # documents -> verified spans
-uv run praxis extract                                # spans -> decisions, assumptions, estimates
-uv run praxis store stats                            # what the store holds
+## Runs with no API key, by design
 
-uv run praxis eval .praxis-tmp/corpus                # grade it against the key
-uv run praxis eval .praxis-tmp/corpus --ablate       # and rung by rung
-```
+| Provider | Use |
+| -------- | --- |
+| `mock` *(default)* | Deterministic, offline, zero credentials. Drives the full pipeline, test suite, eval harness, CLI and dashboard. |
+| `anthropic` | Live models. |
+| `replay` | Replays recorded responses from fixture files. |
 
-The separate `PRAXIS_DATA_DIR` matters: the store is append-only, so seeding the
-demo and ingesting a corpus into one store leaves you reading both at once.
+Switching is one environment variable: `PRAXIS_LLM_PROVIDER=mock | anthropic |
+replay`. This is not a workaround for a missing key. Agent systems are only
+testable if the model layer is swappable and reproducible: deterministic replay
+is what lets CI assert on agent behaviour, what makes evaluation results
+comparable between commits, and what makes a bug reproducible rather than
+anecdotal.
 
-`praxis eval` prints precision, recall and field accuracy per record kind, how
-often a citation survived the gate, the recall over the `estimated_as` edges the
-corpus labels — the fusion relationship the product exists to find — and cost
-per document per agent. `--ablate` runs the same grading over seven cumulative
-rungs, each in a store of its own, so every component's contribution is a row
-rather than an assertion. See
-[`docs/reports/phase-10.md`](docs/reports/phase-10.md) for the table it produced.
+Offline, the extraction numbers measure the plumbing rather than a model, and
+the reports say so beneath their own tables.
 
-Offline those numbers measure the plumbing rather than a model, and the report
-says so beneath itself rather than only here.
+---
+
+## State
+
+| | |
+| --- | --- |
+| Tests | **3431 passed**, coverage **98.57%** (gate 85%) |
+| ADRs | **37**, each written in Praxis's own schema |
+| ADR predicates that parse | 151 of 152 — **0.9934** |
+| Store schema | version 4 |
+| Demo store | 621 records, 1 breach |
 
 Run the checks exactly as CI does:
 
 ```bash
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy
+uv run ruff check . && uv run ruff format --check .
+uv run mypy                   # strict, over praxis/
 uv run pytest
 ```
+
+### The extraction pipeline, on a synthetic corpus
+
+To watch the agents read documents rather than seed from committed history:
+
+```bash
+export PRAXIS_DATA_DIR=.praxis-corpus                # a second store, not the demo's
+uv run praxis init
+uv run praxis corpus generate .praxis-tmp/corpus     # 82 documents + answer key
+uv run praxis ingest .praxis-tmp/corpus/documents    # documents -> verified spans
+uv run praxis extract                                # spans -> decisions, assumptions, estimates
+uv run praxis eval .praxis-tmp/corpus                # grade it against the key
+uv run praxis eval .praxis-tmp/corpus --ablate       # and rung by rung
+```
+
+`--ablate` grades seven cumulative rungs, each in a store of its own, so every
+component's contribution is a row rather than an assertion.
 
 ---
 
@@ -272,41 +271,43 @@ tests/           pytest + hypothesis
 docs/adr/        architecture decision records, written in Praxis's own schema
 docs/reports/    one report per phase: what shipped, what the metrics said
 docs/dogfood/    Praxis's predictions about its own construction, and the facts
-docs/FUSION.md   the claim the whole product exists to make, in detail
-.claude/         Claude Code hooks and conventions used to build this repo
 ```
 
 ---
 
-## Built with Claude Code, deliberately
+## Going deeper
 
-This repository is also an argument about how to build with an agentic coding
-tool, so the mechanics are committed rather than described:
+| | |
+| --- | --- |
+| [`docs/PITCH.md`](docs/PITCH.md) | Twenty minutes: the demo, the four things worth looking at, and what is not true yet |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Every component, what is built, and the data model |
+| [`docs/FUSION.md`](docs/FUSION.md) | The claim the product exists to make, and what is not built |
+| [`docs/adr/`](docs/adr/) | 37 decisions with their assumptions, predicates and expiry conditions |
+| [`docs/reports/`](docs/reports/) | What each phase delivered and what the metrics said |
+| [`BACKLOG.md`](BACKLOG.md) | Known work, with the reason it was deferred |
 
-- [`CLAUDE.md`](CLAUDE.md) holds the conventions and the invariants that must
-  never break — it is loaded into every session.
-- [`.claude/hooks/`](.claude/hooks/) enforces the rules that actually matter
-  deterministically instead of trusting prose: secrets can't be written, `main`
-  can't be committed to directly, and `ruff`/`mypy` run after every edit.
-- Model routing (cheap model for high-recall scanning, strong model for
-  reasoning) is a recorded decision, not an accident — see
-  [`docs/adr/0006-model-routing-table.md`](docs/adr/0006-model-routing-table.md).
+---
 
-## Dogfooding
+## How this was built
 
-Praxis is run against its own development history. Every architectural decision
-is an ADR written in Praxis's own schema, complete with assumptions and expiry
-conditions. Every estimate of how long a phase would take is logged as a
-prediction in [`docs/dogfood/estimates.jsonl`](docs/dogfood/estimates.jsonl),
-and the real duration is fed back as an outcome when the phase closes.
+Praxis was built with Claude Code in numbered phases, under continuous human
+architectural review — each phase estimated before the work started, merged only
+through a reviewed CI-green merge commit, and closed with a report and a
+recorded outcome. The git history and [`docs/adr/`](docs/adr/) are the record of
+that process rather than a description of it: the conventions the sessions
+worked under are in [`CLAUDE.md`](CLAUDE.md), and the rules that mattered are
+enforced deterministically by [`.claude/hooks/`](.claude/hooks/) instead of
+trusted as prose — secrets cannot be written, `main` cannot be committed to
+directly, and `ruff`/`mypy` run after every edit.
 
-In the final phase Praxis analysed the record of its own construction and
-reported where its author was wrong. The write-up is the last file in
-[`docs/reports/`](docs/reports/); the short version is
-that one architectural decision is standing on a measurement that contradicts
-it, that this author over-estimates `agent-implementation` work by 1.53× at
-n = 8, and that the correction — once he started applying it — moved him from
-1.80× over to 1.17× over.
+That history is also the corpus. Every architectural decision is an ADR in
+Praxis's own schema with assumptions and expiry conditions; every phase estimate
+was logged in [`docs/dogfood/estimates.jsonl`](docs/dogfood/estimates.jsonl)
+**before** the work began, and the real duration appended as an outcome when the
+phase closed. Which is why the demo above is Praxis reporting where its author
+was wrong: one architectural decision is standing on a measurement that
+contradicts it, this author over-estimates `agent-implementation` work by 1.53×
+at n = 8, and applying that correction moved him from 1.80× over to 1.17× over.
 
 ## License
 
