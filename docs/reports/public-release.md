@@ -81,3 +81,33 @@ Everything in `docs/reports/NEXT.md` under "What a next phase would pick up":
 ceiling before the first live run, the routing experiment ADR 0038 specifies,
 the zero `estimated_as` edges that should not be seeded, and `n` as the binding
 constraint on every calibration answer.
+
+## One thing that happened after this file was first written
+
+`v1.0.0` was pushed at `1523ca5`. Nine minutes later a direct web commit to
+`main` — `3255c72`, "Update README.md" — deleted the whole
+`## How this was built` section, leaving an orphaned `---` rule above
+`## License`. CI passed on it: nothing in `tests/test_readme.py` asserts that
+section exists.
+
+It was flagged rather than acted on, and the product owner directed that it be
+restored. PR #27 restores it byte-identical to its state at `1523ca5`, and
+`v1.0.0` was re-pointed from `1523ca5` to `cac428e` so the release and the
+default branch are the same tree. That re-point deleted and re-created `v1.0.0`
+alone; all thirteen `v0.N-phase-N` tag objects were verified against the remote
+afterwards and are unchanged.
+
+Two things are worth noting for whoever reads this next.
+
+**A web edit goes around every guard this project has.**
+`guard_git_workflow.py` and the `don't commit to branch` pre-commit hook stop a
+commit to `main` from a working copy; neither is in the path of the GitHub web
+editor. Invariant 8 is a convention on the remote, enforced locally.
+
+**The README's load-bearing prose is only as durable as the test that pins it.**
+`tests/test_readme.py` holds four claims — the demo command, the serve command,
+the breach predicate and `PRAXIS_LLM_PROVIDER=mock` — and the seed count, by
+matching literal strings. It caught this round's own rewrite when the phrase
+`It writes N records` was reworded. It did not catch a 20-line deletion, because
+nothing named that section. A claim this project wants kept belongs in that
+parametrised list, not in prose alone.
