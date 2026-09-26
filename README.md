@@ -28,7 +28,7 @@ uv run praxis demo seed       # load Praxis's own history into it
 
 `praxis demo seed` reads this repository's own `docs/adr/` and `docs/dogfood/` —
 37 architecture decisions, the 152 assumptions they rest on, and 13 phase
-estimates with their outcomes — writes 621 records, and runs the monitor:
+estimates with their outcomes. It writes 621 records and runs the monitor:
 
 ```
 152 predicate(s) evaluated against docs/dogfood/facts.json — 1 breached
