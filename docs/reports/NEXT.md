@@ -1546,3 +1546,9 @@ renders.
 before a first live run, the ADR 0038 routing experiment, the zero
 `estimated_as` edges, and `n` as the binding constraint all still stand exactly
 as Phase 12 left them.
+
+**Postscript.** After `v1.0.0` was pushed, a direct web commit to `main`
+deleted the README's `## How this was built` section. It was restored by
+PR #27 at the product owner's direction and `v1.0.0` re-pointed to `cac428e`
+so the release matches the default branch. The thirteen phase tags were
+verified unchanged against the remote. See `public-release.md`.
