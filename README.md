@@ -288,7 +288,26 @@ docs/dogfood/    Praxis's predictions about its own construction, and the facts
 
 ---
 
+## How this was built
 
+Praxis was built with Claude Code in numbered phases, under continuous human
+architectural review — each phase estimated before the work started, merged only
+through a reviewed CI-green merge commit, and closed with a report and a
+recorded outcome. The git history and [`docs/adr/`](docs/adr/) are the record of
+that process rather than a description of it: the conventions the sessions
+worked under are in [`CLAUDE.md`](CLAUDE.md), and the rules that mattered are
+enforced deterministically by [`.claude/hooks/`](.claude/hooks/) instead of
+trusted as prose — secrets cannot be written, `main` cannot be committed to
+directly, and `ruff`/`mypy` run after every edit.
+
+That history is also the corpus. Every architectural decision is an ADR in
+Praxis's own schema with assumptions and expiry conditions; every phase estimate
+was logged in [`docs/dogfood/estimates.jsonl`](docs/dogfood/estimates.jsonl)
+**before** the work began, and the real duration appended as an outcome when the
+phase closed. Which is why the demo above is Praxis reporting where its author
+was wrong: one architectural decision is standing on a measurement that
+contradicts it, this author over-estimates `agent-implementation` work by 1.53×
+at n = 8, and applying that correction moved him from 1.80× over to 1.17× over.
 
 ## License
 
