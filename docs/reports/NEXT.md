@@ -1508,3 +1508,41 @@ contents first. That is a decision for outside a phase.
   tests after. `considered` moves 12 to 13 and `scored` stays at 3:
   `scaffolding` at n=2 has one row before the second and is four short of
   correcting from.
+
+---
+
+## After Phase 12 — the public release round
+
+Not a phase, and no estimate was logged for it. Full write-up in
+[`public-release.md`](public-release.md).
+
+| | |
+| --- | --- |
+| Branch | `chore/public-release`, 4 commits |
+| Suite | **3431 passed**, coverage **98.57%** — re-verified, unchanged |
+| Secret scan | `gitleaks git` over all 358 non-merge commits: **no leaks** |
+| Tag | `v1.0.0` on `main`, alongside every `v0.N-phase-N` tag |
+
+Three things resolved that had been carrying over:
+
+- **The README leads with the product**, not the phase table. Its numbers were
+  re-measured against a clean store — 37 decisions, 152 assumptions, 621
+  records — because the old ones (36 and 149) had drifted. Two Mermaid
+  diagrams, both rendered with `mermaid-cli` before commit.
+- **`includeCoAuthoredBy` is now `false`** in the committed project settings.
+  It had never been set, so it had been defaulting to on.
+- **`.codex/` and `AGENTS.md` are gitignored.** Untracked since Phase 8 and
+  flagged in six handovers. `.codex/hooks.json` hardcodes absolute paths under
+  the author's home directory and `AGENTS.md` is a copy of `CLAUDE.md` that
+  stopped tracking it at Phase 8. The four untracked paths are now two:
+  `manual-docs/` and `my-corpus/`, still untracked and still not ignored.
+
+Nothing else moved. No commit message rewritten, no tag renamed, no "Phase N"
+language removed from the reports, the ADRs or the dogfood logs — ADR 0007
+settled that, and the estimate subjects are the calibration data the demo
+renders.
+
+**The carry-forward list above is unchanged.** `record_head`, the cost ceiling
+before a first live run, the ADR 0038 routing experiment, the zero
+`estimated_as` edges, and `n` as the binding constraint all still stand exactly
+as Phase 12 left them.
