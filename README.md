@@ -1,4 +1,4 @@
-                          # Welcome Praxis
+   # Welcome to Praxis
 
 **Decisions and estimates are the same kind of object, so Praxis makes them
 argue with each other.** A decision is captured with the assumptions it rests
