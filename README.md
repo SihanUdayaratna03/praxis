@@ -1,4 +1,4 @@
-# Praxis
+                          # Welcome Praxis
 
 **Decisions and estimates are the same kind of object, so Praxis makes them
 argue with each other.** A decision is captured with the assumptions it rests
@@ -62,16 +62,6 @@ uv run praxis doctor          # verify the install needs no credentials
 uv run praxis config          # resolved settings and the model routing table
 ```
 
-`praxis calibrate` is where the second half speaks — and mostly refuses:
-
-```
-groups     5 read, 1 with enough history
-  claude-opus-5: agent-implementation work is 1.5305x over, n=8, confidence=0.4476
-  claude-opus-5 / scaffolding: n=2, 2 estimates, 2 resolved
-  claude-opus-5 / data-modelling: n=1, 1 estimates, 1 resolved
-  claude-opus-5 / frontend: n=1, 1 estimates, 1 resolved
-  claude-opus-5 / llm-integration: n=1, 1 estimates, 1 resolved
-```
 
 **Four refusals beside one answer is the product working, not failing.**
 `BiasDetective` will not state a factor below five resolved outcomes and there
